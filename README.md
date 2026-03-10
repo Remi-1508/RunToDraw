@@ -1,38 +1,16 @@
-# RunToDraw
+# React + Vite
 
-RunToDraw est une application web qui permet de générer des parcours de course ou de marche dessinant des formes sur une carte.
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-L'idée du projet est d'utiliser le réseau de rues réel pour créer des tracés qui, une fois parcourus, dessinent une forme (mot, symbole, etc.).
+Currently, two official plugins are available:
 
-## Fonctionnement actuel
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
 
-Pour le moment l'application permet de :
+## React Compiler
 
-- choisir une position de départ (adresse ou position actuelle)
-- choisir une distance
-- récupérer le réseau de rues de la zone correspondante à partir des données OpenStreetMap
-- transformer ces données en graphe
-- afficher ce graphe sur une carte
-- exporter le graphe au format JSON
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
-Cela constitue la base pour la suite du projet.
+## Expanding the ESLint configuration
 
-## Suite du projet
-
-L'objectif est maintenant d'utiliser ce graphe pour identifier des formes dans le réseau de rues et générer un parcours correspondant.
-
-Le MVP consistera à identifier une forme simple (comme un carré) dans le graphe.  
-Ensuite l'objectif sera d'identifier des formes plus complexes pour pouvoir écrire des lettres ou des symboles.
-
-## Technologies utilisées
-
-- React
-- Leaflet
-- OpenStreetMap
-- Overpass API
-
-## Auteur
-
-Projet réalisé dans le cadre du P2i à l'ENSC.
-
-Rémi Monier
+If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
