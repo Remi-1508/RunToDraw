@@ -39,7 +39,8 @@ Ensuite, l’objectif sera d’identifier des formes plus complexes pour pouvoir
 Cloner le projet, puis installer les dépendances :
 
 ```
-git clone 
+git clone https://github.com/Remi-1508/RunToDraw.git
+cd RunToDraw
 npm install
 ```
 
