@@ -39,6 +39,7 @@ Ensuite, l’objectif sera d’identifier des formes plus complexes pour pouvoir
 Cloner le projet, puis installer les dépendances :
 
 ```
+git clone 
 npm install
 ```
 
