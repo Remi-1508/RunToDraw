@@ -38,13 +38,17 @@ Ensuite, l’objectif sera d’identifier des formes plus complexes pour pouvoir
 
 Cloner le projet, puis installer les dépendances :
 
-```bash
+```
 npm install
+```
 
 Lancer l’application :
 
+```
 npm run dev
-Auteur
+```
+
+## Auteur
 
 Rémi Monier
 Projet P2i – ENSC
