@@ -85,7 +85,8 @@ Avant de lancer le projet, vérifier que les outils suivants sont installés :
 
 ## Cloner le projet
 
-git clone <url-du-repository>
+git clone https://github.com/Remi-1508/RunToDraw.git
+
 cd RunToDraw
 
 ### Ici, il faut ouvrir un terminal pour le backend, et un pour le frontend
@@ -94,13 +95,17 @@ cd RunToDraw
 ## Terminal/Onglet backend
 
 cd RunToDraw/backend
+
 python -m pip install -r requirements.txt
+
 python -m uvicorn app:app --reload --port 8000
 
 ## Terminal/Onglet frontend
 
 cd RunToDraw/frontend
+
 npm install
+
 npm run dev
 
 ---
