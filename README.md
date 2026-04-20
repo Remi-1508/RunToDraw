@@ -102,7 +102,7 @@ python -m uvicorn app:app --reload --port 8000
 
 ## Terminal/Onglet frontend
 
-cd RunToDraw/frontend
+cd RunToDraw/runtodraw_frontend
 
 npm install
 
