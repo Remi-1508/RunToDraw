@@ -74,59 +74,36 @@ Les itinéraires peuvent être exportés en :
 
 # Installation
 
+## Prérequis
+
+Avant de lancer le projet, vérifier que les outils suivants sont installés :
+
+- Python 3.10 minimum
+- Node.js 18 minimum
+- npm (installé avec Node.js)
+- Git
+
 ## Cloner le projet
 
-git clone https://github.com/Remi-1508/RunToDraw.git
-
+git clone <url-du-repository>
 cd RunToDraw
 
-# Installation du backend (Python)
+### Ici, il faut ouvrir un terminal pour le backend, et un pour le frontend
+### Je vous conseille d'ouvir deux onglets VSCode
 
-## Créer un environnement virtuel
+## Terminal/Onglet backend
 
-python -m venv venv
+cd RunToDraw/backend
+python -m pip install -r requirements.txt
+python -m uvicorn app:app --reload --port 8000
 
-# Installation du backend (Python)
+## Terminal/Onglet frontend
 
-## Créer un environnement virtuel
-
-python -m venv venv
-
-# Activer l’environnement
-
-## Windows
-
-venv\Scripts\activate
-
-## Mac / Linux
-
-source venv/bin/activate
-
-## Installer les dépendances
-
-pip install fastapi uvicorn requests numpy matplotlib
-
-## Lancer le backend
-
-uvicorn app:app --reload
-
-Le backend sera disponible sur : http://localhost:8000
-
-# Installation du frontend
-
-## Se placer dans le dossier frontend
-
-cd frontend
-
-## Installer les dépendances
-
+cd RunToDraw/frontend
 npm install
-
-## Lancer le projet
-
 npm run dev
 
-Le frontend sera généralement disponible sur : http://localhost:5173
+---
 
 #Utilisation
 
