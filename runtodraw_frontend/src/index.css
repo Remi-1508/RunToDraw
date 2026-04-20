@@ -1,0 +1,141 @@
+:root {
+  --bg: #f3f4f7;
+  --bg-elevated: #eef1f6;
+  --card: rgba(255, 255, 255, 0.82);
+  --card-muted: rgba(248, 249, 252, 0.92);
+  --overlay: rgba(255, 255, 255, 0.7);
+  --overlay-strong: rgba(255, 255, 255, 0.86);
+  --text: #111319;
+  --text-soft: #667085;
+  --border: rgba(17, 19, 25, 0.09);
+  --border-subtle: rgba(17, 19, 25, 0.06);
+  --border-strong: rgba(17, 19, 25, 0.16);
+  --input: rgba(255, 255, 255, 0.92);
+  --input-border: rgba(17, 19, 25, 0.08);
+  --chip: rgba(10, 132, 255, 0.09);
+  --accent-soft: rgba(10, 132, 255, 0.12);
+  --accent-strong: #0a84ff;
+  --button-blue: #007aff;
+  --button-green: #34c759;
+  --success-soft: rgba(52, 199, 89, 0.14);
+  --success-strong: #1f8f42;
+  --switch-off: rgba(120, 128, 140, 0.32);
+  --shadow-soft: 0 12px 34px rgba(17, 19, 25, 0.08);
+  --shadow-strong: 0 18px 44px rgba(17, 19, 25, 0.18);
+}
+
+:root[data-theme="dark"] {
+  --bg: #07090d;
+  --bg-elevated: #0b0e13;
+  --card: rgba(24, 28, 36, 0.82);
+  --card-muted: rgba(18, 22, 30, 0.92);
+  --overlay: rgba(18, 22, 30, 0.72);
+  --overlay-strong: rgba(15, 18, 25, 0.88);
+  --text: #f5f7fb;
+  --text-soft: #a7b0bf;
+  --border: rgba(255, 255, 255, 0.09);
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --input: rgba(22, 27, 36, 0.95);
+  --input-border: rgba(255, 255, 255, 0.08);
+  --chip: rgba(10, 132, 255, 0.16);
+  --accent-soft: rgba(10, 132, 255, 0.18);
+  --accent-strong: #4da3ff;
+  --button-blue: #0a84ff;
+  --button-green: #30d158;
+  --success-soft: rgba(48, 209, 88, 0.16);
+  --success-strong: #63d985;
+  --switch-off: rgba(120, 128, 140, 0.4);
+  --shadow-soft: 0 12px 34px rgba(0, 0, 0, 0.28);
+  --shadow-strong: 0 18px 44px rgba(0, 0, 0, 0.42);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body.app-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  transition: transform 140ms ease, opacity 140ms ease, background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+button:disabled {
+  transform: none;
+}
+
+input::placeholder {
+  color: var(--text-soft);
+}
+
+input:focus {
+  border-color: var(--accent-strong);
+  box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.12);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(127, 127, 127, 0.35);
+  border-radius: 999px;
+}
+
+.leaflet-container {
+  background: var(--bg);
+}
+
+.leaflet-control-zoom a {
+  background: var(--overlay-strong) !important;
+  color: var(--text) !important;
+  border-bottom-color: var(--border) !important;
+}
+
+.leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.68) !important;
+  color: #4b5563 !important;
+  backdrop-filter: blur(8px);
+}
+
+:root[data-theme="dark"] .leaflet-control-attribution {
+  background: rgba(15, 18, 25, 0.72) !important;
+  color: #c8d0dc !important;
+}
+
+@keyframes rtd-indeterminate {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(390%);
+  }
+}
