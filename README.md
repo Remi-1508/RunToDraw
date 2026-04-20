@@ -76,7 +76,8 @@ Les itinéraires peuvent être exportés en :
 
 ## Cloner le projet
 
-git clone <url-du-repository>
+git clone https://github.com/Remi-1508/RunToDraw.git
+
 cd RunToDraw
 
 # Installation du backend (Python)
