@@ -57,3 +57,34 @@ def test_plan_from_payload_text_mode_returns_split_plus_four_whole_word_routes()
     assert len(result["routes"]) == 5
     assert result["routes"][0]["variant"] == "Lettres indépendantes"
     assert len(result["routes"][0]["letters"]) == 3
+
+
+def test_plan_from_payload_reports_real_progress_up_to_one():
+    fractions = []
+    payload = {
+        "graph_payload": _grid_payload(),
+        "distance_km": 0.8,
+        "drawing": {"mode": "shape", "shape": "square"},
+        "tolerance_ratio": 0.10,
+    }
+    planner.plan_from_payload(payload, progress_callback=fractions.append)
+
+    assert fractions[-1] == 1.0
+    assert fractions == sorted(fractions)  # progression strictement croissante
+    assert all(0.0 <= f <= 1.0 for f in fractions)
+    # Un point de progression par candidat évalué (216 pour un carré), plus
+    # l'appel final à 1.0.
+    assert len(fractions) > 100
+
+
+def test_plan_from_payload_text_mode_progress_reaches_one():
+    fractions = []
+    payload = {
+        "graph_payload": _grid_payload(),
+        "distance_km": 0.8,
+        "drawing": {"mode": "text", "text": "RUN"},
+        "tolerance_ratio": 0.10,
+    }
+    planner.plan_from_payload(payload, progress_callback=fractions.append)
+    assert fractions[-1] == 1.0
+    assert fractions == sorted(fractions)

@@ -11,6 +11,7 @@ Deux résultats sont conservés par recherche :
 """
 
 import math
+from concurrent.futures import as_completed
 
 import numpy as np
 
@@ -21,6 +22,11 @@ from .shapes import GLYPHS, single_letter_polyline
 _TEXT_CANDIDATE_SAMPLES = 60
 _SHAPE_CANDIDATE_SAMPLES = 72
 _LETTER_CANDIDATE_SAMPLES = 64
+
+# Nombre fixe de candidats testés par lettre en mode "lettres indépendantes"
+# (7 centres locaux x 5 angles x 5 tailles) : utile pour annoncer un total de
+# candidats à l'avance, avant de lancer la recherche (voir planner.py).
+_LETTER_CANDIDATES_PER_LETTER = 7 * 5 * 5
 
 
 # ---------------------------------------------------------------------------
@@ -228,20 +234,53 @@ def evaluate_candidate(graph, base_points, center, size_m, angle_deg, desired_di
     }
 
 
-def _evaluate_all(graph, jobs, executor):
+def _evaluate_all(graph, jobs, executor, on_progress=None):
     """Évalue une liste de jobs (arguments positionnels de evaluate_candidate).
 
     Threads partageant le même graphe en mémoire : pas de reconstruction ni
     de sérialisation nécessaires, juste une répartition du travail.
+    `on_progress()`, si fourni, est appelé une fois par candidat terminé —
+    c'est ce qui alimente la progression réelle d'une génération (voir
+    `jobs.py`), plutôt qu'une barre de chargement simulée.
     """
     if executor is None:
-        return [evaluate_candidate(graph, *job) for job in jobs]
+        results = []
+        for job in jobs:
+            results.append(evaluate_candidate(graph, *job))
+            if on_progress:
+                on_progress()
+        return results
 
     futures = [executor.submit(evaluate_candidate, graph, *job) for job in jobs]
-    return [f.result() for f in futures]
+    results = []
+    for future in as_completed(futures):
+        results.append(future.result())
+        if on_progress:
+            on_progress()
+    return results
 
 
-def evaluate_method(graph, base_points, desired_distance_m, tolerance_ratio, shape_name, method_name, executor=None):
+def count_variant_candidates(graph, base_points, desired_distance_m, shape_name):
+    """Nombre total de candidats qu'évaluerait evaluate_method pour les deux méthodes.
+
+    Permet de connaître à l'avance le total de travail d'une recherche de
+    forme, avant de la lancer (pour annoncer une progression réelle).
+    """
+    return sum(
+        len(global_search_candidates(graph, base_points, desired_distance_m, shape_name, use_translation))
+        for use_translation in (False, True)
+    )
+
+
+def count_split_text_candidates(text):
+    """Nombre total de candidats qu'évaluerait split_text_itineraries_full_distance."""
+    letters = [ch for ch in (text or "").upper() if ch != " " and ch in GLYPHS]
+    n_letters = max(len(letters), 1)
+    return n_letters * _LETTER_CANDIDATES_PER_LETTER
+
+
+def evaluate_method(graph, base_points, desired_distance_m, tolerance_ratio, shape_name, method_name, executor=None,
+                     on_progress=None):
     """Évalue tous les candidats d'une méthode (projection ou translation).
 
     Garde le candidat le plus proche de la distance demandée, et le meilleur
@@ -257,7 +296,7 @@ def evaluate_method(graph, base_points, desired_distance_m, tolerance_ratio, sha
          {"center_x": float(center[0]), "center_y": float(center[1])})
         for center, size_m, angle_deg in candidates
     ]
-    evaluated = _evaluate_all(graph, jobs, executor)
+    evaluated = _evaluate_all(graph, jobs, executor, on_progress=on_progress)
 
     feasible = [e for e in evaluated if e["metrics"]["over_max"] <= 1e-6]
 
@@ -310,7 +349,8 @@ def evaluate_method(graph, base_points, desired_distance_m, tolerance_ratio, sha
 # à comparer au mot complet (search.evaluate_method avec shape_name="text").
 # ---------------------------------------------------------------------------
 
-def split_text_itineraries_full_distance(graph, text, per_letter_distance_m, tolerance_ratio, executor=None):
+def split_text_itineraries_full_distance(graph, text, per_letter_distance_m, tolerance_ratio, executor=None,
+                                          on_progress=None):
     letters = [ch for ch in (text or "").upper() if ch != " " and ch in GLYPHS]
     if not letters:
         letters = ["P"]
@@ -369,7 +409,7 @@ def split_text_itineraries_full_distance(graph, text, per_letter_distance_m, tol
             for ang in angles
             for size in sizes
         ]
-        evaluated = [dict(item, letter=ch) for item in _evaluate_all(graph, jobs, executor)]
+        evaluated = [dict(item, letter=ch) for item in _evaluate_all(graph, jobs, executor, on_progress=on_progress)]
 
         feasible = [e for e in evaluated if e["metrics"]["over_max"] <= 1e-6]
 

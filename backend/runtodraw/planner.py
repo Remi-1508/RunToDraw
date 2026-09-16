@@ -5,12 +5,18 @@ le graphe routier, lance la recherche pour la forme ou le texte demandé, et
 met les résultats en forme pour le frontend.
 """
 
+import threading
 from typing import Any, Dict
 
 from . import geometry as geo
 from . import parallel
 from .graph import RoadGraph
-from .search import evaluate_method, split_text_itineraries_full_distance
+from .search import (
+    count_split_text_candidates,
+    count_variant_candidates,
+    evaluate_method,
+    split_text_itineraries_full_distance,
+)
 from .shapes import get_base_shape
 
 _METHODS = [("projection", "Projection"), ("translation", "Translation")]
@@ -40,11 +46,11 @@ def _build_segment(graph, candidate, label):
 
 
 def _build_variant_routes(graph, base_points, distance_m, tolerance_ratio, shape_name, route_label, segment_label,
-                           executor=None):
+                           executor=None, on_progress=None):
     """Construit les 4 propositions (projection/translation x distance/compromis) pour une forme."""
     results = {
         method_name: evaluate_method(graph, base_points, distance_m, tolerance_ratio, shape_name, method_name,
-                                      executor=executor)
+                                      executor=executor, on_progress=on_progress)
         for method_name, _ in _METHODS
     }
 
@@ -66,7 +72,7 @@ def _build_variant_routes(graph, base_points, distance_m, tolerance_ratio, shape
     return routes
 
 
-def build_shape_routes(graph, drawing, distance_m, tolerance_ratio, executor=None):
+def build_shape_routes(graph, drawing, distance_m, tolerance_ratio, executor=None, on_progress=None):
     """Propositions d'itinéraires pour une forme classique (cœur, carré, cercle...)."""
     shape = drawing.get("shape", "heart")
     text = drawing.get("text", "P2I")
@@ -75,14 +81,14 @@ def build_shape_routes(graph, drawing, distance_m, tolerance_ratio, executor=Non
 
     routes = _build_variant_routes(
         graph, base_points, distance_m, tolerance_ratio, shape,
-        route_label=label, segment_label=label, executor=executor,
+        route_label=label, segment_label=label, executor=executor, on_progress=on_progress,
     )
     for i, route in enumerate(routes, start=1):
         route["id"] = f"route-{i}"
     return routes
 
 
-def build_text_routes(graph, drawing, distance_m, tolerance_ratio, executor=None):
+def build_text_routes(graph, drawing, distance_m, tolerance_ratio, executor=None, on_progress=None):
     """Propositions d'itinéraires pour un texte : lettres indépendantes + mot complet.
 
     Les deux modes sont volontairement proposés côte à côte : sur une même
@@ -92,7 +98,9 @@ def build_text_routes(graph, drawing, distance_m, tolerance_ratio, executor=None
     """
     text = (drawing.get("text") or "P2I").upper()
 
-    split_results = split_text_itineraries_full_distance(graph, text, distance_m, tolerance_ratio, executor=executor)
+    split_results = split_text_itineraries_full_distance(
+        graph, text, distance_m, tolerance_ratio, executor=executor, on_progress=on_progress
+    )
 
     split_segments = []
     letters_summary = []
@@ -137,7 +145,7 @@ def build_text_routes(graph, drawing, distance_m, tolerance_ratio, executor=None
     base_points = get_base_shape("text", text)
     whole_word_routes = _build_variant_routes(
         graph, base_points, distance_m, tolerance_ratio, "text",
-        route_label=f"Mot complet {text}", segment_label=text, executor=executor,
+        route_label=f"Mot complet {text}", segment_label=text, executor=executor, on_progress=on_progress,
     )
 
     routes = [split_route] + whole_word_routes
@@ -146,8 +154,39 @@ def build_text_routes(graph, drawing, distance_m, tolerance_ratio, executor=None
     return routes
 
 
-def plan_from_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Point d'entrée principal appelé par l'API : calcule les itinéraires demandés."""
+def _make_progress_reporter(total_candidates, progress_callback):
+    """Convertit des incréments "un candidat de plus" en une fraction 0..1.
+
+    Le total est connu à l'avance (voir count_variant_candidates /
+    count_split_text_candidates), donc la progression reflète le travail
+    réellement fait, pas une barre de chargement simulée par un minuteur.
+
+    Les candidats sont évalués par plusieurs threads (voir parallel.py) : le
+    compteur et l'appel du callback sont protégés par un verrou pour éviter
+    de perdre des incréments, et pour garantir que la progression rapportée
+    est toujours croissante.
+    """
+    if progress_callback is None:
+        return None
+    done = {"n": 0}
+    total = max(total_candidates, 1)
+    lock = threading.Lock()
+
+    def on_progress():
+        with lock:
+            done["n"] += 1
+            progress_callback(min(done["n"] / total, 1.0))
+
+    return on_progress
+
+
+def plan_from_payload(payload: Dict[str, Any], progress_callback=None) -> Dict[str, Any]:
+    """Point d'entrée principal appelé par l'API : calcule les itinéraires demandés.
+
+    `progress_callback(fraction)`, si fourni, est appelé au fil de la
+    recherche avec une fraction croissante de 0.0 à 1.0 (voir jobs.py, qui
+    l'utilise pour exposer une vraie progression via polling).
+    """
     graph_payload = payload.get("graph_payload")
     distance_km = float(payload.get("distance_km", 0.0))
     drawing = payload.get("drawing", {}) or {}
@@ -164,13 +203,32 @@ def plan_from_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     mode = drawing.get("mode", "shape")
 
+    if mode == "text":
+        text = (drawing.get("text") or "P2I").upper()
+        text_base_points = get_base_shape("text", text)
+        total_candidates = (
+            count_split_text_candidates(text)
+            + count_variant_candidates(graph, text_base_points, distance_m, "text")
+        )
+    else:
+        shape = drawing.get("shape", "heart")
+        shape_base_points = get_base_shape(shape, drawing.get("text", "P2I"))
+        total_candidates = count_variant_candidates(graph, shape_base_points, distance_m, shape)
+
+    on_progress = _make_progress_reporter(total_candidates, progress_callback)
+
     with parallel.make_executor() as executor:
         if mode == "text":
-            routes = build_text_routes(graph, drawing, distance_m, tolerance_ratio, executor=executor)
+            routes = build_text_routes(graph, drawing, distance_m, tolerance_ratio, executor=executor,
+                                        on_progress=on_progress)
             summary = f"{len(routes)} proposition(s) calculée(s) pour le texte {drawing.get('text', 'P2I').upper()}."
         else:
-            routes = build_shape_routes(graph, drawing, distance_m, tolerance_ratio, executor=executor)
+            routes = build_shape_routes(graph, drawing, distance_m, tolerance_ratio, executor=executor,
+                                         on_progress=on_progress)
             summary = f"{len(routes)} proposition(s) calculée(s) pour la forme {drawing.get('shape', 'heart')}."
+
+    if progress_callback:
+        progress_callback(1.0)
 
     return {
         "summary": summary,
