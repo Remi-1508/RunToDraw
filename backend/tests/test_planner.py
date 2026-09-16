@@ -77,6 +77,17 @@ def test_plan_from_payload_reports_real_progress_up_to_one():
     assert len(fractions) > 100
 
 
+def test_plan_from_payload_reports_duration():
+    payload = {
+        "graph_payload": _grid_payload(),
+        "distance_km": 0.8,
+        "drawing": {"mode": "shape", "shape": "square"},
+        "tolerance_ratio": 0.10,
+    }
+    result = planner.plan_from_payload(payload)
+    assert result["duration_s"] > 0.0
+
+
 def test_plan_from_payload_text_mode_progress_reaches_one():
     fractions = []
     payload = {

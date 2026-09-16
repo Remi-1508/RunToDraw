@@ -16,6 +16,24 @@ function formatKm(meters) {
 /*
 ============================================================
 EN:
+This small helper converts a duration in seconds into a readable
+string, switching to minutes past one minute.
+
+FR:
+Cette petite fonction transforme une durée en secondes
+en une chaîne lisible, en passant en minutes au-delà d’une minute.
+============================================================
+*/
+function formatDuration(seconds) {
+  if (seconds < 60) return `${seconds.toFixed(1)} s`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = Math.round(seconds % 60);
+  return `${minutes} min ${rest.toString().padStart(2, "0")} s`;
+}
+
+/*
+============================================================
+EN:
 RouteResultsPanel displays the route proposals returned by the backend.
 
 It has two main roles:
@@ -72,6 +90,11 @@ export default function RouteResultsPanel({
       <div style={styles.cardLabel}>Étape 5</div>
       <div style={styles.cardTitle}>Choisir un itinéraire</div>
       <div style={styles.helperText}>{routePlan.summary}</div>
+      {typeof routePlan.duration_s === "number" ? (
+        <div style={styles.durationText}>
+          Calculé en {formatDuration(routePlan.duration_s)}
+        </div>
+      ) : null}
 
       {/*
       EN:
@@ -257,6 +280,13 @@ const styles = {
     color: "var(--text-soft)",
     lineHeight: 1.5,
     fontSize: 13.5,
+  },
+
+  durationText: {
+    marginTop: 4,
+    color: "var(--text-soft)",
+    fontSize: 12.5,
+    fontWeight: 700,
   },
 
   routesColumn: {

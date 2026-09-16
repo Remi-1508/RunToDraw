@@ -6,6 +6,7 @@ met les résultats en forme pour le frontend.
 """
 
 import threading
+import time
 from typing import Any, Dict
 
 from . import geometry as geo
@@ -187,6 +188,8 @@ def plan_from_payload(payload: Dict[str, Any], progress_callback=None) -> Dict[s
     recherche avec une fraction croissante de 0.0 à 1.0 (voir jobs.py, qui
     l'utilise pour exposer une vraie progression via polling).
     """
+    start = time.perf_counter()
+
     graph_payload = payload.get("graph_payload")
     distance_km = float(payload.get("distance_km", 0.0))
     drawing = payload.get("drawing", {}) or {}
@@ -233,4 +236,5 @@ def plan_from_payload(payload: Dict[str, Any], progress_callback=None) -> Dict[s
     return {
         "summary": summary,
         "routes": routes,
+        "duration_s": time.perf_counter() - start,
     }
