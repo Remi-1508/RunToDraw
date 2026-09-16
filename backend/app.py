@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -12,10 +14,14 @@ from runtodraw.planner import plan_from_payload
 app = FastAPI(title="RunToDraw Route Planner API")
 
 
-# CORS activé pour que le frontend puisse appeler le backend en local pendant le développement.
+# "*" convient en local. En déploiement, fixer ALLOWED_ORIGINS (liste séparée
+# par des virgules) au domaine du frontend pour ne pas exposer l'API à
+# n'importe quelle origine.
+_allowed_origins = os.environ.get("ALLOWED_ORIGINS", "*").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
