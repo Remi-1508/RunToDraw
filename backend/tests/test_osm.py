@@ -3,6 +3,14 @@ import pytest
 
 from runtodraw import osm
 
+
+@pytest.fixture(autouse=True)
+def _clear_overpass_cache():
+    osm.clear_overpass_cache()
+    yield
+    osm.clear_overpass_cache()
+
+
 SAMPLE_OSM_JSON = {
     "elements": [
         {"type": "node", "id": 1, "lat": 44.840, "lon": -0.580},
@@ -68,3 +76,41 @@ def test_fetch_road_graph_builds_meta_and_uses_half_distance_as_radius(monkeypat
     assert payload["meta"]["center"] == [44.84, -0.58]
     assert payload["meta"]["radius_km"] == pytest.approx(5.0)
     assert len(payload["nodes"]) == 3
+
+
+def test_fetch_road_graph_reuses_cache_for_the_same_area(monkeypatch):
+    calls = []
+
+    def fake_fetch(query):
+        calls.append(query)
+        return SAMPLE_OSM_JSON
+
+    monkeypatch.setattr(osm, "fetch_overpass_with_fallback", fake_fetch)
+
+    osm.fetch_road_graph(lat=44.84, lon=-0.58, distance_km=10.0)
+    osm.fetch_road_graph(lat=44.84, lon=-0.58, distance_km=10.0)
+    assert len(calls) == 1  # deuxième appel servi depuis le cache
+
+    # Un point à quelques mètres de là (bruit GPS, léger déplacement de la
+    # carte) doit retomber sur la même entrée grâce à l'arrondi de la clé.
+    osm.fetch_road_graph(lat=44.8401, lon=-0.5799, distance_km=10.0)
+    assert len(calls) == 1
+
+    # Une zone clairement différente doit forcer une nouvelle extraction.
+    osm.fetch_road_graph(lat=45.20, lon=-1.10, distance_km=10.0)
+    assert len(calls) == 2
+
+
+def test_fetch_road_graph_cache_expires_after_ttl(monkeypatch):
+    calls = []
+    monkeypatch.setattr(osm, "fetch_overpass_with_fallback", lambda query: calls.append(query) or SAMPLE_OSM_JSON)
+
+    fake_now = [1_000_000.0]
+    monkeypatch.setattr(osm.time, "time", lambda: fake_now[0])
+
+    osm.fetch_road_graph(lat=44.84, lon=-0.58, distance_km=10.0)
+    assert len(calls) == 1
+
+    fake_now[0] += osm._CACHE_TTL_SECONDS + 1
+    osm.fetch_road_graph(lat=44.84, lon=-0.58, distance_km=10.0)
+    assert len(calls) == 2
