@@ -196,9 +196,52 @@ def global_search_candidates(graph, base_points, desired_distance_m, shape_name,
 
 # ---------------------------------------------------------------------------
 # Évaluation : essaie tous les candidats et garde les meilleurs.
+#
+# Chaque candidat est indépendant des autres (position/taille/angle -> accroche
+# au graphe -> Dijkstra -> note). Le paramètre `executor` optionnel (voir
+# `parallel.py`) répartit ce travail sur quelques threads ; à None, tout
+# reste séquentiel. Un vrai pool de PROCESSUS a été essayé en premier mais
+# mesuré plus lent que le séquentiel une fois le KD-tree en place : le coût
+# de sérialisation entre processus dépasse le travail (quelques ms) par
+# candidat. Les threads partagent la mémoire du graphe (pas de pickling) et
+# une bonne partie du travail (KD-tree scipy, numpy) relâche le GIL.
 # ---------------------------------------------------------------------------
 
-def evaluate_method(graph, base_points, desired_distance_m, tolerance_ratio, shape_name, method_name):
+def evaluate_candidate(graph, base_points, center, size_m, angle_deg, desired_distance_m, max_allowed_m,
+                        sample_count, extra_metrics=None):
+    """Construit, route et note un unique candidat (position, taille, angle)."""
+    target = make_candidate_points(base_points, center, size_m, angle_deg)
+    node_path, route_points, extra = route_from_target(graph, target, sample_count=sample_count)
+
+    metrics = score_solution(route_points, target, desired_distance_m, max_allowed_m)
+    metrics.update(extra)
+    metrics["angle_deg"] = angle_deg
+    metrics["size_m"] = size_m
+    if extra_metrics:
+        metrics.update(extra_metrics)
+
+    return {
+        "target": target,
+        "node_path": node_path,
+        "route_points": route_points,
+        "metrics": metrics,
+    }
+
+
+def _evaluate_all(graph, jobs, executor):
+    """Évalue une liste de jobs (arguments positionnels de evaluate_candidate).
+
+    Threads partageant le même graphe en mémoire : pas de reconstruction ni
+    de sérialisation nécessaires, juste une répartition du travail.
+    """
+    if executor is None:
+        return [evaluate_candidate(graph, *job) for job in jobs]
+
+    futures = [executor.submit(evaluate_candidate, graph, *job) for job in jobs]
+    return [f.result() for f in futures]
+
+
+def evaluate_method(graph, base_points, desired_distance_m, tolerance_ratio, shape_name, method_name, executor=None):
     """Évalue tous les candidats d'une méthode (projection ou translation).
 
     Garde le candidat le plus proche de la distance demandée, et le meilleur
@@ -207,26 +250,14 @@ def evaluate_method(graph, base_points, desired_distance_m, tolerance_ratio, sha
     max_allowed_m = desired_distance_m * (1.0 + tolerance_ratio)
     use_translation = (method_name == "translation")
     candidates = global_search_candidates(graph, base_points, desired_distance_m, shape_name, use_translation)
+    sample_count = _TEXT_CANDIDATE_SAMPLES if shape_name == "text" else _SHAPE_CANDIDATE_SAMPLES
 
-    evaluated = []
-    for center, size_m, angle_deg in candidates:
-        target = make_candidate_points(base_points, center, size_m, angle_deg)
-        sample_count = _TEXT_CANDIDATE_SAMPLES if shape_name == "text" else _SHAPE_CANDIDATE_SAMPLES
-        node_path, route_points, extra = route_from_target(graph, target, sample_count=sample_count)
-
-        metrics = score_solution(route_points, target, desired_distance_m, max_allowed_m)
-        metrics.update(extra)
-        metrics["angle_deg"] = angle_deg
-        metrics["size_m"] = size_m
-        metrics["center_x"] = float(center[0])
-        metrics["center_y"] = float(center[1])
-
-        evaluated.append({
-            "target": target,
-            "node_path": node_path,
-            "route_points": route_points,
-            "metrics": metrics,
-        })
+    jobs = [
+        (base_points, center, size_m, angle_deg, desired_distance_m, max_allowed_m, sample_count,
+         {"center_x": float(center[0]), "center_y": float(center[1])})
+        for center, size_m, angle_deg in candidates
+    ]
+    evaluated = _evaluate_all(graph, jobs, executor)
 
     feasible = [e for e in evaluated if e["metrics"]["over_max"] <= 1e-6]
 
@@ -279,7 +310,7 @@ def evaluate_method(graph, base_points, desired_distance_m, tolerance_ratio, sha
 # à comparer au mot complet (search.evaluate_method avec shape_name="text").
 # ---------------------------------------------------------------------------
 
-def split_text_itineraries_full_distance(graph, text, per_letter_distance_m, tolerance_ratio):
+def split_text_itineraries_full_distance(graph, text, per_letter_distance_m, tolerance_ratio, executor=None):
     letters = [ch for ch in (text or "").upper() if ch != " " and ch in GLYPHS]
     if not letters:
         letters = ["P"]
@@ -330,33 +361,15 @@ def split_text_itineraries_full_distance(graph, text, per_letter_distance_m, tol
             size_factors = [0.60, 0.75, 0.90, 1.05, 1.20]
 
         sizes = [max(120.0, nominal_size * f) for f in size_factors]
+        max_allowed_m = per_letter_distance_m * (1.0 + tolerance_ratio)
 
-        evaluated = []
-        for c in local_centers:
-            for ang in angles:
-                for size in sizes:
-                    target = make_candidate_points(base, c, size, ang)
-                    node_path, route_points, extra = route_from_target(
-                        graph, target, sample_count=_LETTER_CANDIDATE_SAMPLES
-                    )
-
-                    metrics = score_solution(
-                        route_points,
-                        target,
-                        per_letter_distance_m,
-                        per_letter_distance_m * (1.0 + tolerance_ratio),
-                    )
-                    metrics.update(extra)
-                    metrics["angle_deg"] = ang
-                    metrics["size_m"] = size
-
-                    evaluated.append({
-                        "letter": ch,
-                        "target": target,
-                        "route_points": route_points,
-                        "node_path": node_path,
-                        "metrics": metrics,
-                    })
+        jobs = [
+            (base, c, size, ang, per_letter_distance_m, max_allowed_m, _LETTER_CANDIDATE_SAMPLES, None)
+            for c in local_centers
+            for ang in angles
+            for size in sizes
+        ]
+        evaluated = [dict(item, letter=ch) for item in _evaluate_all(graph, jobs, executor)]
 
         feasible = [e for e in evaluated if e["metrics"]["over_max"] <= 1e-6]
 

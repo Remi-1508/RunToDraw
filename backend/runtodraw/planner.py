@@ -8,6 +8,7 @@ met les résultats en forme pour le frontend.
 from typing import Any, Dict
 
 from . import geometry as geo
+from . import parallel
 from .graph import RoadGraph
 from .search import evaluate_method, split_text_itineraries_full_distance
 from .shapes import get_base_shape
@@ -38,10 +39,12 @@ def _build_segment(graph, candidate, label):
     }
 
 
-def _build_variant_routes(graph, base_points, distance_m, tolerance_ratio, shape_name, route_label, segment_label):
+def _build_variant_routes(graph, base_points, distance_m, tolerance_ratio, shape_name, route_label, segment_label,
+                           executor=None):
     """Construit les 4 propositions (projection/translation x distance/compromis) pour une forme."""
     results = {
-        method_name: evaluate_method(graph, base_points, distance_m, tolerance_ratio, shape_name, method_name)
+        method_name: evaluate_method(graph, base_points, distance_m, tolerance_ratio, shape_name, method_name,
+                                      executor=executor)
         for method_name, _ in _METHODS
     }
 
@@ -63,7 +66,7 @@ def _build_variant_routes(graph, base_points, distance_m, tolerance_ratio, shape
     return routes
 
 
-def build_shape_routes(graph, drawing, distance_m, tolerance_ratio):
+def build_shape_routes(graph, drawing, distance_m, tolerance_ratio, executor=None):
     """Propositions d'itinéraires pour une forme classique (cœur, carré, cercle...)."""
     shape = drawing.get("shape", "heart")
     text = drawing.get("text", "P2I")
@@ -72,14 +75,14 @@ def build_shape_routes(graph, drawing, distance_m, tolerance_ratio):
 
     routes = _build_variant_routes(
         graph, base_points, distance_m, tolerance_ratio, shape,
-        route_label=label, segment_label=label,
+        route_label=label, segment_label=label, executor=executor,
     )
     for i, route in enumerate(routes, start=1):
         route["id"] = f"route-{i}"
     return routes
 
 
-def build_text_routes(graph, drawing, distance_m, tolerance_ratio):
+def build_text_routes(graph, drawing, distance_m, tolerance_ratio, executor=None):
     """Propositions d'itinéraires pour un texte : lettres indépendantes + mot complet.
 
     Les deux modes sont volontairement proposés côte à côte : sur une même
@@ -89,7 +92,7 @@ def build_text_routes(graph, drawing, distance_m, tolerance_ratio):
     """
     text = (drawing.get("text") or "P2I").upper()
 
-    split_results = split_text_itineraries_full_distance(graph, text, distance_m, tolerance_ratio)
+    split_results = split_text_itineraries_full_distance(graph, text, distance_m, tolerance_ratio, executor=executor)
 
     split_segments = []
     letters_summary = []
@@ -134,7 +137,7 @@ def build_text_routes(graph, drawing, distance_m, tolerance_ratio):
     base_points = get_base_shape("text", text)
     whole_word_routes = _build_variant_routes(
         graph, base_points, distance_m, tolerance_ratio, "text",
-        route_label=f"Mot complet {text}", segment_label=text,
+        route_label=f"Mot complet {text}", segment_label=text, executor=executor,
     )
 
     routes = [split_route] + whole_word_routes
@@ -161,12 +164,13 @@ def plan_from_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     mode = drawing.get("mode", "shape")
 
-    if mode == "text":
-        routes = build_text_routes(graph, drawing, distance_m, tolerance_ratio)
-        summary = f"{len(routes)} proposition(s) calculée(s) pour le texte {drawing.get('text', 'P2I').upper()}."
-    else:
-        routes = build_shape_routes(graph, drawing, distance_m, tolerance_ratio)
-        summary = f"{len(routes)} proposition(s) calculée(s) pour la forme {drawing.get('shape', 'heart')}."
+    with parallel.make_executor() as executor:
+        if mode == "text":
+            routes = build_text_routes(graph, drawing, distance_m, tolerance_ratio, executor=executor)
+            summary = f"{len(routes)} proposition(s) calculée(s) pour le texte {drawing.get('text', 'P2I').upper()}."
+        else:
+            routes = build_shape_routes(graph, drawing, distance_m, tolerance_ratio, executor=executor)
+            summary = f"{len(routes)} proposition(s) calculée(s) pour la forme {drawing.get('shape', 'heart')}."
 
     return {
         "summary": summary,
