@@ -1,4 +1,6 @@
 """Test d'intégration de l'API FastAPI elle-même (app.py branché sur runtodraw)."""
+import time
+
 import numpy as np
 from fastapi.testclient import TestClient
 
@@ -59,3 +61,63 @@ def test_routes_plan_end_to_end_through_the_real_http_api():
     body = res.json()
     assert len(body["routes"]) == 4
     assert body["routes"][0]["segments"][0]["points"]  # des points GPS ont bien été renvoyés
+
+
+def test_routes_plan_jobs_end_to_end_with_real_polling():
+    payload = {
+        "graph_payload": _grid_payload(),
+        "distance_km": 0.8,
+        "drawing": {"mode": "shape", "shape": "square"},
+        "tolerance_ratio": 0.10,
+    }
+
+    res = client.post("/api/routes/plan/jobs", json=payload)
+    assert res.status_code == 200
+    job_id = res.json()["job_id"]
+
+    seen_progress = []
+    deadline = time.time() + 15.0
+    body = None
+    while time.time() < deadline:
+        res = client.get(f"/api/routes/plan/jobs/{job_id}")
+        assert res.status_code == 200
+        body = res.json()
+        seen_progress.append(body["progress"])
+        if body["status"] == "done":
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError("le job n'a pas terminé à temps")
+
+    assert body["status"] == "done"
+    assert body["progress"] == 1.0
+    assert seen_progress == sorted(seen_progress)
+    assert len(body["result"]["routes"]) == 4
+
+
+def test_routes_plan_jobs_unknown_id_returns_404():
+    res = client.get("/api/routes/plan/jobs/does-not-exist")
+    assert res.status_code == 404
+
+
+def test_routes_plan_jobs_reports_error_status_for_invalid_payload():
+    res = client.post("/api/routes/plan/jobs", json={
+        "graph_payload": {"nodes": [], "edges": []},
+        "distance_km": 5.0,
+        "drawing": {},
+    })
+    assert res.status_code == 200
+    job_id = res.json()["job_id"]
+
+    deadline = time.time() + 10.0
+    body = None
+    while time.time() < deadline:
+        body = client.get(f"/api/routes/plan/jobs/{job_id}").json()
+        if body["status"] == "error":
+            break
+        time.sleep(0.02)
+    else:
+        raise AssertionError("le job n'a pas termine a temps")
+
+    assert body["status"] == "error"
+    assert "invalide" in body["error"]
