@@ -1,0 +1,5 @@
+{
+  "installCommand": "cd runtodraw_frontend && npm install",
+  "buildCommand": "cd runtodraw_frontend && npm run build",
+  "outputDirectory": "runtodraw_frontend/dist"
+}

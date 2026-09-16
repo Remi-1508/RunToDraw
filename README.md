@@ -1,177 +1,94 @@
 # RunToDraw
 
-## Présentation du projet
+Génère un itinéraire de course à pied (ou marche, vélo...) qui dessine une forme ou un texte sur une vraie carte, en s'appuyant sur le réseau routier réel autour d'un point choisi.
 
-RunToDraw est une application web permettant de générer des itinéraires de course à pied, de marche, de vélo ... ayant la forme d’un dessin.
+1. Choisir un point de départ
+2. Choisir une distance cible
+3. Choisir une forme (cœur, carré, rond, étoile, infini) ou un texte court
+4. Le réseau routier local est extrait depuis OpenStreetMap (Overpass)
+5. Le moteur cherche plusieurs itinéraires suivant les vraies routes et se rapprochant du dessin demandé
+6. Choisir le meilleur trajet parmi les propositions, l'exporter en GPX / KML / lien Google Maps
 
-Le principe est simple :
+## Stack
 
-1. Choisir une zone de départ sur la carte  
-2. Sélectionner une distance cible  
-3. Choisir une forme ou écrire un texte  
-4. L’application extrait le réseau routier local depuis  
-5. Un moteur Python recherche plusieurs itinéraires correspondant au dessin demandé  
-6. Les meilleurs trajets peuvent ensuite être exportés vers des applications GPS
+- **Frontend** : React + Vite, Leaflet / React-Leaflet pour la carte
+- **Backend** : FastAPI (Python)
+- **Données routières** : OpenStreetMap via l'API Overpass
+- Moteur de génération d'itinéraires écrit en interne (géométrie, graphe, recherche, scoring)
 
-Le projet combine :
+## Architecture backend
 
-- **React + Vite** pour le frontend
-- **Leaflet / React-Leaflet** pour l’affichage cartographique
-- **FastAPI (Python)** pour le backend
-- **OpenStreetMap / Overpass API** pour les données routières
-- Des algorithmes personnalisés de graphes et de génération d’itinéraires
+Le moteur vit dans le package `backend/runtodraw/`, découpé par responsabilité et testé unitairement (63 tests, `backend/tests/`) :
 
----
+| Module | Rôle |
+|---|---|
+| `geometry.py` | Fonctions géométriques pures (conversions GPS ↔ local, opérations sur les polylignes) |
+| `graph.py` | `RoadGraph` : graphe routier + recherche du nœud le plus proche via un KD-tree, Dijkstra |
+| `shapes.py` | Formes de base et glyphes des lettres |
+| `scoring.py` | Notation d'un itinéraire candidat par rapport à la forme demandée |
+| `search.py` | Génération et évaluation des candidats (projection/translation × distance/compromis) |
+| `osm.py` | Extraction du graphe depuis Overpass, avec cache en mémoire |
+| `planner.py` | Point d'entrée : assemble tout ce qui précède pour répondre à une requête |
+| `parallel.py` | Pool de threads pour évaluer les candidats en parallèle |
+| `jobs.py` | File de tâches en arrière-plan avec suivi de progression par polling |
 
-# Fonctionnalités principales
+`app.py` ne contient que les routes FastAPI ; toute la logique métier est dans `runtodraw`.
 
-## Choix de la zone
+## Ce qui a été optimisé
 
-L’utilisateur peut :
+Le premier jet du moteur (un seul fichier de ~1200 lignes) prenait jusqu'à 15 minutes sur les cas les plus lourds. Les changements suivants, chacun mesuré et vérifié à résultats identiques, ont ramené ça à quelques secondes/dizaines de secondes dans la plupart des cas :
 
-- utiliser sa position actuelle
-- rechercher une adresse
-- choisir le point de départ du parcours
+- **Recherche du nœud le plus proche par KD-tree** (SciPy) au lieu d'une distance à tous les nœuds : ~31x plus rapide sur un graphe de test, résultats identiques.
+- **Cache en mémoire des extractions Overpass** (TTL 6h, coordonnées arrondies à ~110m/250m) : évite de refaire l'étape la plus lente et la plus instable pour des requêtes proches.
+- **Évaluation des candidats en parallèle** avec un petit pool de threads (~1.45x sur une forme, ~1.9x sur un texte). Un `ProcessPoolExecutor` a aussi été testé mais s'est révélé plus lent une fois le KD-tree en place : le travail par candidat est trop court pour amortir le coût de sérialisation entre processus.
+- **Progression réelle** (candidats effectivement évalués / total) au lieu d'une barre de chargement simulée par un minuteur.
+- **Tâches en arrière-plan** : `POST /api/routes/plan/jobs` renvoie tout de suite un `job_id`, et `GET /api/routes/plan/jobs/{id}` est interrogé par polling — plus de requête HTTP bloquante de plusieurs minutes qui risquerait un timeout derrière un proxy en déploiement.
+- Le temps de calcul réel est renvoyé par l'API et affiché dans les résultats.
 
-## Choix de la distance
+Reste identifié mais pas encore fait : simplifier le graphe en amont (fusionner les nœuds qui ne sont pas des intersections) et garder le graphe en mémoire côté serveur au lieu de le faire aller-retour vers le frontend en JSON.
 
-L’utilisateur sélectionne la distance souhaitée en kilomètres.
+## Installation
 
-## Mode forme
+Prérequis : Python 3.10+, Node.js 18+, npm, Git.
 
-Exemples disponibles :
-
-- Carré
-- Rond
-- Cœur
-- Étoile
-- Infini
-
-## Mode texte
-
-L’utilisateur peut entrer un texte court (exemple : `P2I`).
-
-Le moteur essaie alors de générer des trajets représentant les lettres.
-
-## Propositions d’itinéraires
-
-Plusieurs variantes sont calculées :
-
-- méthodes par projection
-- méthodes par translation
-- solutions les plus proches de la distance demandée
-- meilleurs compromis globaux
-
-## Export
-
-Les itinéraires peuvent être exportés en :
-
-- GPX
-- KML
-- Lien Google Maps
-
----
-
-# Installation
-
-## Prérequis
-
-Avant de lancer le projet, vérifier que les outils suivants sont installés :
-
-- Python 3.10 minimum
-- Node.js 18 minimum
-- npm (installé avec Node.js)
-- Git
-
-## Cloner le projet
-
+```bash
 git clone https://github.com/Remi-1508/RunToDraw.git
-
 cd RunToDraw
+```
 
-### Ici, il faut ouvrir un terminal pour le backend, et un pour le frontend
-### Je vous conseille d'ouvir deux onglets VSCode
+### Backend
 
-## Terminal/Onglet backend
-
-cd RunToDraw/backend
-
-python -m pip install -r requirements.txt
-
+```bash
+cd backend
+python -m venv .venv
+# Windows : .venv\Scripts\activate — macOS/Linux : source .venv/bin/activate
+pip install -r requirements.txt
 python -m uvicorn app:app --reload --port 8000
+```
 
-## Terminal/Onglet frontend
+Pour lancer les tests (63 tests unitaires + intégration) :
 
-cd RunToDraw/runtodraw_frontend
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
 
+### Frontend
+
+```bash
+cd runtodraw_frontend
 npm install
-
 npm run dev
+```
 
----
+L'URL du backend est lue depuis `runtodraw_frontend/.env` (`VITE_ROUTE_API_URL`, `http://localhost:8000` par défaut).
 
-#Utilisation
+## Conseils d'utilisation
 
-## Fonctionnement classique
+- **Distance** : 10 km ou plus (idéalement 15) donne de meilleurs résultats visuels — en dessous, le réseau routier disponible est souvent trop limité pour bien approcher la forme.
+- **Mode texte** : 1 à 3 lettres maximum (ex. `P2I`, `RUN`, `GO`). Les mots plus longs sont plus difficiles à approcher précisément dans la distance demandée.
+- **Affichage du graphe complet** : facultatif, à activer seulement pour explorer la zone — le laisser masqué garde l'interface plus fluide sur les gros graphes.
 
-1.Ouvrir l’application web
-2.Choisir sa position
-3.Sélectionner une distance
-4.Choisir une forme ou un texte
-5.Cliquer sur Générer les propositions d’itinéraires
-6.Attendre le calcul
-7.Choisir l’itinéraire préféré
-8.Exporter vers le format GPS souhaité
+## Déploiement
 
-## Conseils d’utilisation importants
-
-# Distances recommandées
-
-Pour obtenir de meilleurs résultats visuels, il est conseillé de choisir :
-
-**10 km ou plus (environ 15 si possible)**
-
-Les petites distances donnent souvent des formes moins satisfaisantes car le réseau routier disponible est trop limité.
-
-# Temps de calcul
-
-La génération peut être longue selon :
-
-- la zone choisie
-- la densité des routes
-- le texte demandé
-- la distance choisie
-
-Sur les cas les plus lourds, le temps de calcul peut atteindre :
-
-jusqu’à environ **15 minutes**
-
-Il est donc conseillé de :
-
-- ne pas actualiser la page trop vite
-- patienter pendant le traitement
-- éviter de multiplier les clics pendant le calcul
-
-# Conseils pour le mode texte
-
-Les meilleurs résultats sont obtenus avec :
-
-1 à 3 lettres **maximum**
-
-Exemples :
-
-- P2I
-- RUN
-- GO
-- AI
-
-Les mots trop longs sont plus difficiles à calculer et souvent moins précis.
-
-# Conseils d’affichage
-
-L’affichage complet du graphe routier reste facultatif.
-
-Pour garder une interface fluide :
-
-- laisser le graphe masqué si non nécessaire
-- l’activer uniquement pour explorer la zone
+Voir [DEPLOYMENT.md](DEPLOYMENT.md) pour déployer le backend (Docker / Render) et le frontend (Vercel / Netlify).
