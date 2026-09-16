@@ -3,10 +3,6 @@ import numpy as np
 import pytest
 
 from runtodraw import scoring
-# Filet de sécurité transitoire : compare le nouveau score_solution à celui de
-# la V16 pendant la migration. À supprimer quand shape_route_experiments_v16
-# sera retiré du dépôt.
-from shape_route_experiments_v16 import score_solution as legacy_score_solution
 
 SQUARE_ROUTE = np.array([[0, 0], [100, 0], [100, 100], [0, 100], [0, 0]], dtype=float)
 
@@ -43,17 +39,3 @@ def test_combined_score_matches_the_weighted_sum():
         + 0.120 * result["over_max"]
     )
     assert result["combined"] == pytest.approx(expected)
-
-
-@pytest.mark.parametrize("seed", range(5))
-def test_matches_legacy_v16_score_solution(seed):
-    rng = np.random.default_rng(seed)
-    route = np.cumsum(rng.uniform(-50, 50, size=(20, 2)), axis=0)
-    target = np.cumsum(rng.uniform(-50, 50, size=(20, 2)), axis=0)
-
-    got = scoring.score_solution(route, target, desired_distance_m=1200.0, max_allowed_m=1300.0)
-    expected = legacy_score_solution(route, target, desired_distance_m=1200.0, max_allowed_m=1300.0)
-
-    assert got.keys() == expected.keys()
-    for key in got:
-        assert got[key] == pytest.approx(expected[key], rel=1e-9)

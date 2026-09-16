@@ -3,11 +3,6 @@ import pytest
 
 from runtodraw import osm
 
-# Filet de sécurité transitoire : compare à la fonction équivalente de app.py
-# pendant la migration. À supprimer une fois app.py branché sur runtodraw.osm.
-from app import build_graph_from_overpass as legacy_build_graph_from_overpass
-
-
 SAMPLE_OSM_JSON = {
     "elements": [
         {"type": "node", "id": 1, "lat": 44.840, "lon": -0.580},
@@ -35,16 +30,6 @@ def test_build_graph_from_overpass_creates_nodes_and_bidirectional_edges():
     assert (1, 2, False) in edge_pairs
     assert (2, 3, False) in edge_pairs
     assert (2, 1, True) in edge_pairs  # sens unique explicite, non dupliqué en (1, 2)
-
-
-def test_build_graph_from_overpass_matches_legacy_app_py():
-    got = osm.build_graph_from_overpass(SAMPLE_OSM_JSON)
-    expected = legacy_build_graph_from_overpass(SAMPLE_OSM_JSON)
-    assert got["nodes"] == expected["nodes"]
-    assert len(got["edges"]) == len(expected["edges"])
-    for a, b in zip(got["edges"], expected["edges"]):
-        assert a["from"] == b["from"] and a["to"] == b["to"] and a["oneway"] == b["oneway"]
-        assert a["length_m"] == pytest.approx(b["length_m"])
 
 
 def test_fetch_overpass_with_fallback_tries_next_endpoint_on_failure(monkeypatch):

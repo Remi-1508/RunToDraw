@@ -4,11 +4,6 @@ import pytest
 
 from runtodraw import planner
 
-# Filet de sécurité transitoire : compare à planner_adapter (l'ancien point
-# d'entrée, qui appelle shape_route_experiments_v16) pendant la migration.
-# À supprimer une fois app.py branché sur runtodraw.planner.
-import planner_adapter as legacy_planner
-
 
 def _grid_payload(n=12, spacing=80.0):
     node_xy = {i * n + j: (i * spacing, j * spacing) for i in range(n) for j in range(n)}
@@ -62,28 +57,3 @@ def test_plan_from_payload_text_mode_returns_split_plus_four_whole_word_routes()
     assert len(result["routes"]) == 5
     assert result["routes"][0]["variant"] == "Lettres indépendantes"
     assert len(result["routes"][0]["letters"]) == 3
-
-
-@pytest.mark.parametrize("drawing", [
-    {"mode": "shape", "shape": "square"},
-    {"mode": "shape", "shape": "circle"},
-    {"mode": "text", "text": "RUN"},
-])
-def test_matches_legacy_planner_adapter(drawing):
-    payload = {
-        "graph_payload": _grid_payload(),
-        "distance_km": 0.8,
-        "drawing": drawing,
-        "tolerance_ratio": 0.10,
-    }
-    got = planner.plan_from_payload(payload)
-    expected = legacy_planner.plan_from_payload(payload)
-
-    assert got["summary"] == expected["summary"]
-    assert len(got["routes"]) == len(expected["routes"])
-    for g, e in zip(got["routes"], expected["routes"]):
-        assert g["id"] == e["id"]
-        assert g["label"] == e["label"]
-        assert g["variant"] == e["variant"]
-        assert g["total_distance_m"] == pytest.approx(e["total_distance_m"])
-        assert g["shape_error"] == pytest.approx(e["shape_error"])

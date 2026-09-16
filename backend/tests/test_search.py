@@ -5,11 +5,6 @@ import pytest
 from runtodraw import search, shapes
 from runtodraw.graph import RoadGraph
 
-# Filet de sécurité transitoire : compare aux fonctions équivalentes de la V16
-# pendant la migration. À supprimer quand shape_route_experiments_v16 sera
-# retiré du dépôt.
-import shape_route_experiments_v16 as legacy
-
 
 def _grid_payload(n=12, spacing=80.0):
     """Grille n x n assez dense pour que la recherche de forme trouve un vrai chemin."""
@@ -76,34 +71,3 @@ def test_split_text_each_letter_gets_the_full_requested_distance(grid_graph):
     assert [r["letter"] for r in results] == ["R", "U", "N"]
     for r in results:
         assert r["target_distance"] == 800.0
-
-
-@pytest.mark.parametrize("shape_name", ["square", "circle"])
-def test_evaluate_method_matches_legacy_v16(grid_graph, shape_name):
-    base = shapes.get_base_shape(shape_name, text="P2I")
-    got = search.evaluate_method(grid_graph, base, 800.0, 0.10, shape_name, "projection")
-
-    legacy_graph = legacy.RoadGraph(_grid_payload())
-    legacy_base = legacy.get_base_shape(shape_name, "P2I")
-    expected = legacy.evaluate_method(legacy_graph, legacy_base, 800.0, 0.10, shape_name, "projection")
-
-    assert got["all_candidates_count"] == expected["all_candidates_count"]
-    for key in ["closest_to_distance", "best_compromise"]:
-        assert got[key]["metrics"]["length_route"] == pytest.approx(expected[key]["metrics"]["length_route"])
-        assert got[key]["metrics"]["combined"] == pytest.approx(expected[key]["metrics"]["combined"])
-
-
-@pytest.mark.parametrize("text", ["RUN", "I1MW"])
-def test_split_text_matches_legacy_v16(grid_graph, text):
-    # "I1MW" exerce spécifiquement les tailles élargies pour "I"/"1" et la
-    # branche (redondante) "M"/"W" de la V16 : on vérifie qu'elles donnent
-    # toujours des résultats identiques après simplification.
-    got = search.split_text_itineraries_full_distance(grid_graph, text, 800.0, 0.10)
-
-    legacy_graph = legacy.RoadGraph(_grid_payload())
-    expected = legacy.split_text_itineraries_full_distance(legacy_graph, text, 800.0, 0.10)
-
-    assert [r["letter"] for r in got] == [r["letter"] for r in expected]
-    for g, e in zip(got, expected):
-        assert g["metrics"]["length_route"] == pytest.approx(e["metrics"]["length_route"])
-        assert g["metrics"]["size_m"] == pytest.approx(e["metrics"]["size_m"])
