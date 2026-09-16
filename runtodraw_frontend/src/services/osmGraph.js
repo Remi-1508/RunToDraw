@@ -1,27 +1,4 @@
-/*
-============================================================
-EN:
-API_BASE defines the backend URL used by the frontend.
-
-If an environment variable is available, we use it.
-Otherwise, we fall back to the local backend on port 8000.
-
-This makes the code easier to run both:
-- in local development
-- and later in another deployment setup
-
-FR:
-API_BASE définit l’URL du backend utilisée par le frontend.
-
-Si une variable d’environnement est disponible, on l’utilise.
-Sinon, on prend par défaut le backend local sur le port 8000.
-
-Cela rend le code plus facile à utiliser :
-- en développement local
-- puis plus tard dans un autre environnement de déploiement
-============================================================
-*/
-const API_BASE = import.meta.env.VITE_ROUTE_API_URL || "http://localhost:8000";
+import { API_BASE } from "../config";
 
 /*
 ============================================================

@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import logoRunToDrawDay from "../assets/logo_runtodraw_day.png";
 import logoRunToDrawNight from "../assets/logo_runtodraw_night.png";
 import RouteResultsPanel from "./RouteResultsPanel";
+import { useAddressSearch } from "../hooks/useAddressSearch";
 
 /*
 ============================================================
@@ -102,44 +103,6 @@ function ToggleRow({ label, description, checked, onChange, infoText, disabled =
 /*
 ============================================================
 EN:
-These two helpers format geocoding results coming from
-different services.
-
-The goal is simply to generate a readable label for the user.
-
-FR:
-Ces deux fonctions servent à formater les résultats de géocodage
-venant de services différents.
-
-L’objectif est simplement de produire un libellé lisible
-pour l’utilisateur.
-============================================================
-*/
-function formatPhotonLabel(properties) {
-  const firstLine = [properties.name, properties.street, properties.housenumber].filter(Boolean).join(" ");
-  const secondLine = [properties.postcode, properties.city, properties.state].filter(Boolean).join(" · ");
-  const full = [firstLine, secondLine, properties.country].filter(Boolean).join(", ");
-  return full || properties.name || properties.city || properties.country || "Adresse trouvée";
-}
-
-function formatNominatimLabel(item) {
-  const address = item.address || {};
-  const firstLine = [
-    address.road || address.pedestrian || address.path || address.cycleway || item.name,
-    address.house_number,
-  ]
-    .filter(Boolean)
-    .join(" ");
-  const secondLine = [address.postcode, address.city || address.town || address.village || address.municipality]
-    .filter(Boolean)
-    .join(" · ");
-  const full = [firstLine, secondLine, address.country].filter(Boolean).join(", ");
-  return full || item.display_name || "Adresse trouvée";
-}
-
-/*
-============================================================
-EN:
 Sidebar is the main control panel of the application.
 
 It guides the full user flow:
@@ -150,8 +113,8 @@ It guides the full user flow:
 5) review the route results
 6) export a selected route
 
-This component is mostly responsible for interface logic,
-form state, and address search.
+This component is mostly responsible for interface logic and form state.
+Address search itself lives in the useAddressSearch hook.
 
 FR:
 Sidebar est le panneau principal de contrôle de l’application.
@@ -164,8 +127,8 @@ Il guide tout le parcours utilisateur :
 5) consulter les résultats
 6) exporter un itinéraire sélectionné
 
-Ce composant gère surtout la logique d’interface,
-l’état du formulaire et la recherche d’adresse.
+Ce composant gère surtout la logique d’interface et l’état du formulaire.
+La recherche d’adresse elle-même vit dans le hook useAddressSearch.
 ============================================================
 */
 export default function Sidebar({
@@ -187,24 +150,10 @@ export default function Sidebar({
   onSelectRoute,
   onExportRoute,
 }) {
-  const [address, setAddress] = useState("");
-  const [suggestions, setSuggestions] = useState([]);
-  const [loadingSuggest, setLoadingSuggest] = useState(false);
-  const [searchStatus, setSearchStatus] = useState("");
-
-  /*
-  EN:
-  These refs are used to control address search behavior:
-  - debounceRef delays requests while the user is typing
-  - abortRef cancels the previous request if a new one starts
-
-  FR:
-  Ces refs servent à contrôler le comportement de la recherche d’adresse :
-  - debounceRef retarde les requêtes pendant la saisie
-  - abortRef annule la requête précédente si une nouvelle démarre
-  */
-  const debounceRef = useRef(null);
-  const abortRef = useRef(null);
+  const { address, setAddress, suggestions, loadingSuggest, searchStatus, pickSuggestion } = useAddressSearch({
+    biasCenter: center,
+    onPick: onPickSuggestion,
+  });
 
   const radiusKm = distanceKm / 2;
   const currentLogo = theme === "dark" ? logoRunToDrawNight : logoRunToDrawDay;
@@ -227,151 +176,9 @@ export default function Sidebar({
     return `${letterCount} lettres · au-delà de 3, le temps peut devenir très long et le résultat moins bon.`;
   }, [drawing.text]);
 
-  /*
-  ============================================================
-  EN:
-  Address search effect.
-
-  We:
-  - wait a little before sending requests
-  - query Photon first
-  - use Nominatim as a fallback if needed
-  - remove duplicates
-  - update the suggestions list and the status text
-
-  This keeps the experience smoother and avoids too many requests.
-
-  FR:
-  Effet de recherche d’adresse.
-
-  On :
-  - attend un petit délai avant d’envoyer une requête
-  - interroge Photon en premier
-  - utilise Nominatim en secours si besoin
-  - supprime les doublons
-  - met à jour la liste des suggestions et le statut
-
-  Cela rend l’expérience plus fluide et évite trop de requêtes.
-  ============================================================
-  */
-  useEffect(() => {
-    const query = address
-      .trim()
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
-
-    if (query.length < 3) {
-      setSuggestions([]);
-      setSearchStatus(query.length === 0 ? "" : "Tape au moins 3 caractères");
-      return;
-    }
-
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    debounceRef.current = setTimeout(async () => {
-      setLoadingSuggest(true);
-      setSearchStatus("Recherche d’adresses…");
-
-      try {
-        if (abortRef.current) abortRef.current.abort();
-        abortRef.current = new AbortController();
-
-        const [latBias, lonBias] = center ?? [44.8378, -0.5792];
-        const photonUrl =
-          `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}` +
-          `&limit=7&lang=fr&lat=${latBias}&lon=${lonBias}`;
-
-        const photonResponse = await fetch(photonUrl, {
-          signal: abortRef.current.signal,
-          headers: { Accept: "application/json" },
-        });
-        const photonData = await photonResponse.json();
-
-        let nextSuggestions = (photonData.features ?? []).map((feature) => {
-          const [lonValue, latValue] = feature.geometry.coordinates;
-          return {
-            id: `photon-${feature.properties.osm_id ?? `${latValue}-${lonValue}`}`,
-            display: formatPhotonLabel(feature.properties),
-            lat: latValue,
-            lon: lonValue,
-            source: "Photon",
-          };
-        });
-
-        /*
-        EN:
-        If Photon does not return enough results,
-        we ask Nominatim to complete the suggestions.
-
-        FR:
-        Si Photon ne renvoie pas assez de résultats,
-        on interroge aussi Nominatim pour compléter les suggestions.
-        */
-        if (nextSuggestions.length < 4) {
-          const nominatimUrl =
-            `https://nominatim.openstreetmap.org/search?format=jsonv2&accept-language=fr&limit=5&q=${encodeURIComponent(query)}`;
-
-          const nominatimResponse = await fetch(nominatimUrl, {
-            signal: abortRef.current.signal,
-            headers: { Accept: "application/json" },
-          });
-          const nominatimData = await nominatimResponse.json();
-
-          const fallback = (nominatimData ?? []).map((item) => ({
-            id: `nominatim-${item.place_id}`,
-            display: formatNominatimLabel(item),
-            lat: Number(item.lat),
-            lon: Number(item.lon),
-            source: "OSM",
-          }));
-
-          nextSuggestions = [...nextSuggestions, ...fallback];
-        }
-
-        /*
-        EN:
-        Deduplicate suggestions to avoid showing the same place twice.
-
-        FR:
-        Déduplication des suggestions pour éviter d’afficher deux fois
-        le même lieu.
-        */
-        const unique = [];
-        const seen = new Set();
-
-        for (const suggestion of nextSuggestions) {
-          const key = `${suggestion.display}|${suggestion.lat.toFixed(5)}|${suggestion.lon.toFixed(5)}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          unique.push(suggestion);
-        }
-
-        setSuggestions(unique.slice(0, 7));
-        setSearchStatus(
-          unique.length > 0
-            ? `${unique.length} résultat${unique.length > 1 ? "s" : ""}`
-            : "Aucun résultat"
-        );
-      } catch (error) {
-        if (error.name !== "AbortError") {
-          console.log(error);
-          setSuggestions([]);
-          setSearchStatus("Recherche indisponible");
-        }
-      } finally {
-        setLoadingSuggest(false);
-      }
-    }, 300);
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [address, center]);
-
   return (
     <div style={styles.sidebar}>
-      {/* 
+      {/*
       EN:
       Sticky logo area so the project branding stays visible
       even when the sidebar is scrolled.
@@ -386,7 +193,7 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* 
+      {/*
       EN:
       Intro card explaining the overall feature flow.
 
@@ -440,25 +247,7 @@ export default function Sidebar({
                 <button
                   key={suggestion.id}
                   style={styles.suggestItem}
-                  onClick={() => {
-                    /*
-                    EN:
-                    When a suggestion is selected:
-                    - we notify the parent component
-                    - we fill the input with the chosen label
-                    - we close the suggestion list
-
-                    FR:
-                    Quand une suggestion est choisie :
-                    - on informe le composant parent
-                    - on remplit l’input avec le texte choisi
-                    - on ferme la liste des suggestions
-                    */
-                    onPickSuggestion([suggestion.lat, suggestion.lon], suggestion.display);
-                    setAddress(suggestion.display);
-                    setSuggestions([]);
-                    setSearchStatus("Adresse sélectionnée");
-                  }}
+                  onClick={() => pickSuggestion(suggestion)}
                   title={suggestion.display}
                 >
                   <span style={styles.suggestMain}>{suggestion.display}</span>
@@ -605,9 +394,8 @@ export default function Sidebar({
           </button>
 
           <div style={styles.infoPillSoft}>
-            Le graphe est extrait automatiquement puis envoyé au moteur Python. Si le calcul
-            détaillé ne peut pas être remonté en temps réel, prévois un ordre de grandeur pouvant
-            aller jusqu’à environ 15 minutes sur les cas lourds.
+            Le graphe est extrait automatiquement puis envoyé au moteur Python. Une progression
+            réelle s’affiche pendant la recherche des itinéraires.
           </div>
 
           <ToggleRow
@@ -627,7 +415,7 @@ export default function Sidebar({
         </div>
       </section>
 
-      {/* 
+      {/*
       EN:
       Final result and export block.
 

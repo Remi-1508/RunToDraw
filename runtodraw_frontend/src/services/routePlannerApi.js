@@ -1,28 +1,4 @@
-/*
-============================================================
-EN:
-API_BASE defines the backend URL used to call the route planner.
-
-If a custom environment variable exists, we use it.
-Otherwise, the frontend uses the local backend.
-
-This allows easy switching between:
-- local development
-- deployed backend later
-
-FR:
-API_BASE définit l’URL du backend utilisée pour appeler
-le moteur de génération d’itinéraires.
-
-Si une variable d’environnement existe, on l’utilise.
-Sinon, le frontend utilise le backend local.
-
-Cela permet de passer facilement entre :
-- le développement local
-- un backend déployé plus tard
-============================================================
-*/
-const API_BASE = import.meta.env.VITE_ROUTE_API_URL || "http://localhost:8000";
+import { API_BASE } from "../config";
 
 /*
 ============================================================
@@ -123,4 +99,65 @@ export async function planRoutes({ graphPayload, distanceKm, drawing }) {
   - des métriques pour chaque trajet
   */
   return res.json();
+}
+
+async function readJson(res, context) {
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `${context} HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+const POLL_INTERVAL_MS = 400;
+
+/*
+============================================================
+EN:
+planRoutesWithProgress uses the background job endpoints instead of a
+single blocking request: it starts a job, then polls its status until it
+completes. This reports real progress (candidates actually evaluated, not
+a simulated timer), and avoids a multi-minute HTTP request that could time
+out behind a proxy once deployed.
+
+onProgress(fraction) is called with a 0..1 value as the backend reports it.
+
+FR:
+planRoutesWithProgress utilise les endpoints de tâche en arrière-plan au
+lieu d’une seule requête bloquante : elle démarre une tâche, puis interroge
+son état jusqu’à ce qu’elle se termine. Cela donne une progression réelle
+(candidats réellement évalués, pas un minuteur simulé), et évite une
+requête HTTP de plusieurs minutes qui pourrait tomber en timeout derrière
+un proxy une fois déployée.
+
+onProgress(fraction) est appelée avec une valeur 0..1 telle que renvoyée
+par le backend.
+============================================================
+*/
+export async function planRoutesWithProgress({ graphPayload, distanceKm, drawing, onProgress, signal }) {
+  const jobRes = await fetch(`${API_BASE}/api/routes/plan/jobs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      graph_payload: graphPayload,
+      distance_km: distanceKm,
+      drawing,
+    }),
+    signal,
+  });
+  const { job_id: jobId } = await readJson(jobRes, "Route planner");
+
+  for (;;) {
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+
+    const jobStatusRes = await fetch(`${API_BASE}/api/routes/plan/jobs/${jobId}`, { signal });
+    const job = await readJson(jobStatusRes, "Route planner");
+
+    onProgress?.(job.progress ?? 0);
+
+    if (job.status === "done") return job.result;
+    if (job.status === "error") throw new Error(job.error || "La génération des itinéraires a échoué.");
+
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+  }
 }
