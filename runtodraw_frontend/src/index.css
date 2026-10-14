@@ -139,3 +139,8 @@ input:focus {
     transform: translateX(390%);
   }
 }
+
+/* Mode nuit de la carte : on assombrit les tuiles OSM claires (pas besoin d'un fournisseur "dark" avec clé d'API) */
+.tiles-dark {
+  filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
+}

@@ -210,24 +210,29 @@ export default function MapView({
   Le fond de carte dépend du thème actuel.
   On mémorise cette configuration pour ne la recalculer que lorsque le thème change.
   */
-  const tileConfig = useMemo(() => {
-    if (theme === "dark") {
-      return {
-        url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-        attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
-      };
-    }
-
-    return {
-      url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-      attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
-    };
-  }, [theme]);
+  // Tuiles OpenStreetMap standard : gratuites, sans clé d'API.
+  // Le mode nuit assombrit ces mêmes tuiles via un filtre CSS (classe "tiles-dark" dans index.css).
+  const tileConfig = useMemo(
+    () => ({
+      url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      className: theme === "dark" ? "tiles-dark" : "",
+    }),
+    [theme]
+  );
 
   return (
     <div style={styles.shell}>
       <MapContainer center={safeCenter} zoom={13} style={styles.map}>
-        <TileLayer attribution={tileConfig.attribution} url={tileConfig.url} />
+        {/* key={theme} force Leaflet à recréer la couche quand le thème change (className n'est pas mis à jour sinon) */}
+        <TileLayer
+          key={theme}
+          attribution={tileConfig.attribution}
+          url={tileConfig.url}
+          className={tileConfig.className}
+          maxZoom={19}
+        />
 
         {/*
         EN:
