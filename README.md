@@ -100,6 +100,12 @@ python -m pip install -r requirements.txt
 
 python -m uvicorn app:app --reload --port 8000
 
+### Tests du moteur (facultatif)
+
+python -m pip install -r requirements-dev.txt
+
+python -m pytest tests
+
 ## Terminal/Onglet frontend
 
 cd RunToDraw/runtodraw_frontend

@@ -2,11 +2,21 @@ import argparse
 import heapq
 import json
 import math
-from collections import defaultdict
 from dataclasses import dataclass
 
-import matplotlib.pyplot as plt
 import numpy as np
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import breadth_first_order, connected_components
+from scipy.spatial import cKDTree
+
+
+# EN: matplotlib is only needed for the experiment plots (command line), not by the API.
+# Importing it lazily keeps the backend lighter and faster to start.
+# FR: matplotlib ne sert qu'aux tracés d'expérimentation (ligne de commande), pas à l'API.
+# On l'importe à la demande pour alléger le backend et accélérer son démarrage.
+def _plt():
+    import matplotlib.pyplot as plt
+    return plt
 
 
 # ============================================================
@@ -60,12 +70,14 @@ def polyline_length(points):
 # FR: Supprime les points consécutifs identiques.
 # Cela évite des points inutiles avant le rééchantillonnage ou l’évaluation.
 def clean_polyline(points):
-    out = []
-    for p in np.asarray(points, dtype=float):
-        if len(out) == 0 or np.linalg.norm(p - out[-1]) > 1e-9:
-            out.append(p)
-    return np.asarray(out, dtype=float) if out else np.empty((0, 2), dtype=float)
-
+    pts = np.asarray(points, dtype=float).reshape(-1, 2)
+    if len(pts) == 0:
+        return np.empty((0, 2), dtype=float)
+    # EN: Vectorized: keep a point when it differs from the previous one.
+    # FR: Vectorisé : on garde un point s'il diffère du précédent.
+    step = np.hypot(*(pts[1:] - pts[:-1]).T)
+    keep = np.concatenate([[True], step > 1e-9])
+    return pts[keep]
 
 # EN: Resamples a polyline with a fixed number of points.
 # This is useful to compare two paths fairly, even if they originally
@@ -80,26 +92,16 @@ def resample_polyline(points, n_samples=120):
     if len(pts) == 1:
         return np.repeat(pts, n_samples, axis=0)
 
-    seg = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
+    seg = np.hypot(*(pts[1:] - pts[:-1]).T)
     total = float(seg.sum())
     if total <= 1e-12:
         return np.repeat(pts[:1], n_samples, axis=0)
 
+    # EN: Linear interpolation along the cumulative length (vectorized with np.interp).
+    # FR: Interpolation linéaire le long de la longueur cumulée (vectorisée avec np.interp).
     cum = np.concatenate([[0.0], np.cumsum(seg)])
     targets = np.linspace(0.0, total, n_samples)
-
-    out = []
-    j = 0
-    for t in targets:
-        while j < len(seg) - 1 and cum[j + 1] < t:
-            j += 1
-        a = pts[j]
-        b = pts[j + 1]
-        denom = cum[j + 1] - cum[j]
-        alpha = 0.0 if denom == 0 else (t - cum[j]) / denom
-        out.append((1 - alpha) * a + alpha * b)
-    return np.asarray(out, dtype=float)
-
+    return np.column_stack([np.interp(targets, cum, pts[:, 0]), np.interp(targets, cum, pts[:, 1])])
 
 # EN: Applies a 2D rotation to a set of points.
 # FR: Applique une rotation 2D à un ensemble de points.
@@ -158,24 +160,29 @@ def simplify_path_points(points, angle_tol_deg=8.0):
     pts = clean_polyline(points)
     if len(pts) < 3:
         return pts
-    keep = [pts[0]]
-    for i in range(1, len(pts) - 1):
-        a = keep[-1]
-        b = pts[i]
-        c = pts[i + 1]
-        ab = b - a
-        bc = c - b
-        nab = np.linalg.norm(ab)
-        nbc = np.linalg.norm(bc)
+    # EN: Sequential by nature (each test depends on the last kept point), so we use plain
+    # Python floats, which are much faster than NumPy calls on single points.
+    # FR: Séquentiel par nature (chaque test dépend du dernier point gardé) : on utilise des
+    # flottants Python simples, bien plus rapides que des appels NumPy sur des points isolés.
+    coords = pts.tolist()
+    keep_idx = [0]
+    ax, ay = coords[0]
+    for i in range(1, len(coords) - 1):
+        bx, by = coords[i]
+        cx, cy = coords[i + 1]
+        abx, aby = bx - ax, by - ay
+        bcx, bcy = cx - bx, cy - by
+        nab = math.hypot(abx, aby)
+        nbc = math.hypot(bcx, bcy)
         if nab < 1e-9 or nbc < 1e-9:
             continue
-        cosang = float(np.clip(np.dot(ab, bc) / (nab * nbc), -1.0, 1.0))
-        ang = math.degrees(math.acos(cosang))
-        if ang > angle_tol_deg:
-            keep.append(b)
-    keep.append(pts[-1])
-    return np.asarray(keep, dtype=float)
-
+        cosang = (abx * bcx + aby * bcy) / (nab * nbc)
+        cosang = min(1.0, max(-1.0, cosang))
+        if math.degrees(math.acos(cosang)) > angle_tol_deg:
+            keep_idx.append(i)
+            ax, ay = bx, by
+    keep_idx.append(len(coords) - 1)
+    return pts[keep_idx]
 
 # EN: Computes the angle between two vectors.
 # FR: Calcule l’angle entre deux vecteurs.
@@ -196,39 +203,38 @@ def path_turn_penalty(points):
     pts = clean_polyline(points)
     if len(pts) < 3:
         return 0.0
-    total = 0.0
-    for i in range(1, len(pts) - 1):
-        a = pts[i] - pts[i - 1]
-        b = pts[i + 1] - pts[i]
-        ang = angle_between(a, b)
-        if ang > 35.0:
-            total += (ang - 35.0)
+    # EN: Angle at every interior point, computed for all points at once.
+    # FR: Angle en chaque point intérieur, calculé pour tous les points d'un coup.
+    a = pts[1:-1] - pts[:-2]
+    b = pts[2:] - pts[1:-1]
+    na = np.hypot(a[:, 0], a[:, 1])
+    nb = np.hypot(b[:, 0], b[:, 1])
+    valid = (na >= 1e-9) & (nb >= 1e-9)
+    cosang = np.ones(len(a))
+    cosang[valid] = np.einsum("ij,ij->i", a[valid], b[valid]) / (na[valid] * nb[valid])
+    ang = np.degrees(np.arccos(np.clip(cosang, -1.0, 1.0)))
+    total = float(np.sum(np.maximum(ang - 35.0, 0.0)))
     return total / max(len(pts) - 2, 1)
-
-
-# EN: Small data container used in the graph adjacency list.
-# FR: Petite structure de données utilisée dans la liste d’adjacence du graphe.
-@dataclass
-class EdgeData:
-    to: int
-    length_m: float
-
 
 # EN:
 # This class rebuilds the road graph from the exported JSON format.
-# It stores:
-# - the nodes in local x/y coordinates,
-# - the adjacency list for shortest-path search,
-# - some useful graph bounds,
-# - and a cache for shortest path results.
+# Performance-oriented layout:
+# - nodes are re-indexed 0..N-1 and stored in a NumPy array (local x/y in meters),
+# - a KD-tree finds the nearest node in O(log N) instead of scanning all nodes,
+# - adjacency is stored in CSR form (flat arrays) for a fast A* search,
+# - strongly connected components tell instantly when a node cannot be reached,
+#   instead of exploring the whole graph to find out.
+# The public methods keep working with OpenStreetMap node IDs, as before.
 #
 # FR:
 # Cette classe reconstruit le graphe routier à partir du format JSON exporté.
-# Elle stocke :
-# - les nœuds en coordonnées locales x/y,
-# - la liste d’adjacence pour la recherche de plus court chemin,
-# - quelques bornes utiles du graphe,
-# - et un cache pour les résultats de plus court chemin.
+# Organisation pensée pour la performance :
+# - les nœuds sont réindexés 0..N-1 et rangés dans un tableau NumPy (x/y locaux en mètres),
+# - un KD-tree trouve le nœud le plus proche en O(log N) au lieu de parcourir tous les nœuds,
+# - l'adjacence est stockée au format CSR (tableaux plats) pour un A* rapide,
+# - les composantes fortement connexes indiquent immédiatement qu'un nœud est injoignable,
+#   au lieu d'explorer tout le graphe pour s'en rendre compte.
+# Les méthodes publiques continuent de travailler avec les identifiants OSM, comme avant.
 class RoadGraph:
     def __init__(self, data):
         self.meta = data["meta"]
@@ -236,26 +242,80 @@ class RoadGraph:
         self.edges = data["edges"]
         self.center_lat, self.center_lon = self.meta["center"]
 
-        self.node_xy = {}
-        for n in self.nodes:
-            x, y = latlon_to_xy_m(n["lat"], n["lon"], self.center_lat, self.center_lon)
-            self.node_xy[n["id"]] = np.array([x, y], dtype=float)
+        # --- Nœuds : identifiants OSM -> indices 0..N-1, coordonnées x/y vectorisées ---
+        self.node_ids = [n["id"] for n in self.nodes]
+        self._idx_of = {nid: i for i, nid in enumerate(self.node_ids)}
+        lat = np.fromiter((n["lat"] for n in self.nodes), dtype=float, count=len(self.nodes))
+        lon = np.fromiter((n["lon"] for n in self.nodes), dtype=float, count=len(self.nodes))
+        r = 6371000.0
+        xs = np.radians(lon - self.center_lon) * r * math.cos(math.radians(self.center_lat))
+        ys = np.radians(lat - self.center_lat) * r
+        self.node_array = np.column_stack([xs, ys])
+        self._node_xy_dict = None
 
-        self.adj = defaultdict(list)
+        # EN: KD-tree built once per graph, queried for every sampled point of every candidate.
+        # FR: KD-tree construit une seule fois par graphe, interrogé pour chaque point de chaque candidat.
+        self._kdtree = cKDTree(self.node_array)
+
+        # --- Arcs orientés, dans le même ordre que l'ancienne liste d'adjacence ---
+        # (une arête à double sens donne deux arcs : u->v puis v->u)
+        src, dst, w = [], [], []
+        idx_of = self._idx_of
         for e in self.edges:
-            u = e["from"]
-            v = e["to"]
-            w = float(e.get("length_m", 0.0))
-            self.adj[u].append(EdgeData(v, w))
+            u = idx_of.get(e["from"])
+            v = idx_of.get(e["to"])
+            if u is None or v is None:
+                continue  # arête vers un nœud inconnu : inutilisable
+            length = float(e.get("length_m", 0.0))
+            src.append(u); dst.append(v); w.append(length)
             if not e.get("oneway", False):
-                self.adj[v].append(EdgeData(u, w))
+                src.append(v); dst.append(u); w.append(length)
+        src = np.asarray(src, dtype=np.int64)
+        dst = np.asarray(dst, dtype=np.int64)
+        w = np.asarray(w, dtype=float)
+        n = len(self.node_ids)
 
-        self.node_ids = list(self.node_xy.keys())
-        self.node_array = np.array([self.node_xy[nid] for nid in self.node_ids], dtype=float)
-        self._node_from_idx = {i: nid for i, nid in enumerate(self.node_ids)}
+        # EN: CSR layout. A stable sort by source keeps each node's neighbours in insertion order,
+        # so ties are explored in the same order as the previous adjacency list.
+        # FR: Format CSR. Un tri stable par source conserve l'ordre d'insertion des voisins de chaque nœud,
+        # donc les égalités sont explorées dans le même ordre qu'avec l'ancienne liste d'adjacence.
+        order = np.argsort(src, kind="stable")
+        self._arc_src, self._arc_dst, self._arc_w = src, dst, w  # ordre d'insertion d'origine
+        counts = np.bincount(src, minlength=n)
+        indptr = np.zeros(n + 1, dtype=np.int64)
+        np.cumsum(counts, out=indptr[1:])
+        # Listes Python : l'accès élément par élément y est plus rapide que sur des tableaux NumPy.
+        self._indptr = indptr.tolist()
+        self._indices = dst[order].tolist()
+        self._weights = w[order].tolist()
+        self._xs = xs.tolist()
+        self._ys = ys.tolist()
 
-        xs = self.node_array[:, 0]
-        ys = self.node_array[:, 1]
+        # EN: A* heuristic = straight-line distance in the local plane, scaled by k so that it never
+        # exceeds the real edge length (haversine). This keeps A* exact (same optimal cost as Dijkstra).
+        # FR: Heuristique A* = distance à vol d'oiseau dans le plan local, multipliée par k pour qu'elle
+        # ne dépasse jamais la vraie longueur d'arête (haversine). A* reste ainsi exact (même coût optimal que Dijkstra).
+        if len(w):
+            planar = np.hypot(xs[dst] - xs[src], ys[dst] - ys[src])
+            ok = planar > 1e-9
+            ratio = float(np.min(w[ok] / planar[ok])) if np.any(ok) else 1.0
+            self._h_scale = max(0.0, min(1.0, ratio) * 0.999)
+        else:
+            self._h_scale = 0.0
+
+        # EN: Strongly connected components + their condensation (a DAG) give exact reachability.
+        # FR: Composantes fortement connexes + leur graphe condensé (acyclique) donnent l'accessibilité exacte.
+        adj_matrix = csr_matrix((np.ones(len(src), dtype=np.int8), (src, dst)), shape=(n, n))
+        _, self._scc = connected_components(adj_matrix, directed=True, connection="strong")
+        cs, cd = self._scc[src], self._scc[dst]
+        between = cs != cd
+        n_scc = int(self._scc.max()) + 1 if n else 0
+        self._condensed = csr_matrix(
+            (np.ones(int(between.sum()), dtype=np.int8), (cs[between], cd[between])),
+            shape=(n_scc, n_scc),
+        )
+        self._reach_cache = {}
+
         self.bounds = {
             "xmin": float(xs.min()),
             "xmax": float(xs.max()),
@@ -263,66 +323,101 @@ class RoadGraph:
             "ymax": float(ys.max()),
         }
         self._sp_cache = {}
+        self._dominant_angle = None
 
-    # EN: Finds the nearest graph node to a target point.
-    # This is used when we snap a theoretical shape to the road network.
-    # FR: Trouve le nœud du graphe le plus proche d’un point cible.
-    # C’est utilisé quand on "accroche" une forme théorique au réseau routier.
+    # EN: ID -> x/y dictionary, built only if someone asks for it (plots).
+    # FR: Dictionnaire identifiant -> x/y, construit seulement si on en a besoin (tracés).
+    @property
+    def node_xy(self):
+        if self._node_xy_dict is None:
+            self._node_xy_dict = {nid: self.node_array[i] for i, nid in enumerate(self.node_ids)}
+        return self._node_xy_dict
+
+    # EN: Finds the nearest graph node to a target point (KD-tree query).
+    # FR: Trouve le nœud du graphe le plus proche d'un point cible (requête KD-tree).
     def nearest_node(self, point):
-        diffs = self.node_array - point
-        d2 = np.sum(diffs * diffs, axis=1)
-        idx = int(np.argmin(d2))
-        return self._node_from_idx[idx], float(math.sqrt(d2[idx]))
+        d, idx = self._kdtree.query(np.asarray(point, dtype=float))
+        return self.node_ids[int(idx)], float(d)
 
-    # EN: Standard Dijkstra shortest path between two nodes.
-    # A cache is used because many node pairs are requested repeatedly during the search.
-    # FR: Plus court chemin de Dijkstra classique entre deux nœuds.
-    # Un cache est utilisé car beaucoup de couples de nœuds sont demandés plusieurs fois pendant la recherche.
-    def shortest_path(self, start, goal):
-        if start == goal:
-            return [start], 0.0
+    # EN: Vectorized version: all the points of a shape in a single call. Returns node indices.
+    # FR: Version vectorisée : tous les points d'une forme en un seul appel. Renvoie des indices de nœuds.
+    def nearest_indices(self, points):
+        d, idx = self._kdtree.query(np.asarray(points, dtype=float))
+        return np.asarray(idx, dtype=np.int64), np.asarray(d, dtype=float)
 
-        key = (start, goal)
-        if key in self._sp_cache:
-            return self._sp_cache[key]
+    # EN: True if `goal` can be reached from `start` (one BFS per source component, cached).
+    # FR: Vrai si `goal` est accessible depuis `start` (un parcours par composante source, mis en cache).
+    def _reachable(self, s, g):
+        cs, cg = int(self._scc[s]), int(self._scc[g])
+        if cs == cg:
+            return True
+        reach = self._reach_cache.get(cs)
+        if reach is None:
+            order = breadth_first_order(self._condensed, cs, directed=True, return_predecessors=False)
+            reach = np.zeros(self._condensed.shape[0], dtype=bool)
+            reach[order] = True
+            self._reach_cache[cs] = reach
+        return bool(reach[cg])
 
-        pq = [(0.0, start)]
-        dist = {start: 0.0}
-        prev = {}
-
-        while pq:
-            d, u = heapq.heappop(pq)
-            if u == goal:
-                break
-            if d > dist.get(u, float("inf")):
-                continue
-            for e in self.adj.get(u, []):
-                nd = d + e.length_m
-                if nd < dist.get(e.to, float("inf")):
-                    dist[e.to] = nd
-                    prev[e.to] = u
-                    heapq.heappush(pq, (nd, e.to))
-
-        if goal not in dist:
+    # EN: Exact A* shortest path between two node indices. Returns (index path, cost).
+    # FR: Plus court chemin A* exact entre deux indices de nœuds. Renvoie (chemin d'indices, coût).
+    def shortest_path_idx(self, s, g):
+        if s == g:
+            return [s], 0.0
+        key = (s, g)
+        cached = self._sp_cache.get(key)
+        if cached is not None:
+            return cached
+        if not self._reachable(s, g):
             out = (None, float("inf"))
             self._sp_cache[key] = out
             return out
 
-        path = [goal]
-        cur = goal
-        while cur != start:
+        indptr, indices, weights = self._indptr, self._indices, self._weights
+        xs, ys, k = self._xs, self._ys, self._h_scale
+        gx, gy = xs[g], ys[g]
+        hypot, heappush, heappop = math.hypot, heapq.heappush, heapq.heappop
+        inf = float("inf")
+
+        dist = {s: 0.0}
+        prev = {}
+        pq = [(k * hypot(xs[s] - gx, ys[s] - gy), 0.0, s)]
+        while pq:
+            _, d, u = heappop(pq)
+            if u == g:
+                break
+            if d > dist[u]:
+                continue
+            for i in range(indptr[u], indptr[u + 1]):
+                v = indices[i]
+                nd = d + weights[i]
+                if nd < dist.get(v, inf):
+                    dist[v] = nd
+                    prev[v] = u
+                    heappush(pq, (nd + k * hypot(xs[v] - gx, ys[v] - gy), nd, v))
+
+        path = [g]
+        cur = g
+        while cur != s:
             cur = prev[cur]
             path.append(cur)
         path.reverse()
-
-        out = (path, dist[goal])
+        out = (path, dist[g])
         self._sp_cache[key] = out
         return out
 
-    # EN: Converts a node path into x/y points.
-    # FR: Convertit un chemin de nœuds en points x/y.
+    # EN: Same as before: shortest path between two OSM node IDs.
+    # FR: Comme avant : plus court chemin entre deux identifiants de nœuds OSM.
+    def shortest_path(self, start, goal):
+        path, cost = self.shortest_path_idx(self._idx_of[start], self._idx_of[goal])
+        if path is None:
+            return None, cost
+        return [self.node_ids[i] for i in path], cost
+
+    # EN: Converts a node path (OSM IDs) into x/y points.
+    # FR: Convertit un chemin de nœuds (identifiants OSM) en points x/y.
     def path_to_points(self, node_path):
-        return np.array([self.node_xy[nid] for nid in node_path], dtype=float)
+        return self.node_array[[self._idx_of[nid] for nid in node_path]]
 
 
 # ============================================================
@@ -548,38 +643,35 @@ def simplify_consecutive_duplicates(seq):
 def route_from_target(graph, target_points, sample_count=60):
     target_rs = resample_polyline(target_points, n_samples=sample_count)
 
-    snapped = []
-    snap_dists = []
-    for p in target_rs:
-        nid, d = graph.nearest_node(p)
-        snapped.append(nid)
-        snap_dists.append(d)
+    # EN: All sampled points are snapped in one vectorized KD-tree query.
+    # FR: Tous les points échantillonnés sont accrochés en une seule requête KD-tree vectorisée.
+    snapped_idx, snap_dists = graph.nearest_indices(target_rs)
+    snapped = simplify_consecutive_duplicates(snapped_idx.tolist())
 
-    snapped = simplify_consecutive_duplicates(snapped)
-
-    full_path = []
+    path_idx = []
     total_cost = 0.0
     unreachable = 0
 
     for a, b in zip(snapped[:-1], snapped[1:]):
-        sp, cost = graph.shortest_path(a, b)
+        sp, cost = graph.shortest_path_idx(a, b)
         if sp is None:
             unreachable += 1
             continue
-        if not full_path:
-            full_path.extend(sp)
+        if not path_idx:
+            path_idx.extend(sp)
         else:
-            full_path.extend(sp[1:])
+            path_idx.extend(sp[1:])
         total_cost += cost
 
-    if full_path:
-        route_points = graph.path_to_points(full_path)
+    if path_idx:
+        route_points = graph.node_array[path_idx]
         route_points = simplify_path_points(route_points, angle_tol_deg=6.0)
     else:
         route_points = np.empty((0, 2), dtype=float)
 
+    full_path = [graph.node_ids[i] for i in path_idx]
     extra = {
-        "snap_mean": float(np.mean(snap_dists)) if snap_dists else float("inf"),
+        "snap_mean": float(np.mean(snap_dists)) if len(snap_dists) else float("inf"),
         "shortest_path_cost": total_cost,
         "unreachable_segments": unreachable,
         "n_route_nodes": len(full_path),
@@ -611,40 +703,41 @@ def graph_center(graph):
 # FR: Estime la direction dominante du réseau routier.
 # Cela permet d’aligner les formes avec l’orientation générale des rues.
 def dominant_graph_angle(graph, max_edges=2000):
-    angles = []
-    count = 0
+    # EN: The result only depends on the graph, so it is computed once and cached.
+    # FR: Le résultat ne dépend que du graphe : on le calcule une fois puis on le garde en cache.
+    if graph._dominant_angle is not None:
+        return graph._dominant_angle
 
-    for u, lst in graph.adj.items():
-        pu = graph.node_xy.get(u)
-        if pu is None:
-            continue
-        for e in lst:
-            pv = graph.node_xy.get(e.to)
-            if pv is None:
-                continue
-            v = pv - pu
-            n = np.linalg.norm(v)
-            if n < 5.0:
-                continue
-            ang = math.degrees(math.atan2(v[1], v[0]))
-            while ang < -90:
-                ang += 180
-            while ang > 90:
-                ang -= 180
-            angles.append(ang)
-            count += 1
-            if count >= max_edges:
-                break
-        if count >= max_edges:
-            break
-
-    if not angles:
+    src, dst = graph._arc_src, graph._arc_dst
+    if len(src) == 0:
+        graph._dominant_angle = 0.0
         return 0.0
+
+    # EN: Visit arcs in the same order as the former adjacency dictionary:
+    # nodes by order of first appearance, then each node's arcs in insertion order.
+    # FR: On parcourt les arcs dans le même ordre que l'ancien dictionnaire d'adjacence :
+    # nœuds par ordre de première apparition, puis arcs de chaque nœud dans l'ordre d'insertion.
+    uniq, first = np.unique(src, return_index=True)
+    rank = np.empty(len(graph.node_ids), dtype=np.int64)
+    rank[uniq[np.argsort(first)]] = np.arange(len(uniq))
+    order = np.argsort(rank[src], kind="stable")
+
+    vec = graph.node_array[dst[order]] - graph.node_array[src[order]]
+    keep = np.hypot(vec[:, 0], vec[:, 1]) >= 5.0
+    vec = vec[keep][:max_edges]
+    if len(vec) == 0:
+        graph._dominant_angle = 0.0
+        return 0.0
+
+    angles = np.degrees(np.arctan2(vec[:, 1], vec[:, 0]))
+    angles = np.where(angles < -90, angles + 180, angles)
+    angles = np.where(angles > 90, angles - 180, angles)
 
     bins = np.arange(-90, 91, 10)
     hist, edges = np.histogram(angles, bins=bins)
     idx = int(np.argmax(hist))
-    return float(0.5 * (edges[idx] + edges[idx + 1]))
+    graph._dominant_angle = float(0.5 * (edges[idx] + edges[idx + 1]))
+    return graph._dominant_angle
 
 
 # EN: Builds a few size candidates around the nominal requested size.
@@ -993,6 +1086,7 @@ def set_local_view(ax, target, route):
 
 
 def plot_results(graph, results, desired_distance_m, tolerance_ratio, title):
+    plt = _plt()
     fig, axes = plt.subplots(2, 2, figsize=(15, 12))
     axes = axes.ravel()
 
@@ -1031,6 +1125,7 @@ def plot_split_text_results(graph, split_results, per_letter_distance_m, toleran
     cols = 2 if n > 1 else 1
     rows = math.ceil(n / cols)
 
+    plt = _plt()
     fig, axes = plt.subplots(rows, cols, figsize=(8 * cols, 5 * rows))
     axes = np.array(axes).reshape(-1)
 
@@ -1059,6 +1154,7 @@ def plot_split_text_results(graph, split_results, per_letter_distance_m, toleran
 
 
 def plot_split_text_global(graph, split_results, text):
+    plt = _plt()
     fig, ax = plt.subplots(1, 1, figsize=(12, 10))
     draw_graph(ax, graph)
 

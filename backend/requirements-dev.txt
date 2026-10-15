@@ -1,0 +1,4 @@
+# Outils de développement : tests et tracés d'expérimentation (python shape_route_experiments_v16.py)
+-r requirements.txt
+pytest
+matplotlib
