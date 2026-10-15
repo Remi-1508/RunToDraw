@@ -155,6 +155,9 @@ export default function Sidebar({
   const [loadingSuggest, setLoadingSuggest] = useState(false);
   const [searchStatus, setSearchStatus] = useState("");
   const [activeIndex, setActiveIndex] = useState(-1);
+  // Recherche internationale en cours (plus lente) : heure de début, pour afficher l'attente.
+  const [worldSearchStart, setWorldSearchStart] = useState(null);
+  const [worldElapsed, setWorldElapsed] = useState(0);
 
   /*
   EN:
@@ -212,6 +215,7 @@ export default function Sidebar({
 
     if (query.length < 3) {
       if (abortRef.current) abortRef.current.abort();
+      setWorldSearchStart(null);
       setSuggestions([]);
       setActiveIndex(-1);
       setLoadingSuggest(false);
@@ -230,6 +234,10 @@ export default function Sidebar({
           bias: center ?? [44.8378, -0.5792],
           signal: controller.signal,
           // Affichage progressif : les premières suggestions arrivent sans attendre le service le plus lent.
+          onPhase: (phase) => {
+            if (controller.signal.aborted) return;
+            setWorldSearchStart(phase === "world-start" ? Date.now() : null);
+          },
           onUpdate: (partial) => {
             if (controller.signal.aborted || !partial.length) return;
             setSuggestions(partial);
@@ -255,7 +263,10 @@ export default function Sidebar({
             : "Recherche indisponible, vérifie ta connexion"
         );
       } finally {
-        if (!controller.signal.aborted) setLoadingSuggest(false);
+        if (!controller.signal.aborted) {
+          setLoadingSuggest(false);
+          setWorldSearchStart(null);
+        }
       }
     }, 150);
 
@@ -266,6 +277,18 @@ export default function Sidebar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address]);
 
+  // Compteur de secondes pendant la recherche internationale.
+  useEffect(() => {
+    if (worldSearchStart === null) {
+      setWorldElapsed(0);
+      return undefined;
+    }
+    const timer = setInterval(() => {
+      setWorldElapsed(Math.floor((Date.now() - worldSearchStart) / 1000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [worldSearchStart]);
+
   function pickSuggestion(suggestion) {
     const label = [suggestion.title, suggestion.subtitle].filter(Boolean).join(", ");
     pickedLabelRef.current = label;
@@ -275,6 +298,7 @@ export default function Sidebar({
     setSuggestions([]);
     setActiveIndex(-1);
     setLoadingSuggest(false);
+    setWorldSearchStart(null);
     setSearchStatus("Point de départ choisi");
   }
 
@@ -369,6 +393,27 @@ export default function Sidebar({
             aria-activedescendant={activeIndex >= 0 ? `address-option-${activeIndex}` : undefined}
             autoComplete="off"
           />
+
+          {worldSearchStart !== null ? (
+            <div style={styles.worldPending} role="status" aria-live="polite">
+              <div style={styles.worldPendingRow}>
+                <span style={styles.worldPendingTitle}>
+                  {suggestions.length > 0
+                    ? "Recherche d’autres résultats à l’étranger…"
+                    : "Recherche dans le monde entier…"}
+                </span>
+                <span style={styles.worldPendingTime}>{worldElapsed} s</span>
+              </div>
+              <div style={styles.worldPendingText}>
+                {worldElapsed < 5
+                  ? "Ta recherche est bien prise en compte."
+                  : "Les adresses hors de France prennent plus de temps (jusqu’à 30 s environ). Tu peux patienter, la liste se complètera toute seule."}
+              </div>
+              <div style={styles.worldPendingTrack} aria-hidden="true">
+                <div className="rtd-search-progress" style={styles.worldPendingBar} />
+              </div>
+            </div>
+          ) : null}
 
           {suggestions.length > 0 ? (
             <div style={styles.suggestBox} role="listbox" id="address-suggestions">
@@ -763,6 +808,59 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     gap: 4,
+  },
+
+  worldPending: {
+    marginTop: 10,
+    borderRadius: 18,
+    border: "1px dashed var(--accent-strong)",
+    background: "var(--accent-soft)",
+    padding: "12px 14px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  },
+
+  worldPendingRow: {
+    display: "flex",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+
+  worldPendingTitle: {
+    fontWeight: 700,
+    color: "var(--text)",
+  },
+
+  worldPendingTime: {
+    fontVariantNumeric: "tabular-nums",
+    fontSize: 13,
+    color: "var(--text-soft)",
+  },
+
+  worldPendingText: {
+    fontSize: 13,
+    lineHeight: 1.45,
+    color: "var(--text-soft)",
+  },
+
+  worldPendingTrack: {
+    position: "relative",
+    height: 4,
+    borderRadius: 999,
+    overflow: "hidden",
+    background: "var(--border)",
+  },
+
+  worldPendingBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: "30%",
+    height: "100%",
+    borderRadius: 999,
+    background: "var(--accent-strong)",
   },
 
   suggestItemActive: {

@@ -144,3 +144,25 @@ input:focus {
 .tiles-dark {
   filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
 }
+
+/* Barre d'attente de la recherche d'adresses à l'étranger (va-et-vient) */
+.rtd-search-progress {
+  animation: rtd-search-progress 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes rtd-search-progress {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(233%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rtd-search-progress {
+    animation: none;
+    width: 100% !important;
+    opacity: 0.5;
+  }
+}

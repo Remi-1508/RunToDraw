@@ -44,7 +44,8 @@ const CACHE_SIZE = 60;
 // à la fois, avec un délai maximal : cela économise le quota gratuit de Geoapify et évite que
 // Photon (serveur public lent) empile les requêtes.
 const WORLD_EXTRA_DELAY_MS = 350;
-const WORLD_TIMEOUT_MS = GEOAPIFY_KEY ? 5000 : 15000;
+// Photon peut mettre ~30 s quand son serveur public est chargé : on lui laisse 45 s.
+const WORLD_TIMEOUT_MS = GEOAPIFY_KEY ? 8000 : 45000;
 
 const cache = new Map();
 
@@ -222,7 +223,7 @@ function worldRequest(query, bias) {
 
 export const WORLD_SERVICE = GEOAPIFY_KEY ? "Geoapify" : "Photon";
 
-async function searchWorld(query, bias, signal) {
+async function searchWorld(query, bias, signal, onPhase) {
   const { url, parse } = worldRequest(query, bias);
   if (photonCache.has(url)) return photonCache.get(url);
 
@@ -237,6 +238,7 @@ async function searchWorld(query, bias, signal) {
   const onAbort = () => controller.abort();
   signal?.addEventListener("abort", onAbort, { once: true });
   const timer = setTimeout(() => controller.abort(), WORLD_TIMEOUT_MS);
+  onPhase?.("world-start");
 
   try {
     const data = await fetchJson(url, controller.signal);
@@ -252,6 +254,7 @@ async function searchWorld(query, bias, signal) {
     }
     throw error;
   } finally {
+    onPhase?.("world-end");
     clearTimeout(timer);
     signal?.removeEventListener("abort", onAbort);
     if (photonInFlight === controller) photonInFlight = null;
@@ -298,12 +301,14 @@ function timed(label, promise) {
  * lent des deux pour montrer les premières suggestions.
  *
  * @param {string} query texte saisi (au moins 3 caractères conseillés)
- * @param {{ bias?: [number, number], signal?: AbortSignal, onUpdate?: Function }} options
+ * @param {{ bias?: [number, number], signal?: AbortSignal, onUpdate?: Function, onPhase?: Function }} options
  *   bias : [lat, lon] pour favoriser les résultats proches
+ *   onPhase("world-start" | "world-end") : début et fin de la recherche internationale
+ *   (plus lente), pour l'indiquer à l'utilisateur
  * @returns {Promise<Array<{id, title, subtitle, kind, lat, lon}>>} la liste finale ;
  *   rejette seulement si les deux services échouent.
  */
-export function searchPlaces(query, { bias, signal, onUpdate } = {}) {
+export function searchPlaces(query, { bias, signal, onUpdate, onPhase } = {}) {
   const q = query.trim();
   const key = `${q.toLowerCase()}|${bias ? bias.map((v) => v.toFixed(2)).join(",") : ""}`;
   if (cache.has(key)) {
@@ -349,7 +354,7 @@ export function searchPlaces(query, { bias, signal, onUpdate } = {}) {
     timed("IGN", searchIgn(q, bias, signal))
       .then(onResult((v) => { ign = v; }), onError)
       .finally(settle);
-    timed(WORLD_SERVICE, searchWorld(q, bias, signal))
+    timed(WORLD_SERVICE, searchWorld(q, bias, signal, onPhase))
       .then(onResult((v) => { world = v; }), onWorldError)
       .finally(settle);
   });
