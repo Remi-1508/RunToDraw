@@ -864,13 +864,59 @@ def shape_layout(base_points, desired_distance_m, shape_name, use_translation):
     return centers, sizes
 
 
-# EN: Rotation angles tested for a shape, around the dominant street orientation.
-# FR: Angles de rotation testés pour une forme, autour de l'orientation dominante des rues.
+# EN:
+# Orientation rules.
+# A heart, a star, an infinity sign or a word are only recognizable when they are roughly upright:
+# before, the angle was chosen around the dominant street orientation (up to ±60°), so a heart could
+# end up lying on its side. Each shape now has:
+# - its rotation symmetry period (a square looks the same every 90°, a star every 72°, ...),
+# - the maximum tilt from upright that keeps it readable,
+# - the number of angles tested.
+# When the street grid orientation falls within the allowed tilt, it is added to the tested angles
+# (aligning the shape with the streets usually gives cleaner routes).
+# Shapes that are readable in any orientation (square, circle) are tested over their whole period,
+# starting from the street orientation.
+#
+# FR:
+# Règles d'orientation.
+# Un cœur, une étoile, le signe infini ou un mot ne sont reconnaissables que s'ils sont à peu près droits :
+# avant, l'angle était choisi autour de l'orientation dominante des rues (jusqu'à ±60°), et un cœur pouvait
+# se retrouver couché. Chaque forme a maintenant :
+# - sa période de symétrie (un carré est identique tous les 90°, une étoile tous les 72°, ...),
+# - l'inclinaison maximale par rapport à la verticale qui la garde lisible,
+# - le nombre d'angles testés.
+# Si l'orientation des rues tombe dans l'inclinaison permise, elle est ajoutée aux angles testés
+# (aligner la forme sur les rues donne en général des tracés plus nets).
+# Les formes lisibles dans n'importe quel sens (carré, cercle) sont testées sur toute leur période,
+# en partant de l'orientation des rues.
+ORIENTATION_RULES = {
+    # forme      : (période de symétrie °, inclinaison max °, nombre d'angles)
+    "square":   (90.0, 45.0, 6),
+    "circle":   (360.0, 180.0, 3),
+    "heart":    (360.0, 20.0, 5),
+    "star":     (72.0, 20.0, 5),
+    "infinity": (180.0, 20.0, 5),
+    "text":     (360.0, 15.0, 5),
+}
+
+
+def fold_angle(angle_deg, period_deg):
+    """Ramène un angle dans [-période/2, période/2[."""
+    return ((angle_deg + period_deg / 2.0) % period_deg) - period_deg / 2.0
+
+
 def search_angles(graph, shape_name):
-    base_angle = dominant_graph_angle(graph)
-    if shape_name == "text":
-        return [base_angle - 25, base_angle - 12, base_angle, base_angle + 12, base_angle + 25]
-    return [base_angle + a for a in (-60, -45, -30, -15, 0, 15, 30, 45, 60)]
+    period, max_tilt, count = ORIENTATION_RULES.get(shape_name, (360.0, 20.0, 5))
+    street = fold_angle(dominant_graph_angle(graph), period)
+
+    if max_tilt >= period / 2.0:
+        # toute orientation est lisible : on balaie la période en partant de l'axe des rues
+        return [street + k * period / count for k in range(count)]
+
+    angles = [float(a) for a in np.linspace(-max_tilt, max_tilt, count)]
+    if abs(street) <= max_tilt and min(abs(street - a) for a in angles) > 2.0:
+        angles.append(street)
+    return angles
 
 
 # EN: Routes one candidate (shape at a given center, size and angle) and scores it.
@@ -883,6 +929,9 @@ def evaluate_candidate(graph, base_points, center, size_m, angle_deg, desired_di
                              route_length_m=extra["path_length_m"])
     metrics.update(extra)
     metrics["length_target_request"] = float(desired_distance_m)
+    # Tolérance symétrique : trop court est aussi un écart (ex. ±10 % -> entre 13,5 et 16,5 km pour 15 km).
+    min_allowed_m = 2.0 * desired_distance_m - max_allowed_m
+    metrics["under_min"] = max(0.0, min_allowed_m - metrics["length_route"])
     metrics["angle_deg"] = float(angle_deg)
     metrics["size_m"] = float(size_m)
     metrics["center_x"] = float(center[0])
@@ -958,14 +1007,17 @@ def calibrated_search(graph, base_points, centers, angles, desired_distance_m, m
 # - "closest to distance": among the candidates within ±3 % of the requested distance, the one
 #   that looks best (lowest combined score); if none is that close, simply the closest one,
 # - the best overall compromise between shape, distance and smoothness.
-# Candidates above the maximum distance are only used if nothing else is available.
+# Candidates outside the tolerance (too long or too short) are only used if nothing else is available.
 # FR: Choisit les deux propositions parmi les candidats évalués :
 # - « distance la plus proche » : parmi les candidats à ±3 % de la distance demandée, celui qui
 #   ressemble le plus à la forme (meilleur score combiné) ; si aucun n'est aussi proche, le plus proche,
 # - le meilleur compromis global entre forme, distance et fluidité.
-# Les candidats au-delà de la distance maximale ne servent que si rien d'autre n'est disponible.
+# Les candidats hors tolérance (trop longs ou trop courts) ne servent que si rien d'autre n'est disponible.
 def pick_best(evaluated):
-    feasible = [e for e in evaluated if e["metrics"]["over_max"] <= 1e-6]
+    feasible = [
+        e for e in evaluated
+        if e["metrics"]["over_max"] <= 1e-6 and e["metrics"].get("under_min", 0.0) <= 1e-6
+    ]
 
     if feasible:
         close_enough = [
@@ -1092,15 +1144,13 @@ def split_letter_layout(letters, per_letter_distance_m, direction, normal):
 
 def split_text_itineraries_full_distance(graph, text, per_letter_distance_m, tolerance_ratio):
     letters = split_letters(text)
-    dom_angle = dominant_graph_angle(graph)
-
-    a = math.radians(dom_angle)
-    direction = np.array([math.cos(a), math.sin(a)], dtype=float)
-    normal = np.array([-direction[1], direction[0]], dtype=float)
+    # Lettres droites, lues de gauche à droite (voir ORIENTATION_RULES).
+    angles = search_angles(graph, "text")
+    direction = np.array([1.0, 0.0], dtype=float)
+    normal = np.array([0.0, 1.0], dtype=float)
 
     results = []
     for ch, base, local_centers, sizes in split_letter_layout(letters, per_letter_distance_m, direction, normal):
-        angles = [dom_angle - 25, dom_angle - 12, dom_angle, dom_angle + 12, dom_angle + 25]
         evaluated = calibrated_search(
             graph, base, local_centers, angles,
             per_letter_distance_m, per_letter_distance_m * (1.0 + tolerance_ratio),

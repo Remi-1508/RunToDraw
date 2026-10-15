@@ -199,3 +199,19 @@ def test_required_radius_covers_every_candidate(drawing, distance_m):
                 for angle in range(0, 360, 15):
                     pts = make_candidate_points(b, c, size, angle)
                     assert np.hypot(pts[:, 0], pts[:, 1]).max() <= radius - margin + 1e-6
+
+
+@pytest.mark.parametrize("street_angle", [-80.0, -37.0, 0.0, 8.0, 45.0, 89.0])
+def test_upright_shapes_stay_readable(street_angle):
+    """Cœur, étoile, infini et texte restent proches de la verticale, quelle que soit
+    l'orientation des rues ; carré et cercle suivent l'axe des rues."""
+    from shape_route_experiments_v16 import ORIENTATION_RULES, search_angles, fold_angle
+
+    class FakeGraph:
+        _dominant_angle = street_angle
+
+    for shape in ("heart", "star", "infinity", "text"):
+        _, max_tilt, _ = ORIENTATION_RULES[shape]
+        assert all(abs(a) <= max_tilt + 1e-9 for a in search_angles(FakeGraph, shape))
+    square = search_angles(FakeGraph, "square")
+    assert any(abs(fold_angle(a - street_angle, 90.0)) < 1e-9 for a in square)
