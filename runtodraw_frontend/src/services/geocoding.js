@@ -35,6 +35,11 @@ const MAX_RESULTS = 7;
 const MAX_STRONG_IGN = 5;
 const IGN_STRONG_SCORE = 0.6;
 const CACHE_SIZE = 60;
+// Photon (serveur public) limite les rafales de requêtes : envoyées à chaque pause de frappe,
+// elles s'empilaient (30 s mesurées). On ne l'interroge donc qu'une fois la saisie stabilisée,
+// une seule requête à la fois, avec un délai maximal.
+const PHOTON_EXTRA_DELAY_MS = 350;
+const PHOTON_TIMEOUT_MS = 8000;
 
 const cache = new Map();
 
@@ -150,15 +155,56 @@ function searchIgn(query, bias, signal) {
   );
 }
 
-function searchPhoton(query, bias, signal) {
+const photonCache = new Map();
+let photonInFlight = null;
+
+function wait(ms, signal) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener("abort", () => {
+      clearTimeout(timer);
+      reject(new DOMException("Aborted", "AbortError"));
+    }, { once: true });
+  });
+}
+
+async function searchPhoton(query, bias, signal) {
   const params = new URLSearchParams({ q: query, limit: "5", lang: "fr" });
   if (bias) {
-    params.set("lat", bias[0].toFixed(5));
-    params.set("lon", bias[1].toFixed(5));
+    params.set("lat", bias[0].toFixed(2));
+    params.set("lon", bias[1].toFixed(2));
   }
-  return fetchJson(`${PHOTON_URL}?${params}`, signal).then((data) =>
-    (data.features ?? []).map(fromPhoton).filter(Boolean)
-  );
+  const url = `${PHOTON_URL}?${params}`;
+  if (photonCache.has(url)) return photonCache.get(url);
+
+  // Attendre que la saisie soit stable : si l'utilisateur tape encore, cette recherche est annulée
+  // avant même d'avoir sollicité Photon.
+  await wait(PHOTON_EXTRA_DELAY_MS, signal);
+
+  // Une seule requête Photon à la fois : la précédente (devenue inutile) est interrompue.
+  photonInFlight?.abort();
+  const controller = new AbortController();
+  photonInFlight = controller;
+  const onAbort = () => controller.abort();
+  signal?.addEventListener("abort", onAbort, { once: true });
+  const timer = setTimeout(() => controller.abort(), PHOTON_TIMEOUT_MS);
+
+  try {
+    const data = await fetchJson(url, controller.signal);
+    const results = (data.features ?? []).map(fromPhoton).filter(Boolean);
+    photonCache.set(url, results);
+    if (photonCache.size > CACHE_SIZE) photonCache.delete(photonCache.keys().next().value);
+    return results;
+  } catch (error) {
+    if (error?.name === "AbortError" && !signal?.aborted) {
+      throw new Error(`Photon : pas de réponse après ${PHOTON_TIMEOUT_MS / 1000} s`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", onAbort);
+    if (photonInFlight === controller) photonInFlight = null;
+  }
 }
 
 function merge(ign, photon) {
