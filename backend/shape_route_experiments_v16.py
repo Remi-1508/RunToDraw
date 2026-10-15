@@ -253,10 +253,6 @@ class RoadGraph:
         self.node_array = np.column_stack([xs, ys])
         self._node_xy_dict = None
 
-        # EN: KD-tree built once per graph, queried for every sampled point of every candidate.
-        # FR: KD-tree construit une seule fois par graphe, interrogé pour chaque point de chaque candidat.
-        self._kdtree = cKDTree(self.node_array)
-
         # --- Arcs orientés, dans le même ordre que l'ancienne liste d'adjacence ---
         # (une arête à double sens donne deux arcs : u->v puis v->u)
         src, dst, w = [], [], []
@@ -316,6 +312,21 @@ class RoadGraph:
         )
         self._reach_cache = {}
 
+        # EN: Snapping only targets the largest strongly connected component (the main road network).
+        # Small isolated pieces (parking aisles, private bits cut by the extraction) can never be
+        # reached from the rest: snapping onto them used to create jumps in the route.
+        # The KD-tree is built once per graph, then queried for every sampled point of every candidate.
+        # FR: L'accroche ne vise que la plus grande composante fortement connexe (le réseau principal).
+        # Les petits morceaux isolés (allées de parking, bouts coupés par l'extraction) ne sont jamais
+        # accessibles depuis le reste : s'y accrocher créait des sauts dans le trajet.
+        # Le KD-tree est construit une fois par graphe, puis interrogé pour chaque point de chaque candidat.
+        if n:
+            main_component = int(np.argmax(np.bincount(self._scc)))
+            self._snap_idx = np.flatnonzero(self._scc == main_component)
+        else:
+            self._snap_idx = np.arange(0)
+        self._kdtree = cKDTree(self.node_array[self._snap_idx])
+
         self.bounds = {
             "xmin": float(xs.min()),
             "xmax": float(xs.max()),
@@ -333,17 +344,17 @@ class RoadGraph:
             self._node_xy_dict = {nid: self.node_array[i] for i, nid in enumerate(self.node_ids)}
         return self._node_xy_dict
 
-    # EN: Finds the nearest graph node to a target point (KD-tree query).
-    # FR: Trouve le nœud du graphe le plus proche d'un point cible (requête KD-tree).
+    # EN: Finds the nearest node of the main road network to a target point (KD-tree query).
+    # FR: Trouve le nœud du réseau principal le plus proche d'un point cible (requête KD-tree).
     def nearest_node(self, point):
-        d, idx = self._kdtree.query(np.asarray(point, dtype=float))
-        return self.node_ids[int(idx)], float(d)
+        d, k = self._kdtree.query(np.asarray(point, dtype=float))
+        return self.node_ids[int(self._snap_idx[int(k)])], float(d)
 
     # EN: Vectorized version: all the points of a shape in a single call. Returns node indices.
     # FR: Version vectorisée : tous les points d'une forme en un seul appel. Renvoie des indices de nœuds.
     def nearest_indices(self, points):
-        d, idx = self._kdtree.query(np.asarray(points, dtype=float))
-        return np.asarray(idx, dtype=np.int64), np.asarray(d, dtype=float)
+        d, k = self._kdtree.query(np.asarray(points, dtype=float))
+        return self._snap_idx[np.asarray(k, dtype=np.int64)], np.asarray(d, dtype=float)
 
     # EN: True if `goal` can be reached from `start` (one BFS per source component, cached).
     # FR: Vrai si `goal` est accessible depuis `start` (un parcours par composante source, mis en cache).
@@ -585,7 +596,11 @@ def single_letter_polyline(ch):
 # et dépassement éventuel de la distance maximale.
 # ============================================================
 
-def score_solution(route_points, target_points, desired_distance_m, max_allowed_m):
+# EN: `route_length_m` is the real length of the path on the roads. When it is not given, we fall
+# back to the length of `route_points` (which may be a simplified polyline, hence slightly shorter).
+# FR: `route_length_m` est la vraie longueur du trajet sur les routes. Si elle n'est pas fournie, on
+# prend la longueur de `route_points` (qui peut être une polyligne simplifiée, donc un peu plus courte).
+def score_solution(route_points, target_points, desired_distance_m, max_allowed_m, route_length_m=None):
     length_target = polyline_length(target_points)
 
     if len(route_points) < 2:
@@ -603,7 +618,7 @@ def score_solution(route_points, target_points, desired_distance_m, max_allowed_
     target_rs = resample_polyline(target_points, n_samples=180)
 
     shape_error = float(np.mean(np.linalg.norm(route_rs - target_rs, axis=1)))
-    length_route = polyline_length(route_points)
+    length_route = polyline_length(route_points) if route_length_m is None else float(route_length_m)
     length_gap = abs(length_route - desired_distance_m)
     over = max(0.0, length_route - max_allowed_m)
     turn = path_turn_penalty(route_points)
@@ -640,6 +655,43 @@ def simplify_consecutive_duplicates(seq):
     return out
 
 
+# EN: Removes short loops from a node path. When the path comes back to a node it already visited
+# after less than `max_loop_m`, the detour in between is cut. This removes the back-and-forth "comb
+# teeth" created when a shape point snaps to a node in a side street (go there, come back).
+# Long loops are kept: they are part of the drawing (e.g. the crossing of the infinity sign).
+# Linear time: each node is pushed and popped at most once.
+# FR: Supprime les boucles courtes d'un chemin de nœuds. Quand le chemin revient sur un nœud déjà visité
+# après moins de `max_loop_m`, le détour entre les deux est coupé. Cela supprime les « dents de peigne »
+# créées quand un point de la forme s'accroche à un nœud dans une rue latérale (on y va, on revient).
+# Les grandes boucles sont gardées : elles font partie du dessin (ex. le croisement du signe infini).
+# Temps linéaire : chaque nœud est ajouté et retiré au plus une fois.
+def remove_short_loops(path_idx, node_array, max_loop_m):
+    out, cum, last_pos = [], [], {}
+    for v in path_idx:
+        if out:
+            dx, dy = node_array[v] - node_array[out[-1]]
+            d = cum[-1] + math.hypot(dx, dy)
+        else:
+            d = 0.0
+        p = last_pos.get(v)
+        if p is not None and d - cum[p] <= max_loop_m:
+            for w in out[p + 1:]:
+                if last_pos.get(w, -1) > p:
+                    del last_pos[w]
+            del out[p + 1:]
+            del cum[p + 1:]
+            continue
+        last_pos[v] = len(out)
+        out.append(v)
+        cum.append(d)
+    return out
+
+
+# EN: Loops shorter than this many sampling steps are considered back-and-forth noise.
+# FR: Les boucles plus courtes que ce nombre de pas d'échantillonnage sont considérées comme des allers-retours parasites.
+LOOP_REMOVAL_STEPS = 3.0
+
+
 def route_from_target(graph, target_points, sample_count=60):
     target_rs = resample_polyline(target_points, n_samples=sample_count)
 
@@ -663,11 +715,14 @@ def route_from_target(graph, target_points, sample_count=60):
             path_idx.extend(sp[1:])
         total_cost += cost
 
+    sampling_step = polyline_length(target_points) / max(sample_count - 1, 1)
+    path_idx = remove_short_loops(path_idx, graph.node_array, LOOP_REMOVAL_STEPS * sampling_step)
+
     if path_idx:
-        route_points = graph.node_array[path_idx]
-        route_points = simplify_path_points(route_points, angle_tol_deg=6.0)
+        path_points = graph.node_array[path_idx]
+        route_points = simplify_path_points(path_points, angle_tol_deg=6.0)
     else:
-        route_points = np.empty((0, 2), dtype=float)
+        path_points = route_points = np.empty((0, 2), dtype=float)
 
     full_path = [graph.node_ids[i] for i in path_idx]
     extra = {
@@ -675,6 +730,9 @@ def route_from_target(graph, target_points, sample_count=60):
         "shortest_path_cost": total_cost,
         "unreachable_segments": unreachable,
         "n_route_nodes": len(full_path),
+        # EN: real length of the path on the roads (the simplified polyline cuts corners).
+        # FR: vraie longueur du trajet sur les routes (la polyligne simplifiée coupe les virages).
+        "path_length_m": polyline_length(path_points),
     }
     return full_path, route_points, extra
 
@@ -806,71 +864,125 @@ def shape_layout(base_points, desired_distance_m, shape_name, use_translation):
     return centers, sizes
 
 
-def global_search_candidates(graph, base_points, desired_distance_m, shape_name, use_translation):
-    centers, sizes = shape_layout(base_points, desired_distance_m, shape_name, use_translation)
-
+# EN: Rotation angles tested for a shape, around the dominant street orientation.
+# FR: Angles de rotation testés pour une forme, autour de l'orientation dominante des rues.
+def search_angles(graph, shape_name):
     base_angle = dominant_graph_angle(graph)
-
     if shape_name == "text":
-        angles = [base_angle - 25, base_angle - 12, base_angle, base_angle + 12, base_angle + 25]
-    else:
-        angles = [base_angle + a for a in (-60, -45, -30, -15, 0, 15, 30, 45, 60)]
+        return [base_angle - 25, base_angle - 12, base_angle, base_angle + 12, base_angle + 25]
+    return [base_angle + a for a in (-60, -45, -30, -15, 0, 15, 30, 45, 60)]
 
-    candidates = []
-    for c in centers:
-        for a in angles:
-            for s in sizes:
-                candidates.append((c.copy(), float(s), float(a)))
-    return candidates
+
+# EN: Routes one candidate (shape at a given center, size and angle) and scores it.
+# FR: Construit le trajet d'un candidat (forme à un centre, une taille et un angle donnés) et l'évalue.
+def evaluate_candidate(graph, base_points, center, size_m, angle_deg, desired_distance_m, max_allowed_m, sample_count):
+    target = make_candidate_points(base_points, center, size_m, angle_deg)
+    node_path, route_points, extra = route_from_target(graph, target, sample_count=sample_count)
+
+    metrics = score_solution(route_points, target, desired_distance_m, max_allowed_m,
+                             route_length_m=extra["path_length_m"])
+    metrics.update(extra)
+    metrics["length_target_request"] = float(desired_distance_m)
+    metrics["angle_deg"] = float(angle_deg)
+    metrics["size_m"] = float(size_m)
+    metrics["center_x"] = float(center[0])
+    metrics["center_y"] = float(center[1])
+
+    return {
+        "target": target,
+        "node_path": node_path,
+        "route_points": route_points,
+        "metrics": metrics,
+    }
 
 
 # EN:
-# Evaluates all candidates for one search method and keeps the best results.
-# We keep:
-# - the closest candidate to the requested distance,
-# - the best overall compromise between shape, distance and smoothness.
+# Size calibration.
+# The route on real roads is always longer than the ideal drawing (streets do not follow the
+# curve exactly), and by how much depends on the place. Instead of testing a few fixed sizes,
+# each (center, angle) pair adjusts the size until the route length matches the requested
+# distance: size <- size * desired / measured. The route length grows roughly linearly with the
+# size, so 2 or 3 steps are usually enough. The size/length ratio learned on one pair is used
+# as the starting point for the next one. Sizes stay within [min_size, max_size] so that the
+# shape always fits in the downloaded area (see required_radius_m).
+# Every evaluated size is kept: the "best compromise" choice can use them all.
 #
 # FR:
-# Évalue tous les candidats pour une méthode de recherche et conserve les meilleurs résultats.
-# On garde :
-# - le candidat le plus proche de la distance demandée,
-# - le meilleur compromis global entre forme, distance et fluidité.
-def evaluate_method(graph, base_points, desired_distance_m, tolerance_ratio, shape_name, method_name):
-    max_allowed_m = desired_distance_m * (1.0 + tolerance_ratio)
-    use_translation = (method_name == "translation")
-    candidates = global_search_candidates(graph, base_points, desired_distance_m, shape_name, use_translation)
+# Calibrage de la taille.
+# Le trajet sur les vraies routes est toujours plus long que le dessin idéal (les rues ne suivent pas
+# exactement la courbe), et l'écart dépend du lieu. Au lieu de tester quelques tailles fixes, chaque
+# couple (centre, angle) ajuste la taille jusqu'à ce que la longueur du trajet corresponde à la distance
+# demandée : taille <- taille * demandée / mesurée. La longueur grandit à peu près proportionnellement
+# à la taille : 2 ou 3 étapes suffisent en général. Le rapport taille/longueur appris sur un couple sert
+# de point de départ au suivant. Les tailles restent dans [min_size, max_size] pour que la forme tienne
+# toujours dans la zone téléchargée (voir required_radius_m).
+# Toutes les tailles évaluées sont gardées : le choix du « meilleur compromis » peut les utiliser.
+CALIBRATION_MAX_STEPS = 4
+CALIBRATION_TOLERANCE = 0.03   # on s'arrête à ±3 % de la distance demandée
+EXPECTED_DETOUR = 1.5          # estimation initiale : trajet ≈ 1,5 × longueur du dessin
 
+
+def calibrated_search(graph, base_points, centers, angles, desired_distance_m, max_allowed_m,
+                      sample_count, min_size, max_size):
+    nominal = desired_distance_m / max(polyline_length(base_points), 1e-9)
+    size_per_meter = None
     evaluated = []
-    for center, size_m, angle_deg in candidates:
-        target = make_candidate_points(base_points, center, size_m, angle_deg)
-        sample_count = 60 if shape_name == "text" else 72
-        node_path, route_points, extra = route_from_target(graph, target, sample_count=sample_count)
 
-        metrics = score_solution(route_points, target, desired_distance_m, max_allowed_m)
-        metrics.update(extra)
-        metrics["angle_deg"] = angle_deg
-        metrics["size_m"] = size_m
-        metrics["center_x"] = float(center[0])
-        metrics["center_y"] = float(center[1])
+    for center in centers:
+        for angle in angles:
+            if size_per_meter is None:
+                size = nominal / EXPECTED_DETOUR
+            else:
+                size = desired_distance_m * size_per_meter
 
-        evaluated.append({
-            "target": target,
-            "node_path": node_path,
-            "route_points": route_points,
-            "metrics": metrics,
-        })
+            for _ in range(CALIBRATION_MAX_STEPS):
+                size = float(np.clip(size, min_size, max_size))
+                cand = evaluate_candidate(graph, base_points, center, size, angle,
+                                          desired_distance_m, max_allowed_m, sample_count)
+                evaluated.append(cand)
+                length = cand["metrics"]["length_route"]
+                if length <= 0:
+                    break
+                size_per_meter = size / length
+                if abs(length - desired_distance_m) <= CALIBRATION_TOLERANCE * desired_distance_m:
+                    break
+                next_size = float(np.clip(size * float(np.clip(desired_distance_m / length, 0.6, 1.5)),
+                                          min_size, max_size))
+                if abs(next_size - size) < 1e-6:
+                    break  # bloqué sur une borne : inutile d'insister
+                size = next_size
+    return evaluated
 
+
+# EN: Picks the two proposals among the evaluated candidates:
+# - "closest to distance": among the candidates within ±3 % of the requested distance, the one
+#   that looks best (lowest combined score); if none is that close, simply the closest one,
+# - the best overall compromise between shape, distance and smoothness.
+# Candidates above the maximum distance are only used if nothing else is available.
+# FR: Choisit les deux propositions parmi les candidats évalués :
+# - « distance la plus proche » : parmi les candidats à ±3 % de la distance demandée, celui qui
+#   ressemble le plus à la forme (meilleur score combiné) ; si aucun n'est aussi proche, le plus proche,
+# - le meilleur compromis global entre forme, distance et fluidité.
+# Les candidats au-delà de la distance maximale ne servent que si rien d'autre n'est disponible.
+def pick_best(evaluated):
     feasible = [e for e in evaluated if e["metrics"]["over_max"] <= 1e-6]
 
     if feasible:
-        best_close = min(
-            feasible,
-            key=lambda e: (
-                e["metrics"]["length_gap"],
-                e["metrics"]["shape_error"],
-                e["metrics"]["turn_penalty"],
-            ),
-        )
+        close_enough = [
+            e for e in feasible
+            if e["metrics"]["length_gap"] <= CALIBRATION_TOLERANCE * (e["metrics"]["length_target_request"])
+        ]
+        if close_enough:
+            best_close = min(close_enough, key=lambda e: (e["metrics"]["combined"], e["metrics"]["length_gap"]))
+        else:
+            best_close = min(
+                feasible,
+                key=lambda e: (
+                    e["metrics"]["length_gap"],
+                    e["metrics"]["shape_error"],
+                    e["metrics"]["turn_penalty"],
+                ),
+            )
         best_comp = min(
             feasible,
             key=lambda e: (
@@ -894,6 +1006,21 @@ def evaluate_method(graph, base_points, desired_distance_m, tolerance_ratio, sha
                 e["metrics"]["over_max"],
             ),
         )
+    return best_close, best_comp
+
+
+# EN: Runs one search method (projection or translation) with size calibration.
+# FR: Lance une méthode de recherche (projection ou translation) avec calibrage de la taille.
+def evaluate_method(graph, base_points, desired_distance_m, tolerance_ratio, shape_name, method_name):
+    max_allowed_m = desired_distance_m * (1.0 + tolerance_ratio)
+    use_translation = (method_name == "translation")
+    centers, sizes = shape_layout(base_points, desired_distance_m, shape_name, use_translation)
+    angles = search_angles(graph, shape_name)
+    sample_count = 60 if shape_name == "text" else 72
+
+    evaluated = calibrated_search(graph, base_points, centers, angles, desired_distance_m, max_allowed_m,
+                                  sample_count, min_size=80.0, max_size=max(sizes))
+    best_close, best_comp = pick_best(evaluated)
 
     return {
         "closest_to_distance": best_close,
@@ -974,54 +1101,13 @@ def split_text_itineraries_full_distance(graph, text, per_letter_distance_m, tol
     results = []
     for ch, base, local_centers, sizes in split_letter_layout(letters, per_letter_distance_m, direction, normal):
         angles = [dom_angle - 25, dom_angle - 12, dom_angle, dom_angle + 12, dom_angle + 25]
-
-        evaluated = []
-        for c in local_centers:
-            for ang in angles:
-                for size in sizes:
-                    target = make_candidate_points(base, c, size, ang)
-                    node_path, route_points, extra = route_from_target(graph, target, sample_count=64)
-
-                    metrics = score_solution(
-                        route_points,
-                        target,
-                        per_letter_distance_m,
-                        per_letter_distance_m * (1.0 + tolerance_ratio),
-                    )
-                    metrics.update(extra)
-                    metrics["angle_deg"] = ang
-                    metrics["size_m"] = size
-
-                    evaluated.append({
-                        "letter": ch,
-                        "target": target,
-                        "route_points": route_points,
-                        "node_path": node_path,
-                        "metrics": metrics,
-                    })
-
-        feasible = [e for e in evaluated if e["metrics"]["over_max"] <= 1e-6]
-
-        if feasible:
-            best = min(
-                feasible,
-                key=lambda e: (
-                    e["metrics"]["length_gap"],
-                    e["metrics"]["shape_error"],
-                    e["metrics"]["turn_penalty"],
-                ),
-            )
-        else:
-            best = min(
-                evaluated,
-                key=lambda e: (
-                    e["metrics"]["over_max"],
-                    e["metrics"]["length_gap"],
-                    e["metrics"]["shape_error"],
-                    e["metrics"]["turn_penalty"],
-                ),
-            )
-
+        evaluated = calibrated_search(
+            graph, base, local_centers, angles,
+            per_letter_distance_m, per_letter_distance_m * (1.0 + tolerance_ratio),
+            sample_count=64, min_size=min(sizes), max_size=max(sizes),
+        )
+        best, _ = pick_best(evaluated)
+        best["letter"] = ch
         best["target_distance"] = per_letter_distance_m
         results.append(best)
 

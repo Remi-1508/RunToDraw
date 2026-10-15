@@ -104,14 +104,53 @@ def test_disconnected_island_is_unreachable():
     assert path == [1, 2, 3] and cost == pytest.approx(120.0)
 
 
-def test_nearest_node_matches_brute_force():
+def test_nearest_node_matches_brute_force_on_main_network():
+    """L'accroche ne vise que la plus grande composante fortement connexe (réseau principal)."""
     graph = RoadGraph(random_road_graph(3))
+    main = graph._snap_idx
+    assert 0 < len(main) < len(graph.node_ids)  # l'îlot et les nœuds isolés sont exclus
     rng = np.random.default_rng(0)
     for p in rng.uniform(-1200, 1200, size=(200, 2)):
-        d2 = np.sum((graph.node_array - p) ** 2, axis=1)
+        d2 = np.sum((graph.node_array[main] - p) ** 2, axis=1)
         nid, d = graph.nearest_node(p)
         assert d == pytest.approx(math.sqrt(d2.min()))
-        assert graph.node_ids[int(np.argmin(d2))] == nid
+        assert graph.node_ids[int(main[np.argmin(d2)])] == nid
+
+
+def test_snapping_never_lands_on_the_island():
+    graph = RoadGraph(random_road_graph(0))
+    island = [graph._idx_of[i] for i in (1, 2, 3)]
+    # point placé exactement sur l'îlot déconnecté
+    idx, _ = graph.nearest_indices(np.array([graph.node_array[island[0]]]))
+    assert int(idx[0]) not in island
+
+
+def test_remove_short_loops_cuts_back_and_forth_only():
+    from shape_route_experiments_v16 import remove_short_loops
+    xy = np.array([[0, 0], [100, 0], [200, 0], [200, 50], [300, 0], [300, 1000], [0, 1000]], dtype=float)
+    # 0 -> 1 -> 2 -> 3 (impasse) -> 2 -> 4 : l'aller-retour 2-3-2 (100 m) est supprimé
+    assert remove_short_loops([0, 1, 2, 3, 2, 4], xy, 150.0) == [0, 1, 2, 4]
+    # une grande boucle (dessin) est conservée
+    big = [0, 1, 2, 4, 5, 6, 0, 1]
+    assert remove_short_loops(big, xy, 150.0) == big
+    # boucles imbriquées
+    assert remove_short_loops([0, 1, 2, 1, 2, 1, 0, 1, 2, 4], xy, 450.0) == [0, 1, 2, 4]
+
+
+@pytest.mark.parametrize("shape", ["heart", "square", "star"])
+def test_calibration_reaches_requested_distance(shape):
+    """Avec le calibrage de taille, la proposition « distance la plus proche » doit tomber
+    à quelques pourcents de la distance demandée, et rester sous le maximum autorisé."""
+    from planner_adapter import plan_from_graph
+    graph = RoadGraph(random_road_graph(5, n_side=45, step=70.0, oneway_ratio=0.0))
+    res = plan_from_graph(graph, 6.0, {"mode": "shape", "shape": shape})
+    for route in res["routes"]:
+        if "Distance la plus proche" in route["variant"]:
+            assert abs(route["total_distance_m"] - 6000.0) <= 0.05 * 6000.0
+        assert route["over_max_m"] == 0.0
+        # la distance annoncée est bien celle du tracé envoyé (rue par rue)
+        pts = np.array(route["segments"][0]["points"])
+        assert sum(haversine(a, b) for a, b in zip(pts, pts[1:])) == pytest.approx(route["total_distance_m"], rel=0.01)
 
 
 def test_route_from_target_returns_connected_path():

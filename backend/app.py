@@ -36,9 +36,10 @@ app.add_middleware(
 # indisponible, ou refuser une requête. On les teste donc les uns après les autres si besoin.
 # Liste issue de https://wiki.openstreetmap.org/wiki/Overpass_API (instances publiques gratuites).
 # overpass-api.de est souvent saturé ; overpass.openstreetmap.ru n'est plus listé.
+# private.coffee en premier : 10 s mesurées à Bordeaux contre ~45 s pour overpass-api.de.
 OVERPASS_ENDPOINTS = [
-    "https://overpass-api.de/api/interpreter",
     "https://overpass.private.coffee/api/interpreter",
+    "https://overpass-api.de/api/interpreter",
     "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
 ]
@@ -140,7 +141,9 @@ def fetch_overpass_with_fallback(query, max_tries=len(OVERPASS_ENDPOINTS)):
 # FR: Cette fonction transforme la réponse brute d’Overpass en un format de graphe
 # attendu par le planificateur d’itinéraires. Les nœuds sont des points routiers avec latitude/longitude,
 # et les arêtes sont des segments de route avec une longueur en mètres.
-# Pour les sens uniques, on ne garde que le sens autorisé.
+# Sens uniques : l'appli trace des parcours de course à pied. Le tag "oneway" ne concerne que
+# les véhicules ; un piéton peut remonter une rue à sens unique. On ne garde donc un sens interdit
+# que si la voie est explicitement à sens unique pour les piétons ("oneway:foot").
 def build_graph_from_overpass(osm_json):
     nodes_by_id = {}
     ways = []
@@ -158,7 +161,7 @@ def build_graph_from_overpass(osm_json):
         if not isinstance(ns, list) or len(ns) < 2:
             continue
 
-        oneway_tag = str(way.get("tags", {}).get("oneway", "")).lower()
+        oneway_tag = str(way.get("tags", {}).get("oneway:foot", "")).lower()
         oneway = oneway_tag in {"yes", "1", "true"}
 
         for i in range(len(ns) - 1):

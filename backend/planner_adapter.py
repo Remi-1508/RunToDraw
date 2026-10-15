@@ -39,8 +39,17 @@ def route_points_xy_to_latlon(graph, route_points):
 # FR: Cette fonction met en forme un segment d’itinéraire dans la structure attendue
 # par le frontend. On garde un label, les points GPS et la distance mesurée.
 def build_segment_from_candidate(graph, candidate, label):
-    route_points = candidate.get("route_points")
     metrics = candidate.get("metrics", {})
+
+    # EN: We send the full path, node by node, so that the drawn route and the GPX export follow
+    # the streets exactly. (The simplified polyline is only used internally for scoring.)
+    # FR: On envoie le chemin complet, nœud par nœud, pour que le tracé affiché et l'export GPX
+    # suivent exactement les rues. (La polyligne simplifiée ne sert qu'en interne, pour l'évaluation.)
+    node_path = candidate.get("node_path")
+    if node_path:
+        route_points = graph.path_to_points(node_path)
+    else:
+        route_points = candidate.get("route_points")
 
     latlon_points = route_points_xy_to_latlon(graph, route_points) if route_points is not None else []
 
