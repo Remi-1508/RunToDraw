@@ -202,16 +202,20 @@ def test_required_radius_covers_every_candidate(drawing, distance_m):
 
 
 @pytest.mark.parametrize("street_angle", [-80.0, -37.0, 0.0, 8.0, 45.0, 89.0])
-def test_upright_shapes_stay_readable(street_angle):
-    """Cœur, étoile, infini et texte restent proches de la verticale, quelle que soit
-    l'orientation des rues ; carré et cercle suivent l'axe des rues."""
-    from shape_route_experiments_v16 import ORIENTATION_RULES, search_angles, fold_angle
+def test_every_orientation_is_explored(street_angle):
+    """Chaque forme est testée sur toute sa période de symétrie, avec un pas fin, en incluant
+    l'axe des rues ; le texte reste lisible (proche de l'horizontale)."""
+    from shape_route_experiments_v16 import ORIENTATION_RULES, TEXT_MAX_TILT_DEG, search_angles, fold_angle
 
     class FakeGraph:
         _dominant_angle = street_angle
 
-    for shape in ("heart", "star", "infinity", "text"):
-        _, max_tilt, _ = ORIENTATION_RULES[shape]
-        assert all(abs(a) <= max_tilt + 1e-9 for a in search_angles(FakeGraph, shape))
-    square = search_angles(FakeGraph, "square")
-    assert any(abs(fold_angle(a - street_angle, 90.0)) < 1e-9 for a in square)
+    for shape, (period, step) in ORIENTATION_RULES.items():
+        angles = search_angles(FakeGraph, shape)
+        assert len(angles) == round(period / step)
+        assert any(abs(fold_angle(a - street_angle, period)) < 1e-9 for a in angles)
+        # aucun « trou » plus grand que le pas dans la période
+        folded = sorted(fold_angle(a, period) for a in angles)
+        gaps = np.diff(folded + [folded[0] + period])
+        assert gaps.max() <= step + 1e-9
+    assert all(abs(a) <= TEXT_MAX_TILT_DEG for a in search_angles(FakeGraph, "text"))

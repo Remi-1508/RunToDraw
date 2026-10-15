@@ -596,6 +596,50 @@ def single_letter_polyline(ch):
 # et dépassement éventuel de la distance maximale.
 # ============================================================
 
+# EN:
+# Shape distance (in meters) between the route and the target drawing.
+# Former metric: both polylines were resampled to 180 points and compared point by point, in order.
+# A smooth, rounded route scored well even when it "planed off" the details that make a shape
+# recognizable (the dip and the tip of a heart, the points of a star), because those details are a
+# small part of the outline. With a wider search (every orientation), the optimizer exploited this.
+# New metric, symmetric Chamfer distance + a high percentile:
+# - for each point of the drawing, the distance to the nearest point of the route (d_target),
+# - for each point of the route, the distance to the nearest point of the drawing (d_route),
+# - shape_distance = (mean(d_target) + mean(d_route)) / 2 + 0.5 * percentile_90(d_target).
+# The two means measure the overall fit in both directions (a detour away from the drawing is
+# penalized by d_route); the 90th percentile makes a missed detail costly. Both polylines are
+# densified every ~10 m and queried with KD-trees: O(n log n), about a millisecond per candidate.
+#
+# FR:
+# Distance de forme (en mètres) entre le trajet et le dessin cible.
+# Ancienne mesure : les deux polylignes étaient rééchantillonnées en 180 points et comparées point à point,
+# dans l'ordre. Un trajet lisse et arrondi obtenait une bonne note même s'il « rabotait » les détails qui
+# rendent une forme reconnaissable (le creux et la pointe du cœur, les branches de l'étoile), car ces
+# détails ne représentent qu'une petite partie du contour. Avec une recherche plus large (toutes les
+# orientations), l'optimisation exploitait ce défaut.
+# Nouvelle mesure, distance de Chamfer symétrique + un centile élevé :
+# - pour chaque point du dessin, la distance au point le plus proche du trajet (d_cible),
+# - pour chaque point du trajet, la distance au point le plus proche du dessin (d_trajet),
+# - distance_forme = (moyenne(d_cible) + moyenne(d_trajet)) / 2 + 0,5 × centile_90(d_cible).
+# Les deux moyennes mesurent l'accord global dans les deux sens (un détour loin du dessin est pénalisé
+# par d_trajet) ; le 90e centile rend coûteux un détail manqué. Les deux polylignes sont densifiées tous
+# les ~10 m et interrogées par KD-tree : O(n log n), environ une milliseconde par candidat.
+SHAPE_SAMPLE_STEP_M = 10.0
+
+
+def _densify(points, step_m=SHAPE_SAMPLE_STEP_M):
+    n = int(math.ceil(polyline_length(points) / step_m)) + 1
+    return resample_polyline(points, n_samples=max(n, 2))
+
+
+def shape_distance_m(route_points, target_points):
+    route = _densify(route_points)
+    target = _densify(target_points)
+    d_target, _ = cKDTree(route).query(target)
+    d_route, _ = cKDTree(target).query(route)
+    return float(0.5 * (d_target.mean() + d_route.mean()) + 0.5 * np.percentile(d_target, 90))
+
+
 # EN: `route_length_m` is the real length of the path on the roads. When it is not given, we fall
 # back to the length of `route_points` (which may be a simplified polyline, hence slightly shorter).
 # FR: `route_length_m` est la vraie longueur du trajet sur les routes. Si elle n'est pas fournie, on
@@ -614,10 +658,7 @@ def score_solution(route_points, target_points, desired_distance_m, max_allowed_
             "combined": float("inf"),
         }
 
-    route_rs = resample_polyline(route_points, n_samples=180)
-    target_rs = resample_polyline(target_points, n_samples=180)
-
-    shape_error = float(np.mean(np.linalg.norm(route_rs - target_rs, axis=1)))
+    shape_error = shape_distance_m(route_points, target_points)
     length_route = polyline_length(route_points) if route_length_m is None else float(route_length_m)
     length_gap = abs(length_route - desired_distance_m)
     over = max(0.0, length_route - max_allowed_m)
@@ -865,39 +906,31 @@ def shape_layout(base_points, desired_distance_m, shape_name, use_translation):
 
 
 # EN:
-# Orientation rules.
-# A heart, a star, an infinity sign or a word are only recognizable when they are roughly upright:
-# before, the angle was chosen around the dominant street orientation (up to ±60°), so a heart could
-# end up lying on its side. Each shape now has:
-# - its rotation symmetry period (a square looks the same every 90°, a star every 72°, ...),
-# - the maximum tilt from upright that keeps it readable,
-# - the number of angles tested.
-# When the street grid orientation falls within the allowed tilt, it is added to the tested angles
-# (aligning the shape with the streets usually gives cleaner routes).
-# Shapes that are readable in any orientation (square, circle) are tested over their whole period,
-# starting from the street orientation.
+# Orientation search.
+# Shapes are tested in every orientation, so that the best-looking result is found wherever the
+# streets allow it. To avoid wasted work, each shape is only rotated over its symmetry period
+# (a star looks the same every 72°, an infinity sign every 180°, a square every 90°), with a fine
+# angular step. The sweep starts on the dominant street axis, so the street-aligned orientation is
+# always among the tested ones.
+# Text is the exception: a word upside down cannot be read, so it stays within ±15° of horizontal.
 #
 # FR:
-# Règles d'orientation.
-# Un cœur, une étoile, le signe infini ou un mot ne sont reconnaissables que s'ils sont à peu près droits :
-# avant, l'angle était choisi autour de l'orientation dominante des rues (jusqu'à ±60°), et un cœur pouvait
-# se retrouver couché. Chaque forme a maintenant :
-# - sa période de symétrie (un carré est identique tous les 90°, une étoile tous les 72°, ...),
-# - l'inclinaison maximale par rapport à la verticale qui la garde lisible,
-# - le nombre d'angles testés.
-# Si l'orientation des rues tombe dans l'inclinaison permise, elle est ajoutée aux angles testés
-# (aligner la forme sur les rues donne en général des tracés plus nets).
-# Les formes lisibles dans n'importe quel sens (carré, cercle) sont testées sur toute leur période,
-# en partant de l'orientation des rues.
+# Recherche d'orientation.
+# Les formes sont testées dans toutes les orientations, pour trouver le meilleur résultat là où les rues
+# le permettent. Pour ne pas refaire des calculs identiques, chaque forme n'est tournée que sur sa période
+# de symétrie (une étoile est identique tous les 72°, le signe infini tous les 180°, un carré tous les 90°),
+# avec un pas angulaire fin. Le balayage part de l'axe dominant des rues : l'orientation alignée sur les
+# rues fait donc toujours partie des angles testés.
+# Exception : le texte. Un mot à l'envers est illisible, il reste donc à ±15° de l'horizontale.
 ORIENTATION_RULES = {
-    # forme      : (période de symétrie °, inclinaison max °, nombre d'angles)
-    "square":   (90.0, 45.0, 6),
-    "circle":   (360.0, 180.0, 3),
-    "heart":    (360.0, 20.0, 5),
-    "star":     (72.0, 20.0, 5),
-    "infinity": (180.0, 20.0, 5),
-    "text":     (360.0, 15.0, 5),
+    # forme      : (période de symétrie °, pas angulaire °)
+    "square":   (90.0, 10.0),
+    "circle":   (360.0, 90.0),    # toutes les orientations se valent : quelques angles suffisent
+    "heart":    (360.0, 10.0),
+    "star":     (72.0, 8.0),
+    "infinity": (180.0, 10.0),
 }
+TEXT_MAX_TILT_DEG = 15.0
 
 
 def fold_angle(angle_deg, period_deg):
@@ -906,17 +939,13 @@ def fold_angle(angle_deg, period_deg):
 
 
 def search_angles(graph, shape_name):
-    period, max_tilt, count = ORIENTATION_RULES.get(shape_name, (360.0, 20.0, 5))
+    if shape_name == "text":
+        return [float(a) for a in np.linspace(-TEXT_MAX_TILT_DEG, TEXT_MAX_TILT_DEG, 5)]
+
+    period, step = ORIENTATION_RULES.get(shape_name, (360.0, 10.0))
     street = fold_angle(dominant_graph_angle(graph), period)
-
-    if max_tilt >= period / 2.0:
-        # toute orientation est lisible : on balaie la période en partant de l'axe des rues
-        return [street + k * period / count for k in range(count)]
-
-    angles = [float(a) for a in np.linspace(-max_tilt, max_tilt, count)]
-    if abs(street) <= max_tilt and min(abs(street - a) for a in angles) > 2.0:
-        angles.append(street)
-    return angles
+    count = int(round(period / step))
+    return [street + k * period / count for k in range(count)]
 
 
 # EN: Routes one candidate (shape at a given center, size and angle) and scores it.
