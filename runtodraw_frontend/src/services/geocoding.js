@@ -13,8 +13,13 @@ Deux services sont interrogés EN PARALLÈLE, avec la saisie telle quelle
 2) Photon (photon.komoot.io), basé sur OpenStreetMap : couvre le reste du monde
    et les lieux absents des données IGN.
 
-Les résultats IGN passent en premier quand il y en a ; ceux de Photon complètent
-la liste en évitant les doublons (même lieu à moins de 150 m, même nom).
+Classement : l'IGN renvoie toujours des résultats, même pour une recherche étrangère
+(« times square new york » donne des « Rue de New-York » françaises, avec un score faible).
+On s'appuie donc sur son score de pertinence (0 à 1) :
+  1) résultats IGN fiables (score >= 0,6), au plus 5, pour laisser de la place au reste du monde,
+  2) résultats Photon (monde entier),
+  3) résultats IGN faibles, en dernier.
+Les doublons (même nom à moins de 150 m) sont retirés.
 
 Nominatim n'est plus utilisé : sa politique d'utilisation interdit
 l'autocomplétion (« search-as-you-type ») côté client.
@@ -27,6 +32,8 @@ annulée (AbortController) quand l'utilisateur continue de taper.
 const IGN_URL = "https://data.geopf.fr/geocodage/search";
 const PHOTON_URL = "https://photon.komoot.io/api/";
 const MAX_RESULTS = 7;
+const MAX_STRONG_IGN = 5;
+const IGN_STRONG_SCORE = 0.6;
 const CACHE_SIZE = 60;
 
 const cache = new Map();
@@ -73,6 +80,7 @@ function fromIgn(feature) {
       title: name,
       subtitle: [city, category].filter(Boolean).join(" · "),
       kind: "Lieu",
+      score: p.score ?? 0,
       lat,
       lon,
     };
@@ -87,6 +95,7 @@ function fromIgn(feature) {
       ? [p.postcode, p.context].filter(Boolean).join(" · ")
       : [p.postcode, p.city].filter(Boolean).join(" "),
     kind: ADDRESS_KIND[p.type] ?? "Adresse",
+    score: p.score ?? 0,
     lat,
     lon,
   };
@@ -152,15 +161,20 @@ function searchPhoton(query, bias, signal) {
   );
 }
 
-function merge(primary, secondary) {
-  const out = [...primary];
-  for (const s of secondary) {
+function merge(ign, photon) {
+  const strong = ign.filter((r) => r.score >= IGN_STRONG_SCORE);
+  const weak = ign.filter((r) => r.score < IGN_STRONG_SCORE);
+  const ordered = [...strong.slice(0, MAX_STRONG_IGN), ...photon, ...strong.slice(MAX_STRONG_IGN), ...weak];
+
+  const out = [];
+  for (const s of ordered) {
     const duplicate = out.some(
       (o) => normalizeName(o.title) === normalizeName(s.title) && distanceMeters(o, s) < 150
     );
     if (!duplicate) out.push(s);
+    if (out.length === MAX_RESULTS) break;
   }
-  return out.slice(0, MAX_RESULTS);
+  return out;
 }
 
 function timed(label, promise) {
