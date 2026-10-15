@@ -54,6 +54,32 @@ ToggleRow est un petit bloc réutilisable avec :
 Il est utilisé ici pour des options comme l’affichage ou non du graphe.
 ============================================================
 */
+/*
+Petit drapeau du pays d'un résultat de recherche.
+Images de flagcdn.com (gratuit) plutôt que des emojis : Windows n'affiche pas les
+drapeaux emoji (on y verrait « FR », « GB »…). Si l'image ne charge pas, on affiche le code pays.
+*/
+function CountryFlag({ code, country }) {
+  const [failed, setFailed] = useState(false);
+  if (!/^[a-z]{2}$/.test(code || "")) return null;
+  if (failed) {
+    return <span style={styles.flagFallback} title={country}>{code.toUpperCase()}</span>;
+  }
+  return (
+    <img
+      src={`https://flagcdn.com/20x15/${code}.png`}
+      srcSet={`https://flagcdn.com/40x30/${code}.png 2x`}
+      width={20}
+      height={15}
+      alt={country || code.toUpperCase()}
+      title={country}
+      loading="lazy"
+      style={styles.flag}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 function ToggleRow({ label, description, checked, onChange, infoText, disabled = false }) {
   const [showInfo, setShowInfo] = useState(false);
 
@@ -433,7 +459,10 @@ export default function Sidebar({
                   title={[suggestion.title, suggestion.subtitle].filter(Boolean).join(", ")}
                 >
                   <span style={styles.suggestRow}>
-                    <span style={styles.suggestMain}>{suggestion.title}</span>
+                    <span style={styles.suggestTitleWrap}>
+                      <CountryFlag code={suggestion.countryCode} country={suggestion.country} />
+                      <span style={styles.suggestMain}>{suggestion.title}</span>
+                    </span>
                     <span style={styles.suggestKind}>{suggestion.kind}</span>
                   </span>
                   {suggestion.subtitle ? <span style={styles.suggestMeta}>{suggestion.subtitle}</span> : null}
@@ -878,6 +907,33 @@ const styles = {
   suggestMain: {
     fontWeight: 700,
     lineHeight: 1.35,
+  },
+
+  suggestTitleWrap: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    minWidth: 0,
+  },
+
+  flag: {
+    flexShrink: 0,
+    width: 20,
+    height: 15,
+    borderRadius: 3,
+    objectFit: "cover",
+    boxShadow: "0 0 0 1px var(--border-strong)",
+  },
+
+  flagFallback: {
+    flexShrink: 0,
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: 0.4,
+    padding: "1px 4px",
+    borderRadius: 3,
+    color: "var(--text-soft)",
+    boxShadow: "0 0 0 1px var(--border-strong)",
   },
 
   suggestKind: {

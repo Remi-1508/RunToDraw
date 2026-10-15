@@ -91,6 +91,8 @@ function fromIgn(feature) {
       title: name,
       subtitle: [city, category].filter(Boolean).join(" · "),
       kind: "Lieu",
+      countryCode: "fr",
+      country: "France",
       score: p.score ?? 0,
       lat,
       lon,
@@ -106,6 +108,8 @@ function fromIgn(feature) {
       ? [p.postcode, p.context].filter(Boolean).join(" · ")
       : [p.postcode, p.city].filter(Boolean).join(" "),
     kind: ADDRESS_KIND[p.type] ?? "Adresse",
+    countryCode: "fr",
+    country: "France",
     score: p.score ?? 0,
     lat,
     lon,
@@ -134,6 +138,8 @@ function fromPhoton(feature) {
     title,
     subtitle,
     kind,
+    countryCode: (p.countrycode || "").toLowerCase(),
+    country: p.country || "",
     lat,
     lon,
   };
@@ -161,6 +167,8 @@ function fromGeoapify(r) {
     title: r.address_line1 || r.name || r.formatted,
     subtitle: r.address_line2 || "",
     kind: GEOAPIFY_KIND[r.result_type] ?? "Lieu",
+    countryCode: (r.country_code || "").toLowerCase(),
+    country: r.country || "",
     lat,
     lon,
   };
@@ -305,7 +313,8 @@ function timed(label, promise) {
  *   bias : [lat, lon] pour favoriser les résultats proches
  *   onPhase("world-start" | "world-end") : début et fin de la recherche internationale
  *   (plus lente), pour l'indiquer à l'utilisateur
- * @returns {Promise<Array<{id, title, subtitle, kind, lat, lon}>>} la liste finale ;
+ * @returns {Promise<Array<{id, title, subtitle, kind, countryCode, country, lat, lon}>>} la liste finale ;
+ *   countryCode : code pays ISO 3166 en minuscules ("fr", "gb"…), vide si inconnu
  *   rejette seulement si les deux services échouent.
  */
 export function searchPlaces(query, { bias, signal, onUpdate, onPhase } = {}) {
