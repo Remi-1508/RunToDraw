@@ -229,10 +229,16 @@ export default function Sidebar({
         const results = await searchPlaces(query, {
           bias: center ?? [44.8378, -0.5792],
           signal: controller.signal,
+          // Affichage progressif : les premières suggestions arrivent sans attendre le service le plus lent.
+          onUpdate: (partial) => {
+            if (controller.signal.aborted || !partial.length) return;
+            setSuggestions(partial);
+            setActiveIndex((i) => (i >= 0 && i < partial.length ? i : 0));
+          },
         });
         if (controller.signal.aborted) return;
         setSuggestions(results);
-        setActiveIndex(results.length ? 0 : -1);
+        setActiveIndex((i) => (i >= 0 && i < results.length ? i : results.length ? 0 : -1));
         setSearchStatus(
           results.length > 0
             ? `${results.length} résultat${results.length > 1 ? "s" : ""}`
@@ -247,7 +253,7 @@ export default function Sidebar({
       } finally {
         if (!controller.signal.aborted) setLoadingSuggest(false);
       }
-    }, 220);
+    }, 150);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);

@@ -163,35 +163,75 @@ function merge(primary, secondary) {
   return out.slice(0, MAX_RESULTS);
 }
 
+function timed(label, promise) {
+  const start = performance.now();
+  return promise.then(
+    (value) => {
+      console.debug(`[recherche] ${label} : ${Math.round(performance.now() - start)} ms, ${value.length} résultat(s)`);
+      return value;
+    },
+    (error) => {
+      if (error?.name !== "AbortError") {
+        console.debug(`[recherche] ${label} : échec après ${Math.round(performance.now() - start)} ms`, error);
+      }
+      throw error;
+    }
+  );
+}
+
 /**
  * Cherche des adresses et des lieux correspondant à `query`.
+ *
+ * Affichage progressif : `onUpdate(résultats)` est appelé dès que l'un des deux services
+ * répond, puis de nouveau quand l'autre complète la liste. On n'attend donc jamais le plus
+ * lent des deux pour montrer les premières suggestions.
+ *
  * @param {string} query texte saisi (au moins 3 caractères conseillés)
- * @param {{ bias?: [number, number], signal?: AbortSignal }} options
+ * @param {{ bias?: [number, number], signal?: AbortSignal, onUpdate?: Function }} options
  *   bias : [lat, lon] pour favoriser les résultats proches
- * @returns {Promise<Array<{id, title, subtitle, kind, lat, lon}>>}
- *   Rejette seulement si les deux services échouent.
+ * @returns {Promise<Array<{id, title, subtitle, kind, lat, lon}>>} la liste finale ;
+ *   rejette seulement si les deux services échouent.
  */
-export async function searchPlaces(query, { bias, signal } = {}) {
+export function searchPlaces(query, { bias, signal, onUpdate } = {}) {
   const q = query.trim();
   const key = `${q.toLowerCase()}|${bias ? bias.map((v) => v.toFixed(2)).join(",") : ""}`;
-  if (cache.has(key)) return cache.get(key);
-
-  const [ign, photon] = await Promise.allSettled([
-    searchIgn(q, bias, signal),
-    searchPhoton(q, bias, signal),
-  ]);
-
-  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-  if (ign.status === "rejected" && photon.status === "rejected") {
-    throw ign.reason;
+  if (cache.has(key)) {
+    const cached = cache.get(key);
+    onUpdate?.(cached);
+    return Promise.resolve(cached);
   }
 
-  const results = merge(
-    ign.status === "fulfilled" ? ign.value : [],
-    photon.status === "fulfilled" ? photon.value : []
-  );
+  let ign = null;
+  let photon = null;
+  let pending = 2;
+  let failures = 0;
+  let firstError = null;
 
-  cache.set(key, results);
-  if (cache.size > CACHE_SIZE) cache.delete(cache.keys().next().value);
-  return results;
+  return new Promise((resolve, reject) => {
+    const settle = () => {
+      pending -= 1;
+      if (pending > 0) return;
+      if (signal?.aborted) return reject(new DOMException("Aborted", "AbortError"));
+      if (failures === 2) return reject(firstError);
+      const results = merge(ign ?? [], photon ?? []);
+      cache.set(key, results);
+      if (cache.size > CACHE_SIZE) cache.delete(cache.keys().next().value);
+      resolve(results);
+    };
+    const onResult = (setter) => (value) => {
+      setter(value);
+      if (!signal?.aborted) onUpdate?.(merge(ign ?? [], photon ?? []));
+    };
+    const onError = (error) => {
+      failures += 1;
+      firstError = firstError ?? error;
+    };
+
+    timed("IGN", searchIgn(q, bias, signal))
+      .then(onResult((v) => { ign = v; }), onError)
+      .finally(settle);
+    timed("Photon", searchPhoton(q, bias, signal))
+      .then(onResult((v) => { photon = v; }), onError)
+      .finally(settle);
+  });
 }
