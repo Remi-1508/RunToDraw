@@ -34,10 +34,13 @@ app.add_middleware(
 # unavailable, or reject a request. We try them one after another if needed.
 # FR: On garde plusieurs serveurs Overpass ici car un serveur peut être lent,
 # indisponible, ou refuser une requête. On les teste donc les uns après les autres si besoin.
+# Liste issue de https://wiki.openstreetmap.org/wiki/Overpass_API (instances publiques gratuites).
+# overpass-api.de est souvent saturé ; overpass.openstreetmap.ru n'est plus listé.
 OVERPASS_ENDPOINTS = [
     "https://overpass-api.de/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
-    "https://overpass.openstreetmap.ru/api/interpreter",
 ]
 
 
@@ -115,7 +118,7 @@ def post_overpass(endpoint, query):
 # FR: Cette fonction réessaie la requête Overpass sur plusieurs miroirs.
 # Cela rend l’extraction plus robuste, car les serveurs Overpass peuvent être instables.
 # On conserve la dernière erreur pour renvoyer un message utile si toutes les tentatives échouent.
-def fetch_overpass_with_fallback(query, max_tries=3):
+def fetch_overpass_with_fallback(query, max_tries=len(OVERPASS_ENDPOINTS)):
     last_err = None
 
     for attempt in range(max_tries):
@@ -126,7 +129,7 @@ def fetch_overpass_with_fallback(query, max_tries=3):
         except Exception as e:
             print(f"[Overpass] échec sur {endpoint}: {e}")
             last_err = e
-            time.sleep(1.2 * (attempt + 1))
+            time.sleep(2.0)
 
     raise last_err or RuntimeError("Overpass failed")
 
