@@ -57,18 +57,24 @@ def haversine_meters(lat1, lon1, lat2, lon2):
     return 2 * r * math.asin(math.sqrt(a))
 
 
-# EN: This builds the Overpass query used to extract the road network around the
-# user’s chosen point. The radius is based on the requested running distance.
+# EN: This builds the Overpass query used to extract the road network around the user's point.
+# We ask for the square (bounding box) that contains the useful circle: on Overpass, a bbox filter
+# is about twice as fast as an "around" (circle) filter, even though it returns ~20 % more roads
+# (measured in Bordeaux, 6 km radius: 46 s instead of 93 s).
 # We also filter out roads that are not useful here, such as motorways or private roads.
-# FR: Cette fonction construit la requête Overpass utilisée pour extraire le réseau routier
-# autour du point choisi par l’utilisateur. Le rayon dépend de la distance demandée.
+# FR: Cette fonction construit la requête Overpass qui extrait le réseau routier autour du point choisi.
+# On demande le carré (bbox) qui contient le cercle utile : sur Overpass, un filtre bbox est environ
+# deux fois plus rapide qu'un filtre "around" (cercle), même s'il renvoie ~20 % de routes en plus
+# (mesuré à Bordeaux, rayon 6 km : 46 s au lieu de 93 s).
 # On filtre aussi certaines routes peu utiles ici, comme les autoroutes ou les routes privées.
-def build_overpass_query_circle(lat, lon, radius_meters):
-    r = round(radius_meters)
+def build_overpass_query_bbox(lat, lon, radius_meters):
+    dlat = radius_meters / 111320.0
+    dlon = radius_meters / (111320.0 * math.cos(math.radians(lat)))
+    south, west, north, east = lat - dlat, lon - dlon, lat + dlat, lon + dlon
     return f"""
-[out:json][timeout:90];
+[out:json][timeout:180][bbox:{south:.6f},{west:.6f},{north:.6f},{east:.6f}];
 (
-  way(around:{r},{lat},{lon})["highway"]
+  way["highway"]
     ["highway"!~"motorway|motorway_link|trunk|trunk_link"]
     ["area"!="yes"]
     ["access"!="private"];
@@ -89,7 +95,7 @@ def post_overpass(endpoint, query):
     res = requests.get(
         endpoint,
         params={"data": query},
-        timeout=120,
+        timeout=200,
         headers={
             "User-Agent": "RunToDraw/1.0",
             "Accept": "application/json,text/plain,*/*",
@@ -236,7 +242,7 @@ def get_road_graph(lat, lon, radius_m):
             return graph
 
     t0 = time.perf_counter()
-    osm = fetch_overpass_with_fallback(build_overpass_query_circle(lat, lon, key[2]))
+    osm = fetch_overpass_with_fallback(build_overpass_query_bbox(lat, lon, key[2]))
     t1 = time.perf_counter()
     raw = build_graph_from_overpass(osm)
     del osm
