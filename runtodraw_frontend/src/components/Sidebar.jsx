@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import logoRunToDrawDay from "../assets/logo_runtodraw_day.png";
 import logoRunToDrawNight from "../assets/logo_runtodraw_night.png";
 import RouteResultsPanel from "./RouteResultsPanel";
+import { searchPlaces } from "../services/geocoding";
 
 /*
 ============================================================
@@ -102,44 +103,6 @@ function ToggleRow({ label, description, checked, onChange, infoText, disabled =
 /*
 ============================================================
 EN:
-These two helpers format geocoding results coming from
-different services.
-
-The goal is simply to generate a readable label for the user.
-
-FR:
-Ces deux fonctions servent à formater les résultats de géocodage
-venant de services différents.
-
-L’objectif est simplement de produire un libellé lisible
-pour l’utilisateur.
-============================================================
-*/
-function formatPhotonLabel(properties) {
-  const firstLine = [properties.name, properties.street, properties.housenumber].filter(Boolean).join(" ");
-  const secondLine = [properties.postcode, properties.city, properties.state].filter(Boolean).join(" · ");
-  const full = [firstLine, secondLine, properties.country].filter(Boolean).join(", ");
-  return full || properties.name || properties.city || properties.country || "Adresse trouvée";
-}
-
-function formatNominatimLabel(item) {
-  const address = item.address || {};
-  const firstLine = [
-    address.road || address.pedestrian || address.path || address.cycleway || item.name,
-    address.house_number,
-  ]
-    .filter(Boolean)
-    .join(" ");
-  const secondLine = [address.postcode, address.city || address.town || address.village || address.municipality]
-    .filter(Boolean)
-    .join(" · ");
-  const full = [firstLine, secondLine, address.country].filter(Boolean).join(", ");
-  return full || item.display_name || "Adresse trouvée";
-}
-
-/*
-============================================================
-EN:
 Sidebar is the main control panel of the application.
 
 It guides the full user flow:
@@ -191,6 +154,7 @@ export default function Sidebar({
   const [suggestions, setSuggestions] = useState([]);
   const [loadingSuggest, setLoadingSuggest] = useState(false);
   const [searchStatus, setSearchStatus] = useState("");
+  const [activeIndex, setActiveIndex] = useState(-1);
 
   /*
   EN:
@@ -205,6 +169,8 @@ export default function Sidebar({
   */
   const debounceRef = useRef(null);
   const abortRef = useRef(null);
+  // Texte de la dernière suggestion choisie : on ne relance pas de recherche dessus.
+  const pickedLabelRef = useRef(null);
 
   const radiusKm = distanceKm / 2;
   const currentLogo = theme === "dark" ? logoRunToDrawNight : logoRunToDrawDay;
@@ -229,145 +195,95 @@ export default function Sidebar({
 
   /*
   ============================================================
-  EN:
-  Address search effect.
+  Recherche d'adresses (voir services/geocoding.js).
 
-  We:
-  - wait a little before sending requests
-  - query Photon first
-  - use Nominatim as a fallback if needed
-  - remove duplicates
-  - update the suggestions list and the status text
-
-  This keeps the experience smoother and avoids too many requests.
-
-  FR:
-  Effet de recherche d’adresse.
-
-  On :
-  - attend un petit délai avant d’envoyer une requête
-  - interroge Photon en premier
-  - utilise Nominatim en secours si besoin
-  - supprime les doublons
-  - met à jour la liste des suggestions et le statut
-
-  Cela rend l’expérience plus fluide et évite trop de requêtes.
+  - la saisie est envoyée telle quelle (majuscules et accents aident le classement),
+  - petit délai pendant la frappe, et annulation de la requête précédente,
+  - pas de nouvelle recherche quand le texte est celui de la suggestion choisie,
+  - les résultats proches du point déjà choisi (ou de Bordeaux par défaut) sont favorisés.
   ============================================================
   */
   useEffect(() => {
-    const query = address
-      .trim()
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
-
-    if (query.length < 3) {
-      setSuggestions([]);
-      setSearchStatus(query.length === 0 ? "" : "Tape au moins 3 caractères");
-      return;
-    }
+    const query = address.trim();
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
+    if (query === pickedLabelRef.current) return undefined;
+
+    if (query.length < 3) {
+      if (abortRef.current) abortRef.current.abort();
+      setSuggestions([]);
+      setActiveIndex(-1);
+      setLoadingSuggest(false);
+      setSearchStatus(query.length === 0 ? "" : "Tape au moins 3 caractères");
+      return undefined;
+    }
+
     debounceRef.current = setTimeout(async () => {
+      if (abortRef.current) abortRef.current.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
       setLoadingSuggest(true);
-      setSearchStatus("Recherche d’adresses…");
-
       try {
-        if (abortRef.current) abortRef.current.abort();
-        abortRef.current = new AbortController();
-
-        const [latBias, lonBias] = center ?? [44.8378, -0.5792];
-        const photonUrl =
-          `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}` +
-          `&limit=7&lang=fr&lat=${latBias}&lon=${lonBias}`;
-
-        const photonResponse = await fetch(photonUrl, {
-          signal: abortRef.current.signal,
-          headers: { Accept: "application/json" },
+        const results = await searchPlaces(query, {
+          bias: center ?? [44.8378, -0.5792],
+          signal: controller.signal,
         });
-        const photonData = await photonResponse.json();
-
-        let nextSuggestions = (photonData.features ?? []).map((feature) => {
-          const [lonValue, latValue] = feature.geometry.coordinates;
-          return {
-            id: `photon-${feature.properties.osm_id ?? `${latValue}-${lonValue}`}`,
-            display: formatPhotonLabel(feature.properties),
-            lat: latValue,
-            lon: lonValue,
-            source: "Photon",
-          };
-        });
-
-        /*
-        EN:
-        If Photon does not return enough results,
-        we ask Nominatim to complete the suggestions.
-
-        FR:
-        Si Photon ne renvoie pas assez de résultats,
-        on interroge aussi Nominatim pour compléter les suggestions.
-        */
-        if (nextSuggestions.length < 4) {
-          const nominatimUrl =
-            `https://nominatim.openstreetmap.org/search?format=jsonv2&accept-language=fr&limit=5&q=${encodeURIComponent(query)}`;
-
-          const nominatimResponse = await fetch(nominatimUrl, {
-            signal: abortRef.current.signal,
-            headers: { Accept: "application/json" },
-          });
-          const nominatimData = await nominatimResponse.json();
-
-          const fallback = (nominatimData ?? []).map((item) => ({
-            id: `nominatim-${item.place_id}`,
-            display: formatNominatimLabel(item),
-            lat: Number(item.lat),
-            lon: Number(item.lon),
-            source: "OSM",
-          }));
-
-          nextSuggestions = [...nextSuggestions, ...fallback];
-        }
-
-        /*
-        EN:
-        Deduplicate suggestions to avoid showing the same place twice.
-
-        FR:
-        Déduplication des suggestions pour éviter d’afficher deux fois
-        le même lieu.
-        */
-        const unique = [];
-        const seen = new Set();
-
-        for (const suggestion of nextSuggestions) {
-          const key = `${suggestion.display}|${suggestion.lat.toFixed(5)}|${suggestion.lon.toFixed(5)}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          unique.push(suggestion);
-        }
-
-        setSuggestions(unique.slice(0, 7));
+        if (controller.signal.aborted) return;
+        setSuggestions(results);
+        setActiveIndex(results.length ? 0 : -1);
         setSearchStatus(
-          unique.length > 0
-            ? `${unique.length} résultat${unique.length > 1 ? "s" : ""}`
-            : "Aucun résultat"
+          results.length > 0
+            ? `${results.length} résultat${results.length > 1 ? "s" : ""}`
+            : "Aucun résultat, essaie avec la ville ou le code postal"
         );
       } catch (error) {
-        if (error.name !== "AbortError") {
-          console.log(error);
-          setSuggestions([]);
-          setSearchStatus("Recherche indisponible");
-        }
+        if (error.name === "AbortError") return;
+        console.error(error);
+        setSuggestions([]);
+        setActiveIndex(-1);
+        setSearchStatus("Recherche indisponible, vérifie ta connexion");
       } finally {
-        setLoadingSuggest(false);
+        if (!controller.signal.aborted) setLoadingSuggest(false);
       }
-    }, 300);
+    }, 220);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [address, center]);
+    // `center` volontairement absent : choisir un point ne doit pas relancer la recherche.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address]);
+
+  function pickSuggestion(suggestion) {
+    const label = [suggestion.title, suggestion.subtitle].filter(Boolean).join(", ");
+    pickedLabelRef.current = label;
+    if (abortRef.current) abortRef.current.abort();
+    onPickSuggestion([suggestion.lat, suggestion.lon], label);
+    setAddress(label);
+    setSuggestions([]);
+    setActiveIndex(-1);
+    setLoadingSuggest(false);
+    setSearchStatus("Point de départ choisi");
+  }
+
+  function handleAddressKeyDown(event) {
+    if (!suggestions.length) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveIndex((i) => (i + 1) % suggestions.length);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveIndex((i) => (i - 1 + suggestions.length) % suggestions.length);
+    } else if (event.key === "Enter" && activeIndex >= 0) {
+      event.preventDefault();
+      pickSuggestion(suggestions[activeIndex]);
+    } else if (event.key === "Escape") {
+      setSuggestions([]);
+      setActiveIndex(-1);
+    }
+  }
 
   return (
     <div style={styles.sidebar}>
@@ -429,40 +345,43 @@ export default function Sidebar({
         <div style={{ position: "relative" }}>
           <input
             style={styles.input}
-            placeholder="Entrer une adresse ou un lieu"
+            placeholder="Adresse, rue, ville ou lieu"
             value={address}
-            onChange={(event) => setAddress(event.target.value)}
+            onChange={(event) => {
+              pickedLabelRef.current = null;
+              setAddress(event.target.value);
+            }}
+            onKeyDown={handleAddressKeyDown}
+            role="combobox"
+            aria-expanded={suggestions.length > 0}
+            aria-controls="address-suggestions"
+            aria-autocomplete="list"
+            aria-activedescendant={activeIndex >= 0 ? `address-option-${activeIndex}` : undefined}
+            autoComplete="off"
           />
 
           {suggestions.length > 0 ? (
-            <div style={styles.suggestBox}>
-              {suggestions.map((suggestion) => (
+            <div style={styles.suggestBox} role="listbox" id="address-suggestions">
+              {suggestions.map((suggestion, index) => (
                 <button
                   key={suggestion.id}
-                  style={styles.suggestItem}
-                  onClick={() => {
-                    /*
-                    EN:
-                    When a suggestion is selected:
-                    - we notify the parent component
-                    - we fill the input with the chosen label
-                    - we close the suggestion list
-
-                    FR:
-                    Quand une suggestion est choisie :
-                    - on informe le composant parent
-                    - on remplit l’input avec le texte choisi
-                    - on ferme la liste des suggestions
-                    */
-                    onPickSuggestion([suggestion.lat, suggestion.lon], suggestion.display);
-                    setAddress(suggestion.display);
-                    setSuggestions([]);
-                    setSearchStatus("Adresse sélectionnée");
+                  id={`address-option-${index}`}
+                  type="button"
+                  role="option"
+                  aria-selected={index === activeIndex}
+                  style={{
+                    ...styles.suggestItem,
+                    ...(index === activeIndex ? styles.suggestItemActive : null),
                   }}
-                  title={suggestion.display}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onClick={() => pickSuggestion(suggestion)}
+                  title={[suggestion.title, suggestion.subtitle].filter(Boolean).join(", ")}
                 >
-                  <span style={styles.suggestMain}>{suggestion.display}</span>
-                  <span style={styles.suggestMeta}>{suggestion.source} · Choisir ce point</span>
+                  <span style={styles.suggestRow}>
+                    <span style={styles.suggestMain}>{suggestion.title}</span>
+                    <span style={styles.suggestKind}>{suggestion.kind}</span>
+                  </span>
+                  {suggestion.subtitle ? <span style={styles.suggestMeta}>{suggestion.subtitle}</span> : null}
                 </button>
               ))}
             </div>
@@ -836,9 +755,27 @@ const styles = {
     gap: 4,
   },
 
+  suggestItemActive: {
+    borderColor: "var(--accent-strong)",
+    background: "var(--accent-soft)",
+  },
+
+  suggestRow: {
+    display: "flex",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+
   suggestMain: {
     fontWeight: 700,
     lineHeight: 1.35,
+  },
+
+  suggestKind: {
+    flexShrink: 0,
+    fontSize: 12,
+    color: "var(--text-soft)",
   },
 
   suggestMeta: {
