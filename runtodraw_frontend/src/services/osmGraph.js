@@ -62,7 +62,7 @@ Cette fonction ne construit pas elle-même le graphe.
 Elle se contente de le demander au backend.
 ============================================================
 */
-export async function fetchGraphForRun({ lat, lon, distanceKm }) {
+export async function fetchGraphForRun({ lat, lon, distanceKm, drawing }) {
   const res = await fetch(`${API_BASE}/api/graph/fetch`, {
     method: "POST",
     headers: {
@@ -82,6 +82,8 @@ export async function fetchGraphForRun({ lat, lon, distanceKm }) {
       lat,
       lon,
       distance_km: distanceKm,
+      // Le backend calcule le rayon utile à partir de la forme demandée.
+      drawing,
     }),
   });
 
@@ -95,8 +97,7 @@ export async function fetchGraphForRun({ lat, lon, distanceKm }) {
   pour garder un message d’erreur plus utile.
   */
   if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`Graph fetch failed: ${res.status} ${txt}`);
+    throw new Error(await readErrorMessage(res, "Extraction du graphe impossible"));
   }
 
   /*
@@ -106,29 +107,31 @@ export async function fetchGraphForRun({ lat, lon, distanceKm }) {
   FR:
   Le backend renvoie le graphe au format JSON.
   */
-  const graphPayload = await res.json();
+  const { meta } = await res.json();
 
   /*
-  EN:
-  We return:
-  - the graph itself
-  - the center used
-  - the estimated extraction radius
-
-  This is useful for the map display and for the next route-planning step.
-
-  FR:
-  On renvoie :
-  - le graphe lui-même
-  - le centre utilisé
-  - le rayon estimé d’extraction
-
-  C’est utile pour l’affichage sur la carte et pour l’étape suivante
-  de génération d’itinéraire.
+  Le graphe reste sur le serveur : on ne reçoit qu'un résumé
+  (centre, rayon réellement utilisé, nombre de sommets et d'arêtes).
   */
   return {
-    center: graphPayload.meta?.center ?? [lat, lon],
-    radiusKm: graphPayload.meta?.radius_km ?? distanceKm / 2,
-    graphPayload,
+    center: meta?.center ?? [lat, lon],
+    radiusKm: meta?.radius_km ?? distanceKm / 2,
+    distanceKm,
+    nodeCount: meta?.node_count ?? 0,
+    edgeCount: meta?.edge_count ?? 0,
   };
+}
+
+/*
+Lit le message d'erreur renvoyé par FastAPI ({"detail": "..."}) pour l'afficher à l'utilisateur.
+*/
+export async function readErrorMessage(res, fallback) {
+  const text = await res.text();
+  try {
+    const detail = JSON.parse(text)?.detail;
+    if (typeof detail === "string") return detail;
+  } catch {
+    // réponse non JSON : on garde le texte brut
+  }
+  return `${fallback} (HTTP ${res.status})${text ? ` : ${text.slice(0, 200)}` : ""}`;
 }

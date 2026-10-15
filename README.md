@@ -141,18 +141,14 @@ Les petites distances donnent souvent des formes moins satisfaisantes car le ré
 
 # Temps de calcul
 
-La génération peut être longue selon :
+L’étape la plus longue est le téléchargement du réseau routier depuis OpenStreetMap (Overpass),
+souvent une à deux minutes selon la zone, la distance et la disponibilité des serveurs.
+Le calcul des itinéraires lui-même prend ensuite quelques secondes.
 
-- la zone choisie
-- la densité des routes
-- le texte demandé
-- la distance choisie
+Le réseau téléchargé reste en mémoire côté serveur : une nouvelle génération au même endroit,
+avec la même distance, ne le retélécharge pas.
 
-Sur les cas les plus lourds, le temps de calcul peut atteindre :
-
-jusqu’à environ **15 minutes**
-
-Il est donc conseillé de :
+Pendant le calcul, il est conseillé de :
 
 - ne pas actualiser la page trop vite
 - patienter pendant le traitement

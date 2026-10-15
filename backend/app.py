@@ -1,12 +1,17 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from collections import OrderedDict
+from threading import Lock
 from typing import Any, Dict
-import requests
+
 import math
 import time
 
-from planner_adapter import plan_from_payload
+import requests
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+
+from planner_adapter import plan_from_graph, plan_from_payload
+from shape_route_experiments_v16 import RoadGraph, required_radius_m
 
 
 # EN: This API is the bridge between the React app and the Python route generator.
@@ -84,7 +89,7 @@ def post_overpass(endpoint, query):
     res = requests.get(
         endpoint,
         params={"data": query},
-        timeout=240,
+        timeout=120,
         headers={
             "User-Agent": "RunToDraw/1.0",
             "Accept": "application/json,text/plain,*/*",
@@ -104,7 +109,7 @@ def post_overpass(endpoint, query):
 # FR: Cette fonction réessaie la requête Overpass sur plusieurs miroirs.
 # Cela rend l’extraction plus robuste, car les serveurs Overpass peuvent être instables.
 # On conserve la dernière erreur pour renvoyer un message utile si toutes les tentatives échouent.
-def fetch_overpass_with_fallback(query, max_tries=6):
+def fetch_overpass_with_fallback(query, max_tries=3):
     last_err = None
 
     for attempt in range(max_tries):
@@ -182,21 +187,96 @@ def build_graph_from_overpass(osm_json):
     }
 
 
+# EN:
+# Server-side graph cache.
+# The road graph stays on the server: the browser no longer downloads it and sends it back
+# (several tens of MB of JSON each way). A small LRU cache keeps the last graphs, keyed by
+# (center, radius), so a second generation in the same area skips Overpass entirely.
+# Only the compact RoadGraph is kept (the raw JSON dicts are released) to limit memory use.
+#
+# FR:
+# Cache des graphes côté serveur.
+# Le graphe routier reste sur le serveur : le navigateur ne le télécharge plus pour le renvoyer
+# ensuite (plusieurs dizaines de Mo de JSON dans chaque sens). Un petit cache LRU garde les derniers
+# graphes, indexés par (centre, rayon) : une deuxième génération dans la même zone évite Overpass.
+# Seul le RoadGraph compact est conservé (les dicts JSON bruts sont libérés) pour limiter la mémoire.
+GRAPH_CACHE_SIZE = 3
+_graph_cache: "OrderedDict[tuple, RoadGraph]" = OrderedDict()
+_graph_cache_lock = Lock()
+
+
+SHAPES = ("square", "circle", "heart", "star", "infinity")
+
+
+# EN: Radius to download. In shape mode we take the largest radius over all shapes, so that
+# trying another shape at the same place and distance reuses the cached graph (≈ +15 % area).
+# FR: Rayon à télécharger. En mode forme, on prend le plus grand rayon parmi toutes les formes :
+# essayer une autre forme au même endroit et à la même distance réutilise le graphe en cache (≈ +15 % de surface).
+def extraction_radius_m(distance_km, drawing):
+    distance_m = distance_km * 1000.0
+    if not drawing:
+        return distance_m / 2.0
+    if drawing.get("mode", "shape") == "text":
+        return required_radius_m(drawing, distance_m)
+    return max(required_radius_m({"mode": "shape", "shape": name}, distance_m) for name in SHAPES)
+
+
+def _cache_key(lat, lon, radius_m):
+    # ~1 m de précision sur le centre, rayon arrondi au multiple de 50 m supérieur
+    return (round(lat, 5), round(lon, 5), int(math.ceil(radius_m / 50.0) * 50))
+
+
+def get_road_graph(lat, lon, radius_m):
+    key = _cache_key(lat, lon, radius_m)
+    with _graph_cache_lock:
+        graph = _graph_cache.get(key)
+        if graph is not None:
+            _graph_cache.move_to_end(key)
+            print(f"[Graphe] cache : {key}")
+            return graph
+
+    t0 = time.perf_counter()
+    osm = fetch_overpass_with_fallback(build_overpass_query_circle(lat, lon, key[2]))
+    t1 = time.perf_counter()
+    raw = build_graph_from_overpass(osm)
+    del osm
+    if not raw["nodes"]:
+        raise HTTPException(status_code=422, detail="Aucune route trouvée autour de ce point.")
+    graph = RoadGraph({"meta": {"center": [lat, lon], "radius_km": key[2] / 1000.0}, **raw})
+    graph.segment_count = len(raw["edges"])
+    graph.nodes = graph.edges = None  # libère les dicts JSON bruts
+    del raw
+    t2 = time.perf_counter()
+    print(f"[Graphe] {len(graph.node_ids)} nœuds, rayon {key[2]} m | Overpass {t1 - t0:.1f} s, construction {t2 - t1:.1f} s")
+
+    with _graph_cache_lock:
+        _graph_cache[key] = graph
+        _graph_cache.move_to_end(key)
+        while len(_graph_cache) > GRAPH_CACHE_SIZE:
+            _graph_cache.popitem(last=False)
+    return graph
+
+
 # EN: These request models define the data expected by the API.
 # This makes the backend inputs clearer and safer.
 # FR: Ces modèles de requête définissent les données attendues par l’API.
 # Cela rend les entrées du backend plus claires et plus sûres.
 class GraphFetchRequest(BaseModel):
-    lat: float
-    lon: float
-    distance_km: float
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+    distance_km: float = Field(gt=0, le=100)
+    drawing: Dict[str, Any] | None = None
 
 
 class RoutePlanRequest(BaseModel):
-    graph_payload: Dict[str, Any]
-    distance_km: float
+    distance_km: float = Field(gt=0, le=100)
     drawing: Dict[str, Any]
     tolerance_ratio: float | None = 0.10
+    # Nouveau fonctionnement : le serveur retrouve le graphe dans son cache à partir du point choisi.
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lon: float | None = Field(default=None, ge=-180, le=180)
+    # Ancien fonctionnement (toujours accepté) : le graphe complet est envoyé dans la requête.
+    graph_payload: Dict[str, Any] | None = None
 
 
 # EN: Simple endpoint used to quickly check that the backend is running.
@@ -206,37 +286,48 @@ def health():
     return {"ok": True}
 
 
-# EN: This endpoint fetches the road graph around the selected location.
-# The chosen running distance is converted into a search radius, then the graph is built
-# and sent back to the frontend in a format that the route generator can reuse.
-# FR: Cet endpoint récupère le graphe routier autour de la zone choisie.
-# La distance de course demandée est transformée en rayon de recherche, puis le graphe est construit
-# et renvoyé au frontend dans un format réutilisable par le générateur d’itinéraires.
+# EN: This endpoint prepares the road graph around the selected location and keeps it in the
+# server cache. Only a summary is returned (center, radius, counts), not the graph itself.
+# FR: Cet endpoint prépare le graphe routier autour du point choisi et le garde dans le cache
+# du serveur. Seul un résumé est renvoyé (centre, rayon, nombre de sommets/arêtes), pas le graphe.
 @app.post("/api/graph/fetch")
 def fetch_graph(request: GraphFetchRequest):
-    radius_km = request.distance_km / 2.0
-    radius_m = radius_km * 1000.0
-
-    query = build_overpass_query_circle(request.lat, request.lon, radius_m)
-    osm = fetch_overpass_with_fallback(query)
-    graph = build_graph_from_overpass(osm)
+    radius_m = extraction_radius_m(request.distance_km, request.drawing)
+    try:
+        graph = get_road_graph(request.lat, request.lon, radius_m)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"OpenStreetMap (Overpass) indisponible : {e}")
 
     return {
         "meta": {
             "center": [request.lat, request.lon],
-            "radius_km": radius_km,
-        },
-        "nodes": graph["nodes"],
-        "edges": graph["edges"],
+            "radius_km": _cache_key(request.lat, request.lon, radius_m)[2] / 1000.0,
+            "node_count": len(graph.node_ids),
+            "edge_count": graph.segment_count,
+        }
     }
 
 
-# EN: This endpoint sends the graph and the user's drawing request to the planner.
-# The actual route construction logic is not written here: it is delegated to planner_adapter,
-# which keeps this file focused on API responsibilities.
-# FR: Cet endpoint envoie le graphe et la demande de dessin de l’utilisateur au planificateur.
-# La logique de construction des itinéraires n’est pas écrite ici : elle est déléguée à planner_adapter,
-# ce qui permet à ce fichier de rester centré sur le rôle d’API.
+# EN: This endpoint computes the route proposals. The graph is taken from the server cache
+# (or downloaded again if it expired); the route construction itself is delegated to planner_adapter.
+# FR: Cet endpoint calcule les propositions d'itinéraires. Le graphe est repris dans le cache du serveur
+# (ou retéléchargé s'il a expiré) ; la construction des trajets est déléguée à planner_adapter.
 @app.post("/api/routes/plan")
 def plan_routes(request: RoutePlanRequest):
-    return plan_from_payload(request.model_dump())
+    if request.graph_payload is not None:
+        return plan_from_payload(request.model_dump())
+
+    if request.lat is None or request.lon is None:
+        raise HTTPException(status_code=422, detail="lat/lon requis (ou graph_payload).")
+
+    radius_m = extraction_radius_m(request.distance_km, request.drawing)
+    try:
+        graph = get_road_graph(request.lat, request.lon, radius_m)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"OpenStreetMap (Overpass) indisponible : {e}")
+
+    return plan_from_graph(graph, request.distance_km, request.drawing, request.tolerance_ratio)

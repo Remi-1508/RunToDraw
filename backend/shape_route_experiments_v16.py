@@ -702,39 +702,31 @@ def graph_center(graph):
 # This is useful to align shapes with the general street orientation.
 # FR: Estime la direction dominante du réseau routier.
 # Cela permet d’aligner les formes avec l’orientation générale des rues.
-def dominant_graph_angle(graph, max_edges=2000):
-    # EN: The result only depends on the graph, so it is computed once and cached.
-    # FR: Le résultat ne dépend que du graphe : on le calcule une fois puis on le garde en cache.
+def dominant_graph_angle(graph):
+    # EN: Main orientation of the streets: histogram of segment directions (folded to [-90, 90]),
+    # weighted by segment length, over the whole graph. Before, only the first 2000 segments in
+    # file order were used, so the result depended on how OSM happened to order its data.
+    # Computed once per graph and cached.
+    # FR: Orientation principale des rues : histogramme des directions des segments (ramenées dans
+    # [-90, 90]), pondéré par leur longueur, sur tout le graphe. Avant, seuls les 2000 premiers segments
+    # dans l'ordre du fichier étaient utilisés : le résultat dépendait de l'ordre des données OSM.
+    # Calculé une fois par graphe puis mis en cache.
     if graph._dominant_angle is not None:
         return graph._dominant_angle
 
-    src, dst = graph._arc_src, graph._arc_dst
-    if len(src) == 0:
+    vec = graph.node_array[graph._arc_dst] - graph.node_array[graph._arc_src]
+    length = np.hypot(vec[:, 0], vec[:, 1])
+    keep = length >= 5.0
+    if not np.any(keep):
         graph._dominant_angle = 0.0
         return 0.0
 
-    # EN: Visit arcs in the same order as the former adjacency dictionary:
-    # nodes by order of first appearance, then each node's arcs in insertion order.
-    # FR: On parcourt les arcs dans le même ordre que l'ancien dictionnaire d'adjacence :
-    # nœuds par ordre de première apparition, puis arcs de chaque nœud dans l'ordre d'insertion.
-    uniq, first = np.unique(src, return_index=True)
-    rank = np.empty(len(graph.node_ids), dtype=np.int64)
-    rank[uniq[np.argsort(first)]] = np.arange(len(uniq))
-    order = np.argsort(rank[src], kind="stable")
-
-    vec = graph.node_array[dst[order]] - graph.node_array[src[order]]
-    keep = np.hypot(vec[:, 0], vec[:, 1]) >= 5.0
-    vec = vec[keep][:max_edges]
-    if len(vec) == 0:
-        graph._dominant_angle = 0.0
-        return 0.0
-
-    angles = np.degrees(np.arctan2(vec[:, 1], vec[:, 0]))
+    angles = np.degrees(np.arctan2(vec[keep, 1], vec[keep, 0]))
     angles = np.where(angles < -90, angles + 180, angles)
     angles = np.where(angles > 90, angles - 180, angles)
 
     bins = np.arange(-90, 91, 10)
-    hist, edges = np.histogram(angles, bins=bins)
+    hist, edges = np.histogram(angles, bins=bins, weights=length[keep])
     idx = int(np.argmax(hist))
     graph._dominant_angle = float(0.5 * (edges[idx] + edges[idx + 1]))
     return graph._dominant_angle
@@ -778,11 +770,23 @@ def make_candidate_points(base_points, center, size_m, angle_deg):
 # centres possibles, angles et tailles.
 # Le mode translation explore quelques centres décalés, alors que le mode projection
 # n’utilise que le centre du graphe.
-def global_search_candidates(graph, base_points, desired_distance_m, shape_name, use_translation):
-    center = graph_center(graph)
-    width = graph.bounds["xmax"] - graph.bounds["xmin"]
-    height = graph.bounds["ymax"] - graph.bounds["ymin"]
-    step = 0.12 * min(width, height)
+# EN: Search frame: the point chosen by the user (origin of the local x/y system) and a square
+# whose side equals the requested distance. Before, this frame was the bounding box of the
+# downloaded graph (radius = distance / 2), i.e. the same square. Defining it explicitly means the
+# candidates no longer depend on how much road network we download.
+# FR: Cadre de recherche : le point choisi par l'utilisateur (origine du repère local x/y) et un carré
+# de côté égal à la distance demandée. Avant, ce cadre était la boîte englobante du graphe téléchargé
+# (rayon = distance / 2), c'est-à-dire le même carré. Le définir explicitement permet que les
+# candidats ne dépendent plus de la quantité de réseau routier téléchargée.
+def search_frame(desired_distance_m):
+    return np.zeros(2, dtype=float), float(desired_distance_m)
+
+
+# EN: Centers and sizes tested for a shape (angles are added separately, they need the graph).
+# FR: Centres et tailles testés pour une forme (les angles sont ajoutés à part, ils dépendent du graphe).
+def shape_layout(base_points, desired_distance_m, shape_name, use_translation):
+    center, span = search_frame(desired_distance_m)
+    step = 0.12 * span
 
     if shape_name == "text":
         step *= 0.95
@@ -798,14 +802,19 @@ def global_search_candidates(graph, base_points, desired_distance_m, shape_name,
     else:
         centers = [center]
 
+    sizes = estimate_size_candidates(base_points, desired_distance_m, shape_name)
+    return centers, sizes
+
+
+def global_search_candidates(graph, base_points, desired_distance_m, shape_name, use_translation):
+    centers, sizes = shape_layout(base_points, desired_distance_m, shape_name, use_translation)
+
     base_angle = dominant_graph_angle(graph)
 
     if shape_name == "text":
         angles = [base_angle - 25, base_angle - 12, base_angle, base_angle + 12, base_angle + 25]
     else:
         angles = [base_angle + a for a in (-60, -45, -30, -15, 0, 15, 30, 45, 60)]
-
-    sizes = estimate_size_candidates(base_points, desired_distance_m, shape_name)
 
     candidates = []
     for c in centers:
@@ -905,22 +914,20 @@ def evaluate_method(graph, base_points, desired_distance_m, tolerance_ratio, sha
 # Les lettres sont placées autour du centre du graphe avec un espacement basé sur la taille du graphe.
 # ============================================================
 
-def split_text_itineraries_full_distance(graph, text, per_letter_distance_m, tolerance_ratio):
+# EN: Letters to draw in split mode (unknown characters are skipped, "P" if nothing is left).
+# FR: Lettres à dessiner en mode séparé (caractères inconnus ignorés, "P" s'il ne reste rien).
+def split_letters(text):
     letters = [ch for ch in (text or "").upper() if ch != " " and ch in GLYPHS]
-    if not letters:
-        letters = ["P"]
+    return letters or ["P"]
 
+
+# EN: Layout of each letter in split mode: base polyline, tested centers and sizes.
+# `direction` is the reading direction (unit vector), `normal` is perpendicular to it.
+# FR: Mise en page de chaque lettre en mode séparé : polyligne de base, centres et tailles testés.
+# `direction` est le sens de lecture (vecteur unitaire), `normal` lui est perpendiculaire.
+def split_letter_layout(letters, per_letter_distance_m, direction, normal):
     n = len(letters)
-    center = graph_center(graph)
-    dom_angle = dominant_graph_angle(graph)
-
-    a = math.radians(dom_angle)
-    direction = np.array([math.cos(a), math.sin(a)], dtype=float)
-    normal = np.array([-direction[1], direction[0]], dtype=float)
-
-    width = graph.bounds["xmax"] - graph.bounds["xmin"]
-    height = graph.bounds["ymax"] - graph.bounds["ymin"]
-    span = min(width, height)
+    center, span = search_frame(per_letter_distance_m)
 
     spacing = 0.18 * span
     if n > 1:
@@ -928,7 +935,7 @@ def split_text_itineraries_full_distance(graph, text, per_letter_distance_m, tol
 
     offsets = [((i - 0.5 * (n - 1)) * spacing) for i in range(n)]
 
-    results = []
+    layout = []
     for i, ch in enumerate(letters):
         base = single_letter_polyline(ch)
         anchor = center + direction * offsets[i]
@@ -943,19 +950,30 @@ def split_text_itineraries_full_distance(graph, text, per_letter_distance_m, tol
             anchor + 0.12 * spacing * (direction - normal),
         ]
 
-        angles = [dom_angle - 25, dom_angle - 12, dom_angle, dom_angle + 12, dom_angle + 25]
-
         base_len = max(polyline_length(base), 1e-9)
         nominal_size = per_letter_distance_m / base_len
 
         if ch in {"I", "1"}:
             size_factors = [0.70, 0.85, 1.00, 1.15, 1.30]
-        elif ch in {"M", "W"}:
-            size_factors = [0.60, 0.75, 0.90, 1.05, 1.20]
         else:
             size_factors = [0.60, 0.75, 0.90, 1.05, 1.20]
 
         sizes = [max(120.0, nominal_size * f) for f in size_factors]
+        layout.append((ch, base, local_centers, sizes))
+    return layout
+
+
+def split_text_itineraries_full_distance(graph, text, per_letter_distance_m, tolerance_ratio):
+    letters = split_letters(text)
+    dom_angle = dominant_graph_angle(graph)
+
+    a = math.radians(dom_angle)
+    direction = np.array([math.cos(a), math.sin(a)], dtype=float)
+    normal = np.array([-direction[1], direction[0]], dtype=float)
+
+    results = []
+    for ch, base, local_centers, sizes in split_letter_layout(letters, per_letter_distance_m, direction, normal):
+        angles = [dom_angle - 25, dom_angle - 12, dom_angle, dom_angle + 12, dom_angle + 25]
 
         evaluated = []
         for c in local_centers:
@@ -1008,6 +1026,57 @@ def split_text_itineraries_full_distance(graph, text, per_letter_distance_m, tol
         results.append(best)
 
     return results
+
+
+# ============================================================
+# EN:
+# Extraction radius.
+# The road network only has to cover the candidates that will actually be tested.
+# Every candidate is "shape of size S, centered at c, rotated by some angle", so all its points
+# lie within |c| + S * r_max of the origin, whatever the angle (r_max = largest distance from the
+# shape's center at size 1). Taking the maximum over all candidates, plus a margin for the small
+# detours of real roads, gives the radius to download.
+#
+# FR:
+# Rayon d'extraction.
+# Le réseau routier n'a besoin de couvrir que les candidats qui seront réellement testés.
+# Chaque candidat est « forme de taille S, centrée en c, tournée d'un certain angle » : tous ses points
+# sont donc à moins de |c| + S * r_max de l'origine, quel que soit l'angle (r_max = plus grande distance
+# au centre de la forme à la taille 1). Le maximum sur tous les candidats, plus une marge pour les
+# petits détours des vraies routes, donne le rayon à télécharger.
+# ============================================================
+
+def _shape_extent_m(base_points, centers, sizes):
+    unit = fit_points(base_points, np.zeros(2, dtype=float), 1.0)
+    r_max = float(np.max(np.hypot(unit[:, 0], unit[:, 1])))
+    return max(float(np.hypot(*c)) for c in centers) + max(sizes) * r_max
+
+
+def required_radius_m(drawing, distance_m):
+    drawing = drawing or {}
+    mode = drawing.get("mode", "shape")
+    text = (drawing.get("text") or "P2I").upper()
+
+    if mode == "text":
+        base = get_base_shape("text", text)
+        centers, sizes = shape_layout(base, distance_m, "text", use_translation=True)
+        extent = _shape_extent_m(base, centers, sizes)
+        # Lettres séparées : les distances au centre ne dépendent pas de l'orientation,
+        # on peut donc prendre le sens de lecture (1, 0).
+        direction, normal = np.array([1.0, 0.0]), np.array([0.0, 1.0])
+        for _, letter_base, letter_centers, letter_sizes in split_letter_layout(
+            split_letters(text), distance_m, direction, normal
+        ):
+            extent = max(extent, _shape_extent_m(letter_base, letter_centers, letter_sizes))
+    else:
+        shape_name = drawing.get("shape", "heart")
+        base = get_base_shape(shape_name, text)
+        centers, sizes = shape_layout(base, distance_m, shape_name, use_translation=True)
+        extent = _shape_extent_m(base, centers, sizes)
+
+    # Marge pour les détours ; jamais plus que l'ancien rayon (distance / 2), qui reste un plafond.
+    margin = 600.0 + 0.05 * extent
+    return float(min(extent + margin, distance_m / 2.0))
 
 
 # ============================================================

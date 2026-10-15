@@ -245,34 +245,20 @@ def build_text_routes(graph, drawing, distance_m, tolerance_ratio):
     return routes
 
 
-# EN: This is the main entry point called by the API.
-# It validates the payload, rebuilds the graph, converts the requested distance,
-# then sends the request either to shape mode or text mode.
-# In the end, it returns a simple summary and a list of formatted route proposals.
-# FR: C’est le point d’entrée principal appelé par l’API.
-# Cette fonction vérifie le contenu reçu, reconstruit le graphe, convertit la distance demandée,
-# puis envoie la demande soit vers le mode forme, soit vers le mode texte.
-# À la fin, elle renvoie un résumé simple et une liste de propositions d’itinéraires déjà formatées.
-def plan_from_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
-    graph_payload = payload.get("graph_payload")
-    distance_km = float(payload.get("distance_km", 0.0))
-    drawing = payload.get("drawing", {}) or {}
-    tolerance_ratio = float(payload.get("tolerance_ratio", 0.10))
-
-    if not graph_payload:
-        raise ValueError("graph_payload manquant")
-
-    if "meta" not in graph_payload or "nodes" not in graph_payload or "edges" not in graph_payload:
-        raise ValueError("graph_payload invalide : meta/nodes/edges requis")
-
-    graph = RoadGraph(graph_payload)
-    distance_m = distance_km * 1000.0
+# EN: Main entry point: computes all route proposals on an already built RoadGraph.
+# It converts the requested distance, then sends the request either to shape mode or text mode.
+# FR: Point d'entrée principal : calcule toutes les propositions sur un RoadGraph déjà construit.
+# Il convertit la distance demandée, puis envoie la demande vers le mode forme ou le mode texte.
+def plan_from_graph(graph, distance_km, drawing, tolerance_ratio=0.10) -> Dict[str, Any]:
+    drawing = drawing or {}
+    tolerance_ratio = 0.10 if tolerance_ratio is None else float(tolerance_ratio)
+    distance_m = float(distance_km) * 1000.0
 
     mode = drawing.get("mode", "shape")
 
     if mode == "text":
         routes = build_text_routes(graph, drawing, distance_m, tolerance_ratio)
-        summary = f"{len(routes)} proposition(s) calculée(s) pour le texte {drawing.get('text', 'P2I').upper()}."
+        summary = f"{len(routes)} proposition(s) calculée(s) pour le texte {(drawing.get('text') or 'P2I').upper()}."
     else:
         routes = build_shape_routes(graph, drawing, distance_m, tolerance_ratio)
         summary = f"{len(routes)} proposition(s) calculée(s) pour la forme {drawing.get('shape', 'heart')}."
@@ -281,3 +267,24 @@ def plan_from_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         "summary": summary,
         "routes": routes,
     }
+
+
+# EN: Former entry point, still used when the whole graph is sent in the request
+# (and by the experiment scripts). It validates the payload and rebuilds the graph.
+# FR: Ancien point d'entrée, toujours utilisé quand le graphe complet est envoyé dans la requête
+# (et par les scripts d'expérimentation). Il vérifie le contenu reçu et reconstruit le graphe.
+def plan_from_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    graph_payload = payload.get("graph_payload")
+
+    if not graph_payload:
+        raise ValueError("graph_payload manquant")
+
+    if "meta" not in graph_payload or "nodes" not in graph_payload or "edges" not in graph_payload:
+        raise ValueError("graph_payload invalide : meta/nodes/edges requis")
+
+    return plan_from_graph(
+        RoadGraph(graph_payload),
+        float(payload.get("distance_km", 0.0)),
+        payload.get("drawing", {}) or {},
+        payload.get("tolerance_ratio", 0.10),
+    )

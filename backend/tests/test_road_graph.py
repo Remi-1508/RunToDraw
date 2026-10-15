@@ -123,3 +123,40 @@ def test_route_from_target_returns_connected_path():
     edges = {(e["from"], e["to"]) for e in payload["edges"]} | {(e["to"], e["from"]) for e in payload["edges"]}
     assert all((a, b) in edges for a, b in zip(node_path, node_path[1:]))
     assert len(route_points) >= 2
+
+
+@pytest.mark.parametrize("drawing", [
+    {"mode": "shape", "shape": "square"},
+    {"mode": "shape", "shape": "circle"},
+    {"mode": "shape", "shape": "heart"},
+    {"mode": "shape", "shape": "star"},
+    {"mode": "shape", "shape": "infinity"},
+    {"mode": "text", "text": "GO"},
+])
+@pytest.mark.parametrize("distance_m", [5000.0, 15000.0, 30000.0])
+def test_required_radius_covers_every_candidate(drawing, distance_m):
+    """Le rayon téléchargé doit contenir tous les points de toutes les formes testées,
+    pour n'importe quelle orientation du réseau."""
+    from shape_route_experiments_v16 import (
+        required_radius_m, shape_layout, split_letter_layout, split_letters, make_candidate_points,
+    )
+    radius = required_radius_m(drawing, distance_m)
+    if radius >= distance_m / 2.0:
+        return  # rayon plafonné à l'ancienne valeur : comportement inchangé
+    margin = 600.0
+    text = drawing.get("text", "P2I")
+    name = "text" if drawing["mode"] == "text" else drawing["shape"]
+    base = get_base_shape(name, text)
+    centers, sizes = shape_layout(base, distance_m, name, use_translation=True)
+    groups = [(base, centers, sizes)]
+    if drawing["mode"] == "text":
+        for angle in (0.0, 37.0, 90.0):
+            d = np.array([math.cos(math.radians(angle)), math.sin(math.radians(angle))])
+            n = np.array([-d[1], d[0]])
+            groups += [(b, c, s) for _, b, c, s in split_letter_layout(split_letters(text), distance_m, d, n)]
+    for b, cs, ss in groups:
+        for c in cs:
+            for size in ss:
+                for angle in range(0, 360, 15):
+                    pts = make_candidate_points(b, c, size, angle)
+                    assert np.hypot(pts[:, 0], pts[:, 1]).max() <= radius - margin + 1e-6

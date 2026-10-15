@@ -187,7 +187,7 @@ export default function MapView({
   const MAX_SEG = 2000;
   const MAX_NODES = 3000;
 
-  const vertexCount = graphData?.nodesById?.size ?? 0;
+  const vertexCount = graphData?.nodeCount ?? graphData?.nodesById?.size ?? 0;
   const edgeCount = graphData?.edgeCount ?? 0;
 
   /*
@@ -199,7 +199,8 @@ export default function MapView({
   Si le graphe dépasse les limites d’affichage, on garde quand même
   les vraies statistiques, mais on avertit l’utilisateur que le rendu visuel est limité.
   */
-  const limited = graphData && (edgeCount > MAX_SEG || vertexCount > MAX_NODES);
+  const limited =
+    showFullGraph && graphData?.nodesById && (edgeCount > MAX_SEG || vertexCount > MAX_NODES);
 
   /*
   EN:

@@ -503,7 +503,7 @@ export default function Sidebar({
         </div>
 
         <div style={styles.infoPill}>
-          Rayon d’extraction estimé : <strong>{radiusKm.toFixed(1)} km</strong>
+          Rayon d’extraction maximal : <strong>{radiusKm.toFixed(1)} km</strong>
         </div>
       </section>
 
@@ -605,9 +605,9 @@ export default function Sidebar({
           </button>
 
           <div style={styles.infoPillSoft}>
-            Le graphe est extrait automatiquement puis envoyé au moteur Python. Si le calcul
-            détaillé ne peut pas être remonté en temps réel, prévois un ordre de grandeur pouvant
-            aller jusqu’à environ 15 minutes sur les cas lourds.
+            Le réseau routier est téléchargé depuis OpenStreetMap, c’est l’étape la plus longue
+            (souvent une à deux minutes). Il reste ensuite en mémoire : une nouvelle génération
+            au même endroit avec la même distance est quasi immédiate.
           </div>
 
           <ToggleRow

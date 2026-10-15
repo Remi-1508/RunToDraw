@@ -155,19 +155,16 @@ export default function App() {
   EN:
   Computed data states:
   - extracted graph
-  - graph payload sent to the backend
   - generated route plan
   - currently selected route
 
   FR:
   États des données calculées :
   - graphe extrait
-  - payload du graphe envoyé au backend
   - plan d’itinéraires généré
   - itinéraire actuellement sélectionné
   */
   const [graphData, setGraphData] = useState(null);
-  const [graphJsonPayload, setGraphJsonPayload] = useState(null);
   const [routePlan, setRoutePlan] = useState(null);
   const [selectedRouteId, setSelectedRouteId] = useState(null);
 
@@ -382,7 +379,6 @@ export default function App() {
   */
   function resetComputedGraph() {
     setGraphData(null);
-    setGraphJsonPayload(null);
     setRoutePlan(null);
     setSelectedRouteId(null);
     setShowFullGraph(false);
@@ -526,10 +522,9 @@ export default function App() {
 
   Steps:
   1) extract the graph from the backend
-  2) validate the graph payload
-  3) ask the backend to generate route proposals
-  4) store the results and auto-select the first route
-  5) show a success or error feedback
+  2) ask the backend to generate route proposals (the graph stays cached on the server)
+  3) store the results and auto-select the first route
+  4) show a success or error feedback
 
   This is the central async action of the frontend.
 
@@ -538,10 +533,9 @@ export default function App() {
 
   Étapes :
   1) extraire le graphe depuis le backend
-  2) valider le payload du graphe
-  3) demander au backend de générer les propositions
-  4) stocker les résultats et sélectionner automatiquement le premier itinéraire
-  5) afficher un retour de succès ou d’erreur
+  2) demander au backend de générer les propositions (le graphe reste en cache sur le serveur)
+  3) stocker les résultats et sélectionner automatiquement le premier itinéraire
+  4) afficher un retour de succès ou d’erreur
 
   C’est l’action asynchrone centrale du frontend.
   ============================================================
@@ -562,16 +556,10 @@ export default function App() {
         lat,
         lon: lng,
         distanceKm,
+        drawing,
       });
 
-      const payload = nextGraph.graphPayload;
-
-      if (!payload || !payload.nodes || !payload.edges) {
-        throw new Error("Graph payload invalide reçu depuis le backend.");
-      }
-
       setGraphData(nextGraph);
-      setGraphJsonPayload(payload);
       setRoutePlan(null);
       setSelectedRouteId(null);
       setShowFullGraph(false);
@@ -584,7 +572,8 @@ export default function App() {
       });
 
       const nextPlan = await planRoutes({
-        graphPayload: payload,
+        lat,
+        lon: lng,
         distanceKm,
         drawing,
       });
@@ -592,7 +581,7 @@ export default function App() {
       updateBusy({
         kicker: "Étape 3/3",
         description:
-          "Mise en forme des propositions, calcul des distances et préparation des exports GPS…\nSur une grosse zone ou un mot long, ce calcul peut monter vers ~15 minutes côté projet.",
+          "Mise en forme des propositions, calcul des distances et préparation des exports GPS…",
         progress: 88,
       });
 
@@ -608,7 +597,9 @@ export default function App() {
       setSelectedRouteId(null);
       await stopBusy();
       showToast(
-        "Erreur pendant la génération des itinéraires. Vérifie la console et le terminal backend.",
+        error?.message
+          ? `Erreur pendant la génération : ${error.message}`
+          : "Erreur pendant la génération des itinéraires. Vérifie la console et le terminal backend.",
         "error"
       );
     }
@@ -678,7 +669,10 @@ export default function App() {
   - rayon d’extraction affiché sur la carte
   - objet de l’itinéraire actuellement sélectionné
   */
-  const radiusKm = distanceKm / 2;
+  // Après une extraction, on affiche le rayon réellement téléchargé (calculé par le backend
+  // selon la forme) ; avant, ou si la distance a changé depuis, l'ancienne estimation (distance / 2).
+  const radiusKm =
+    graphData && graphData.distanceKm === distanceKm ? graphData.radiusKm : distanceKm / 2;
   const selectedRoute =
     routePlan?.routes?.find((item) => item.id === selectedRouteId) ?? null;
 

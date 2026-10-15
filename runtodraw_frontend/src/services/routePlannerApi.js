@@ -1,3 +1,5 @@
+import { readErrorMessage } from "./osmGraph";
+
 /*
 ============================================================
 EN:
@@ -27,11 +29,11 @@ const API_BASE = import.meta.env.VITE_ROUTE_API_URL || "http://localhost:8000";
 /*
 ============================================================
 EN:
-planRoutes sends the graph and user choices to the backend
+planRoutes sends the user choices to the backend
 so it can calculate route proposals.
 
 The frontend sends:
-- the extracted graph
+- the selected point (the graph itself stays cached on the server)
 - the requested distance
 - the drawing settings (shape or text)
 
@@ -41,11 +43,11 @@ several route candidates.
 This function only communicates with the API.
 
 FR:
-planRoutes envoie le graphe et les choix utilisateur
+planRoutes envoie les choix utilisateur
 au backend pour calculer des propositions d’itinéraires.
 
 Le frontend envoie :
-- le graphe extrait
+- le point choisi (le graphe lui-même reste en cache sur le serveur)
 - la distance demandée
 - les paramètres du dessin (forme ou texte)
 
@@ -55,7 +57,7 @@ plusieurs itinéraires candidats.
 Cette fonction sert uniquement à communiquer avec l’API.
 ============================================================
 */
-export async function planRoutes({ graphPayload, distanceKm, drawing }) {
+export async function planRoutes({ lat, lon, distanceKm, drawing }) {
   const res = await fetch(`${API_BASE}/api/routes/plan`, {
     method: "POST",
 
@@ -67,8 +69,8 @@ export async function planRoutes({ graphPayload, distanceKm, drawing }) {
     EN:
     The payload contains everything needed by the planner.
 
-    graph_payload:
-    full road graph already extracted earlier
+    lat / lon:
+    selected point, used by the server to find the cached road graph
 
     distance_km:
     target running distance
@@ -79,8 +81,8 @@ export async function planRoutes({ graphPayload, distanceKm, drawing }) {
     FR:
     Le payload contient tout ce dont le moteur a besoin.
 
-    graph_payload :
-    graphe routier déjà extrait auparavant
+    lat / lon :
+    point choisi, qui permet au serveur de retrouver le graphe en cache
 
     distance_km :
     distance cible
@@ -89,7 +91,10 @@ export async function planRoutes({ graphPayload, distanceKm, drawing }) {
     demande utilisateur (mode forme ou mode texte)
     */
     body: JSON.stringify({
-      graph_payload: graphPayload,
+      // Le serveur retrouve le graphe dans son cache à partir du point choisi :
+      // plus besoin de renvoyer le graphe complet.
+      lat,
+      lon,
       distance_km: distanceKm,
       drawing,
     }),
@@ -105,8 +110,7 @@ export async function planRoutes({ graphPayload, distanceKm, drawing }) {
   pour afficher un message d’erreur plus utile.
   */
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || `Route planner HTTP ${res.status}`);
+    throw new Error(await readErrorMessage(res, "Calcul des itinéraires impossible"));
   }
 
   /*
