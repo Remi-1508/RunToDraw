@@ -249,7 +249,11 @@ export default function Sidebar({
         console.error(error);
         setSuggestions([]);
         setActiveIndex(-1);
-        setSearchStatus("Recherche indisponible, vérifie ta connexion");
+        setSearchStatus(
+          error.name === "WorldTimeout"
+            ? "La recherche à l’étranger ne répond pas, réessaie dans un instant"
+            : "Recherche indisponible, vérifie ta connexion"
+        );
       } finally {
         if (!controller.signal.aborted) setLoadingSuggest(false);
       }
