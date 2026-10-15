@@ -459,13 +459,13 @@ export default function Sidebar({
                   title={[suggestion.title, suggestion.subtitle].filter(Boolean).join(", ")}
                 >
                   <span style={styles.suggestRow}>
-                    <span style={styles.suggestTitleWrap}>
-                      <CountryFlag code={suggestion.countryCode} country={suggestion.country} />
-                      <span style={styles.suggestMain}>{suggestion.title}</span>
-                    </span>
+                    <span style={styles.suggestMain}>{suggestion.title}</span>
                     <span style={styles.suggestKind}>{suggestion.kind}</span>
                   </span>
-                  {suggestion.subtitle ? <span style={styles.suggestMeta}>{suggestion.subtitle}</span> : null}
+                  <span style={styles.suggestPlace}>
+                    <CountryFlag code={suggestion.countryCode} country={suggestion.country} />
+                    <span>{suggestion.subtitle || suggestion.country}</span>
+                  </span>
                 </button>
               ))}
             </div>
@@ -909,11 +909,12 @@ const styles = {
     lineHeight: 1.35,
   },
 
-  suggestTitleWrap: {
+  suggestPlace: {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    minWidth: 0,
+    fontSize: 12,
+    color: "var(--text-soft)",
   },
 
   flag: {
@@ -942,10 +943,6 @@ const styles = {
     color: "var(--text-soft)",
   },
 
-  suggestMeta: {
-    fontSize: 12,
-    color: "var(--text-soft)",
-  },
 
   distanceBadge: {
     minWidth: 68,

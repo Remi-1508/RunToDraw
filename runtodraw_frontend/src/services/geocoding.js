@@ -77,19 +77,27 @@ function normalizeName(text) {
     .trim();
 }
 
+// Deuxième ligne d'une suggestion : « Ville · Code postal » (le drapeau est ajouté par l'interface).
+function placeLine(city, postcode) {
+  return [city, postcode].filter(Boolean).join(" · ");
+}
+
 function fromIgn(feature) {
   const p = feature.properties ?? {};
   const [lon, lat] = feature.geometry?.coordinates ?? [];
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
 
   if (p._type === "poi") {
-    const name = first(p.toponym) || first(p.name);
-    const category = first(p.category);
     const city = first(p.city);
+    // Un lieu peut couvrir plusieurs codes postaux : on n'en affiche un que s'il est unique.
+    const postcodes = Array.isArray(p.postcode) ? p.postcode : [p.postcode].filter(Boolean);
+    const postcode = postcodes.length === 1 ? postcodes[0] : "";
     return {
       id: `ign-poi-${p.extrafields?.cleabs ?? `${lat},${lon}`}`,
-      title: name,
-      subtitle: [city, category].filter(Boolean).join(" · "),
+      title: first(p.toponym) || first(p.name),
+      city,
+      postcode,
+      subtitle: placeLine(city, postcode),
       kind: "Lieu",
       countryCode: "fr",
       country: "France",
@@ -99,14 +107,14 @@ function fromIgn(feature) {
     };
   }
 
-  // Adresse, rue ou commune (Base Adresse Nationale)
-  const isMunicipality = p.type === "municipality";
+  // Adresse, rue, lieu-dit ou commune (Base Adresse Nationale)
+  const city = p.city || p.name;
   return {
     id: `ign-${p.id ?? `${lat},${lon}`}`,
     title: p.name || p.label,
-    subtitle: isMunicipality
-      ? [p.postcode, p.context].filter(Boolean).join(" · ")
-      : [p.postcode, p.city].filter(Boolean).join(" "),
+    city,
+    postcode: p.postcode || "",
+    subtitle: placeLine(city, p.postcode),
     kind: ADDRESS_KIND[p.type] ?? "Adresse",
     countryCode: "fr",
     country: "France",
@@ -122,21 +130,22 @@ function fromPhoton(feature) {
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
 
   const streetLine = [p.housenumber, p.street].filter(Boolean).join(" ");
+  const isPlaceName = ["city", "town", "village"].includes(p.type);
   const title = p.name || streetLine || p.city || p.country;
-  const place = [p.postcode, p.city || p.county].filter(Boolean).join(" ");
-  const subtitle = [p.name && streetLine ? streetLine : null, place, p.countrycode !== "FR" ? p.country : null]
-    .filter(Boolean)
-    .join(" · ");
+  // Pour une commune, la « ville » de la deuxième ligne est sa région ; sinon la ville elle-même.
+  const city = isPlaceName ? p.state || p.county || "" : p.city || p.county || p.state || "";
 
   let kind = "Lieu";
-  if (["city", "town", "village"].includes(p.type)) kind = "Commune";
+  if (isPlaceName) kind = "Commune";
   else if (p.type === "street") kind = "Rue";
   else if (p.housenumber) kind = "Adresse";
 
   return {
     id: `photon-${p.osm_type ?? ""}${p.osm_id ?? `${lat},${lon}`}`,
     title,
-    subtitle,
+    city,
+    postcode: p.postcode || "",
+    subtitle: placeLine(city, p.postcode),
     kind,
     countryCode: (p.countrycode || "").toLowerCase(),
     country: p.country || "",
@@ -162,10 +171,13 @@ function fromGeoapify(r) {
   const lat = Number(r.lat);
   const lon = Number(r.lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  const city = r.result_type === "city" ? r.state || r.county || "" : r.city || r.county || r.state || "";
   return {
     id: `geoapify-${r.place_id ?? `${lat},${lon}`}`,
     title: r.address_line1 || r.name || r.formatted,
-    subtitle: r.address_line2 || "",
+    city,
+    postcode: r.postcode || "",
+    subtitle: placeLine(city, r.postcode),
     kind: GEOAPIFY_KIND[r.result_type] ?? "Lieu",
     countryCode: (r.country_code || "").toLowerCase(),
     country: r.country || "",
@@ -313,7 +325,7 @@ function timed(label, promise) {
  *   bias : [lat, lon] pour favoriser les résultats proches
  *   onPhase("world-start" | "world-end") : début et fin de la recherche internationale
  *   (plus lente), pour l'indiquer à l'utilisateur
- * @returns {Promise<Array<{id, title, subtitle, kind, countryCode, country, lat, lon}>>} la liste finale ;
+ * @returns {Promise<Array<{id, title, city, postcode, subtitle, kind, countryCode, country, lat, lon}>>} la liste finale ;
  *   countryCode : code pays ISO 3166 en minuscules ("fr", "gb"…), vide si inconnu
  *   rejette seulement si les deux services échouent.
  */
