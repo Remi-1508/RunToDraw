@@ -163,12 +163,16 @@ def build_shape_routes(graph, drawing, distance_m, tolerance_ratio):
     return method_routes(graph, base_points, distance_m, tolerance_ratio, shape, label, "shape")
 
 
-# EN: Text mode, three ways to draw a word of n letters for a distance D:
+# EN: Text mode, three ways to draw a word of n letters for a distance D
+# (returned in the order 2), 3), 1): "whole word" comes last, flagged `secondary`,
+# and the interface shows it in an "other proposals" section):
 # 1) "Whole word": one route of about D km drawing the whole word (three search methods);
 # 2) "Separate letters": n routes of about D km each, one per letter (n GPX files);
 # 3) "Linked letters": one route of about n x D km that draws the letters of 2) one after the other,
 #    joined by the shortest paths, each letter run in the direction that keeps the links shortest.
-# FR: Mode texte, trois façons de dessiner un mot de n lettres pour une distance D :
+# FR: Mode texte, trois façons de dessiner un mot de n lettres pour une distance D
+# (renvoyées dans l'ordre 2), 3), 1) : « mot entier » vient en dernier, marqué `secondary`,
+# et l'interface le range dans une section « autres propositions ») :
 # 1) « Mot entier » : un itinéraire d'environ D km qui dessine tout le mot (trois méthodes de recherche) ;
 # 2) « Lettres séparées » : n itinéraires d'environ D km, un par lettre (n fichiers GPX) ;
 # 3) « Lettres reliées » : un itinéraire d'environ n x D km qui enchaîne les lettres de 2), reliées par
@@ -177,9 +181,11 @@ def build_text_routes(graph, drawing, distance_m, tolerance_ratio):
     text = (drawing.get("text") or "P2I").upper()
     routes = []
 
-    # 1) Mot entier
-    routes += method_routes(graph, get_base_shape("text", text), distance_m, tolerance_ratio,
-                            "text", f"{text} — mot entier", "word")
+    # 1) Mot entier (proposition secondaire, placée après les lettres)
+    word_routes = method_routes(graph, get_base_shape("text", text), distance_m, tolerance_ratio,
+                                "text", f"{text} — mot entier", "word")
+    for route in word_routes:
+        route["secondary"] = True
 
     # 2) Lettres séparées
     split_results = split_text_itineraries_full_distance(graph, text, distance_m, tolerance_ratio)
@@ -238,7 +244,7 @@ def build_text_routes(graph, drawing, distance_m, tolerance_ratio):
             "segments": segments,
         })
 
-    return routes
+    return routes + word_routes
 
 
 # EN: Main entry point: computes all route proposals on an already built RoadGraph.

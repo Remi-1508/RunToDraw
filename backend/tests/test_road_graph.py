@@ -288,8 +288,11 @@ def test_duplicate_routes_are_merged():
 
 def test_text_modes_whole_word_separate_and_linked():
     _, res = _plan({"mode": "text", "text": "LE"}, km=3.0)
-    kinds = {r["kind"] for r in res["routes"]}
-    assert {"word", "letters_separate", "letters_linked"} <= kinds
+    kinds = [r["kind"] for r in res["routes"]]
+    # ordre : lettres séparées, lettres reliées, puis le mot entier en propositions secondaires
+    assert kinds[:2] == ["letters_separate", "letters_linked"]
+    assert kinds[2:] and all(k == "word" for k in kinds[2:])
+    assert all(bool(r.get("secondary")) == (r["kind"] == "word") for r in res["routes"])
     separate = next(r for r in res["routes"] if r["kind"] == "letters_separate")
     assert [s["label"] for s in separate["segments"]] == ["L", "E"]
     linked = next(r for r in res["routes"] if r["kind"] == "letters_linked")

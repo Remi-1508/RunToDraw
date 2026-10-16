@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 /*
 ============================================================
 EN:
@@ -45,6 +47,8 @@ export default function RouteResultsPanel({
   const selectedRoute = routePlan?.routes?.find((route) => route.id === selectedRouteId) ?? null;
   // Lettres séparées : un fichier GPX par lettre (chaque lettre est un itinéraire distinct).
   const letterSegments = selectedRoute?.separate ? selectedRoute.segments : null;
+  // Propositions secondaires (ex. « mot entier » en mode texte) : repliées par défaut.
+  const [showOthers, setShowOthers] = useState(false);
   /*
   EN:
   If no route generation has been launched yet,
@@ -63,6 +67,85 @@ export default function RouteResultsPanel({
           Lance une génération pour afficher ici les propositions d’itinéraires et les exports.
         </div>
       </section>
+    );
+  }
+
+  const primaryRoutes = routePlan.routes.filter((route) => !route.secondary);
+  const secondaryRoutes = routePlan.routes.filter((route) => route.secondary);
+  const othersOpen = showOthers;
+
+  function renderRouteCard(route) {
+    const active = route.id === selectedRouteId;
+
+    return (
+      <button
+        key={route.id}
+        type="button"
+        onClick={() => onSelectRoute(route.id)}
+        style={active ? styles.routeCardActive : styles.routeCard}
+      >
+        <div style={styles.routeHeader}>
+          <div>
+            {/* 
+            EN: Main label of the route, for example a shape or a text mode.
+            FR: Libellé principal du trajet, par exemple une forme ou un mode texte.
+            */}
+            <div style={styles.routeLabel}>{route.label}</div>
+            {route.includes_start ? (
+              <div style={styles.startBadge}>Part et revient à ton point de départ</div>
+            ) : null}
+
+            {/* 
+            EN: Secondary information describing the route variant.
+            FR: Information secondaire décrivant la variante de l’itinéraire.
+            */}
+            <div style={styles.routeMeta}>{route.variant}</div>
+          </div>
+
+          {/* 
+          EN: Main distance badge shown on the right.
+          FR: Badge principal de distance affiché à droite.
+          */}
+          <div style={styles.distanceBadge}>{formatKm(route.total_distance_m)}</div>
+        </div>
+
+        {/* 
+        EN:
+        These quick metrics help compare routes without opening anything else.
+        We keep them simple:
+        - distance gap
+        - shape error
+
+        FR:
+        Ces métriques rapides aident à comparer les trajets sans ouvrir autre chose.
+        On reste sur des infos simples :
+        - écart à la cible
+        - erreur de forme
+        */}
+        <div style={styles.routeStatsRow}>
+          <span>Écart cible : {Math.round(route.length_gap_m)} m</span>
+          <span>Erreur forme : {route.shape_error.toFixed(1)}</span>
+        </div>
+
+        {/*
+        EN:
+        In text mode, a route may contain one result per letter.
+        These small pills make the letter-by-letter distances easier to read.
+
+        FR:
+        En mode texte, un itinéraire peut contenir un résultat par lettre.
+        Ces petites pastilles rendent la lecture des distances lettre par lettre plus simple.
+        */}
+        {route.letters?.length ? (
+          <div style={styles.lettersWrap}>
+            {route.letters.map((letter, index) => (
+              <div key={`${letter.letter}-${index}`} style={styles.letterPill}>
+                {letter.letter} · {formatKm(letter.distance_m)}
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </button>
     );
   }
 
@@ -85,82 +168,33 @@ export default function RouteResultsPanel({
       Chaque itinéraire est affiché sous forme de carte cliquable.
       L’itinéraire actuellement sélectionné est visuellement mis en avant.
       */}
-      <div style={styles.routesColumn}>
-        {routePlan.routes.map((route) => {
-          const active = route.id === selectedRouteId;
+      <div style={styles.routesColumn}>{primaryRoutes.map(renderRouteCard)}</div>
 
-          return (
-            <button
-              key={route.id}
-              type="button"
-              onClick={() => onSelectRoute(route.id)}
-              style={active ? styles.routeCardActive : styles.routeCard}
-            >
-              <div style={styles.routeHeader}>
-                <div>
-                  {/* 
-                  EN: Main label of the route, for example a shape or a text mode.
-                  FR: Libellé principal du trajet, par exemple une forme ou un mode texte.
-                  */}
-                  <div style={styles.routeLabel}>{route.label}</div>
-                  {route.includes_start ? (
-                    <div style={styles.startBadge}>Part et revient à ton point de départ</div>
-                  ) : null}
-
-                  {/* 
-                  EN: Secondary information describing the route variant.
-                  FR: Information secondaire décrivant la variante de l’itinéraire.
-                  */}
-                  <div style={styles.routeMeta}>{route.variant}</div>
-                </div>
-
-                {/* 
-                EN: Main distance badge shown on the right.
-                FR: Badge principal de distance affiché à droite.
-                */}
-                <div style={styles.distanceBadge}>{formatKm(route.total_distance_m)}</div>
+      {secondaryRoutes.length ? (
+        <div style={styles.othersZone}>
+          <button
+            type="button"
+            style={styles.othersToggle}
+            onClick={() => setShowOthers(!othersOpen)}
+            aria-expanded={othersOpen}
+          >
+            <span>
+              {othersOpen ? "Masquer" : "Voir"} les autres propositions ({secondaryRoutes.length})
+            </span>
+            <span style={styles.othersChevron}>{othersOpen ? "▴" : "▾"}</span>
+          </button>
+          {othersOpen ? (
+            <>
+              <div style={styles.othersHint}>
+                Le mot entier dessiné en un seul itinéraire de la distance demandée : plus court,
+                mais les lettres sont plus petites et moins lisibles.
               </div>
+              <div style={styles.routesColumn}>{secondaryRoutes.map(renderRouteCard)}</div>
+            </>
+          ) : null}
+        </div>
+      ) : null}
 
-              {/* 
-              EN:
-              These quick metrics help compare routes without opening anything else.
-              We keep them simple:
-              - distance gap
-              - shape error
-
-              FR:
-              Ces métriques rapides aident à comparer les trajets sans ouvrir autre chose.
-              On reste sur des infos simples :
-              - écart à la cible
-              - erreur de forme
-              */}
-              <div style={styles.routeStatsRow}>
-                <span>Écart cible : {Math.round(route.length_gap_m)} m</span>
-                <span>Erreur forme : {route.shape_error.toFixed(1)}</span>
-              </div>
-
-              {/*
-              EN:
-              In text mode, a route may contain one result per letter.
-              These small pills make the letter-by-letter distances easier to read.
-
-              FR:
-              En mode texte, un itinéraire peut contenir un résultat par lettre.
-              Ces petites pastilles rendent la lecture des distances lettre par lettre plus simple.
-              */}
-              {route.letters?.length ? (
-                <div style={styles.lettersWrap}>
-                  {route.letters.map((letter, index) => (
-                    <div key={`${letter.letter}-${index}`} style={styles.letterPill}>
-                      {letter.letter} · {formatKm(letter.distance_m)}
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </button>
-          );
-        })}
-      </div>
 
       {/*
       EN:
@@ -365,6 +399,37 @@ const styles = {
     background: "var(--success-soft)",
     borderRadius: 999,
     padding: "3px 10px",
+  },
+
+  othersZone: {
+    marginTop: 12,
+  },
+
+  othersToggle: {
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    padding: "10px 14px",
+    borderRadius: 14,
+    border: "1px dashed var(--border-strong)",
+    background: "transparent",
+    color: "var(--text-soft)",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+
+  othersChevron: {
+    fontSize: 12,
+  },
+
+  othersHint: {
+    margin: "10px 2px",
+    fontSize: 12,
+    color: "var(--text-soft)",
+    lineHeight: 1.45,
   },
 
   exportHint: {
