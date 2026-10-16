@@ -59,16 +59,23 @@ Plusieurs variantes sont calculées :
 
 - méthodes par projection
 - méthodes par translation
-- solutions les plus proches de la distance demandée
-- meilleurs compromis globaux
+- « Départ inclus » : un itinéraire qui part et revient exactement au point choisi
+  (le départ peut être n'importe quel point du dessin)
+- pour chaque méthode, la solution la plus proche de la distance demandée et le meilleur compromis
+- les propositions identiques sont fusionnées
+
+En mode texte, trois versions sont proposées :
+
+- **mot entier** : un seul itinéraire de la distance demandée qui écrit tout le mot
+- **lettres séparées** : un itinéraire par lettre, chacun de la distance demandée
+- **lettres reliées** : ces mêmes lettres enchaînées en un seul itinéraire, reliées par le plus court chemin
 
 ## Export
 
 Les itinéraires peuvent être exportés en :
 
-- GPX
-- KML
-- Lien Google Maps
+- GPX (un fichier par lettre pour les lettres séparées)
+- KML (Google My Maps)
 
 ---
 
@@ -169,11 +176,5 @@ Exemples :
 
 Les mots trop longs sont plus difficiles à calculer et souvent moins précis.
 
-# Conseils d’affichage
-
-L’affichage complet du graphe routier reste facultatif.
-
-Pour garder une interface fluide :
-
-- laisser le graphe masqué si non nécessaire
-- l’activer uniquement pour explorer la zone
+Au-delà de 50 km, l’application demande confirmation avant de lancer le calcul :
+le téléchargement du réseau routier devient long.

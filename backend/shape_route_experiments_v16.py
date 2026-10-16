@@ -783,7 +783,10 @@ def reversal_samples(points, min_turn_deg=REVERSAL_ANGLE_DEG):
     return flags
 
 
-def route_from_target(graph, target_points, sample_count=60):
+def route_from_target(graph, target_points, sample_count=60, pinned=None):
+    """`pinned` : {indice d'échantillon: indice de nœud} pour imposer le passage par un nœud précis
+    (le point de départ de l'utilisateur). Un nœud imposé n'est jamais retiré par la suppression
+    des allers-retours."""
     target_rs = resample_polyline(target_points, n_samples=sample_count)
 
     # EN: All sampled points are snapped in one vectorized KD-tree query.
@@ -792,6 +795,11 @@ def route_from_target(graph, target_points, sample_count=60):
 
     # Points consécutifs accrochés au même nœud : fusionnés, en gardant l'information « demi-tour ».
     turning = reversal_samples(target_rs)
+    if pinned:
+        snapped_idx = snapped_idx.copy()
+        for sample, node in pinned.items():
+            snapped_idx[sample] = node
+            turning[sample] = True
     snapped, snapped_turn = [], []
     for node, turn in zip(snapped_idx.tolist(), turning.tolist()):
         if snapped and snapped[-1] == node:
@@ -1064,6 +1072,30 @@ CALIBRATION_TOLERANCE = 0.03   # on s'arrête à ±3 % de la distance demandée
 EXPECTED_DETOUR = 1.5          # estimation initiale : trajet ≈ 1,5 × longueur du dessin
 
 
+def _calibrate(evaluate_at, start_size, desired_distance_m, min_size, max_size):
+    """Ajuste la taille d'un candidat jusqu'à la distance demandée. `evaluate_at(size)` route et
+    évalue le candidat à cette taille. Renvoie (candidats évalués, dernier rapport taille/longueur)."""
+    evaluated = []
+    size_per_meter = None
+    size = start_size
+    for _ in range(CALIBRATION_MAX_STEPS):
+        size = float(np.clip(size, min_size, max_size))
+        cand = evaluate_at(size)
+        evaluated.append(cand)
+        length = cand["metrics"]["length_route"]
+        if length <= 0:
+            break
+        size_per_meter = size / length
+        if abs(length - desired_distance_m) <= CALIBRATION_TOLERANCE * desired_distance_m:
+            break
+        next_size = float(np.clip(size * float(np.clip(desired_distance_m / length, 0.6, 1.5)),
+                                  min_size, max_size))
+        if abs(next_size - size) < 1e-6:
+            break  # bloqué sur une borne : inutile d'insister
+        size = next_size
+    return evaluated, size_per_meter
+
+
 def calibrated_search(graph, base_points, centers, angles, desired_distance_m, max_allowed_m,
                       sample_count, min_size, max_size):
     nominal = desired_distance_m / max(polyline_length(base_points), 1e-9)
@@ -1072,28 +1104,139 @@ def calibrated_search(graph, base_points, centers, angles, desired_distance_m, m
 
     for center in centers:
         for angle in angles:
-            if size_per_meter is None:
-                size = nominal / EXPECTED_DETOUR
-            else:
-                size = desired_distance_m * size_per_meter
-
-            for _ in range(CALIBRATION_MAX_STEPS):
-                size = float(np.clip(size, min_size, max_size))
-                cand = evaluate_candidate(graph, base_points, center, size, angle,
-                                          desired_distance_m, max_allowed_m, sample_count)
-                evaluated.append(cand)
-                length = cand["metrics"]["length_route"]
-                if length <= 0:
-                    break
-                size_per_meter = size / length
-                if abs(length - desired_distance_m) <= CALIBRATION_TOLERANCE * desired_distance_m:
-                    break
-                next_size = float(np.clip(size * float(np.clip(desired_distance_m / length, 0.6, 1.5)),
-                                          min_size, max_size))
-                if abs(next_size - size) < 1e-6:
-                    break  # bloqué sur une borne : inutile d'insister
-                size = next_size
+            start = nominal / EXPECTED_DETOUR if size_per_meter is None else desired_distance_m * size_per_meter
+            found, ratio = _calibrate(
+                lambda size: evaluate_candidate(graph, base_points, center, size, angle,
+                                                desired_distance_m, max_allowed_m, sample_count),
+                start, desired_distance_m, min_size, max_size,
+            )
+            evaluated.extend(found)
+            size_per_meter = ratio if ratio is not None else size_per_meter
     return evaluated
+
+
+# ============================================================
+# EN:
+# "Start included" method.
+# The user may want to start (and, for a closed shape, finish) exactly at the chosen point.
+# Instead of centering the drawing on that point, the drawing is moved so that the point lies ON
+# its outline, at any position (the tip of the heart is not special): for each anchor position
+# along the outline and each angle, the shape is translated so that this outline point falls on
+# the start point, and the route is forced through the start node. For a closed shape, the outline
+# is also rotated to begin at the anchor, so the loop starts and ends at the user's point.
+# Each (anchor, angle) pair goes through the same size calibration as the other methods.
+#
+# FR:
+# Méthode « départ inclus ».
+# L'utilisateur peut vouloir partir (et, pour une forme fermée, revenir) exactement au point choisi.
+# Au lieu de centrer le dessin sur ce point, on le déplace pour que le point soit SUR son contour,
+# à n'importe quelle position (la pointe du cœur n'a rien de particulier) : pour chaque position
+# d'ancrage le long du contour et chaque angle, la forme est translatée pour que ce point du contour
+# tombe sur le point de départ, et le trajet est forcé à passer par le nœud de départ. Pour une forme
+# fermée, le contour est aussi « tourné » pour commencer à l'ancrage : la boucle part et revient au
+# point de l'utilisateur. Chaque couple (ancrage, angle) passe par le même calibrage de taille.
+# ============================================================
+START_ANCHORS = 12          # positions d'ancrage testées le long du contour
+START_MIN_ANGLE_STEP = 30.0  # pas angulaire minimal (l'ancrage multiplie déjà les essais)
+
+
+def is_closed(points, tol_ratio=1e-6):
+    pts = np.asarray(points, dtype=float)
+    span = float(np.ptp(pts, axis=0).max()) if len(pts) else 0.0
+    return len(pts) > 2 and float(np.hypot(*(pts[0] - pts[-1]))) <= tol_ratio * max(span, 1.0)
+
+
+def point_at_fraction(points, fraction):
+    """Point du contour situé à `fraction` (0..1) de sa longueur, et indice du segment."""
+    pts = np.asarray(points, dtype=float)
+    seg = np.hypot(*(pts[1:] - pts[:-1]).T)
+    cum = np.concatenate([[0.0], np.cumsum(seg)])
+    t = fraction * cum[-1]
+    j = int(np.clip(np.searchsorted(cum, t, side="right") - 1, 0, len(seg) - 1))
+    alpha = 0.0 if seg[j] <= 0 else (t - cum[j]) / seg[j]
+    return pts[j] + alpha * (pts[j + 1] - pts[j]), j
+
+
+def rotate_closed_outline(points, fraction):
+    """Contour fermé réordonné pour commencer (et finir) au point situé à `fraction` de sa longueur."""
+    pts = np.asarray(points, dtype=float)
+    p, j = point_at_fraction(pts, fraction)
+    ring = pts[:-1]  # sans le point final dupliqué
+    rest = np.vstack([ring[j + 1:], ring[: j + 1]])
+    return np.vstack([p, rest, p])
+
+
+def start_angles(graph, shape_name):
+    period, step = ORIENTATION_RULES.get(shape_name, (360.0, 10.0))
+    if shape_name == "text":
+        return search_angles(graph, "text")
+    if shape_name == "circle":
+        return [fold_angle(dominant_graph_angle(graph), period)]
+    step = max(step, START_MIN_ANGLE_STEP)
+    street = fold_angle(dominant_graph_angle(graph), period)
+    count = max(1, int(round(period / step)))
+    return [street + k * period / count for k in range(count)]
+
+
+def evaluate_anchored_candidate(graph, base_points, fraction, size_m, angle_deg, start_node,
+                                desired_distance_m, max_allowed_m, sample_count):
+    shape = make_candidate_points(base_points, np.zeros(2), size_m, angle_deg)
+    if is_closed(shape):
+        shape = rotate_closed_outline(shape, fraction)
+        anchor = shape[0].copy()
+        target = shape - anchor              # le point d'ancrage tombe sur l'origine = point de départ
+        pinned = {0: start_node, sample_count - 1: start_node}
+    else:
+        anchor, _ = point_at_fraction(shape, fraction)
+        target = shape - anchor
+        # échantillon le plus proche de l'ancrage (le tracé passe par le départ en cours de route)
+        rs = resample_polyline(target, n_samples=sample_count)
+        pinned = {int(np.argmin(np.hypot(rs[:, 0], rs[:, 1]))): start_node}
+
+    node_path, route_points, extra = route_from_target(graph, target, sample_count=sample_count, pinned=pinned)
+    metrics = score_solution(route_points, target, desired_distance_m, max_allowed_m,
+                             route_length_m=extra["path_length_m"])
+    metrics.update(extra)
+    metrics["length_target_request"] = float(desired_distance_m)
+    min_allowed_m = 2.0 * desired_distance_m - max_allowed_m
+    metrics["under_min"] = max(0.0, min_allowed_m - metrics["length_route"])
+    metrics["angle_deg"] = float(angle_deg)
+    metrics["size_m"] = float(size_m)
+    metrics["anchor_fraction"] = float(fraction)
+    center = -anchor
+    metrics["center_x"], metrics["center_y"] = float(center[0]), float(center[1])
+    return {"target": target, "node_path": node_path, "route_points": route_points,
+            "metrics": metrics, "start_node": graph.node_ids[start_node]}
+
+
+def evaluate_start_method(graph, base_points, desired_distance_m, tolerance_ratio, shape_name):
+    """Méthode « départ inclus » : mêmes sorties que evaluate_method."""
+    max_allowed_m = desired_distance_m * (1.0 + tolerance_ratio)
+    _, sizes = shape_layout(base_points, desired_distance_m, shape_name, use_translation=False)
+    sample_count = 60 if shape_name == "text" else 72
+    start_idx, _ = graph.nearest_indices(np.zeros((1, 2)))
+    start_node = int(start_idx[0])
+
+    closed = is_closed(base_points)
+    fractions = [k / START_ANCHORS for k in range(START_ANCHORS)] if closed else \
+        [k / (START_ANCHORS - 1) for k in range(START_ANCHORS)]
+    nominal = desired_distance_m / max(polyline_length(base_points), 1e-9)
+
+    evaluated, size_per_meter = [], None
+    for angle in start_angles(graph, shape_name):
+        for fraction in fractions:
+            start = nominal / EXPECTED_DETOUR if size_per_meter is None else desired_distance_m * size_per_meter
+            found, ratio = _calibrate(
+                lambda size: evaluate_anchored_candidate(graph, base_points, fraction, size, angle, start_node,
+                                                         desired_distance_m, max_allowed_m, sample_count),
+                start, desired_distance_m, 80.0, max(sizes),
+            )
+            evaluated.extend(found)
+            size_per_meter = ratio if ratio is not None else size_per_meter
+
+    best_close, best_comp = pick_best(evaluated)
+    return {"closest_to_distance": best_close, "best_compromise": best_comp,
+            "all_candidates_count": len(evaluated)}
 
 
 # EN: Picks the two proposals among the evaluated candidates:
@@ -1286,6 +1429,76 @@ def split_text_itineraries_full_distance(graph, text, per_letter_distance_m, tol
 
 # ============================================================
 # EN:
+# "Linked letters": one single run that draws the letters one after the other.
+# The letters computed by split_text_itineraries_full_distance are kept as they are; consecutive
+# letters are joined by the shortest path on the road network. Each letter can be run in either
+# direction, so the direction of every letter is chosen to minimize the total length of the links
+# (dynamic programming over 2 states per letter: 4 shortest paths per pair of letters, linear in
+# the number of letters).
+#
+# FR:
+# « Lettres reliées » : un seul parcours qui dessine les lettres l'une après l'autre.
+# Les lettres calculées par split_text_itineraries_full_distance sont gardées telles quelles ; deux
+# lettres consécutives sont reliées par le plus court chemin sur le réseau. Chaque lettre peut être
+# parcourue dans un sens ou dans l'autre : le sens de chaque lettre est choisi pour minimiser la
+# longueur totale des liaisons (programmation dynamique à 2 états par lettre : 4 plus courts chemins
+# par paire de lettres, coût linéaire en nombre de lettres).
+# ============================================================
+def link_letter_routes(graph, letter_results):
+    """Renvoie (morceaux, longueur totale) ; morceaux = liste de dicts
+    {"kind": "letter" | "link", "letter": str | None, "node_path": [indices de nœuds]}."""
+    paths = [[graph._idx_of[n] for n in r["node_path"]] for r in letter_results]
+    paths = [p for p in paths if p]
+    letters = [r["letter"] for r in letter_results if r["node_path"]]
+    if not paths:
+        return [], 0.0
+
+    def oriented(i, reverse):
+        return paths[i][::-1] if reverse else paths[i]
+
+    # coût[i][r] = longueur minimale des liaisons jusqu'à la lettre i parcourue dans le sens r
+    cost = [[0.0, 0.0]]
+    back = [[None, None]]
+    links = [{}]
+    for i in range(1, len(paths)):
+        cost.append([math.inf, math.inf]); back.append([None, None]); links.append({})
+        for r in (0, 1):
+            start = oriented(i, r)[0]
+            for pr in (0, 1):
+                end = oriented(i - 1, pr)[-1]
+                link, c = graph.shortest_path_idx(end, start)
+                if link is None:
+                    continue
+                total = cost[i - 1][pr] + c
+                if total < cost[i][r]:
+                    cost[i][r], back[i][r] = total, pr
+                    links[i][r] = link
+
+    r = 0 if cost[-1][0] <= cost[-1][1] else 1
+    if math.isinf(cost[-1][r]):
+        return [], 0.0
+    choice = [0] * len(paths)
+    for i in range(len(paths) - 1, -1, -1):
+        choice[i] = r
+        if i > 0:
+            r = back[i][r]
+
+    pieces = []
+    for i in range(len(paths)):
+        if i > 0:
+            link = links[i][choice[i]]
+            if len(link) > 1:
+                pieces.append({"kind": "link", "letter": None, "node_path": link})
+        pieces.append({"kind": "letter", "letter": letters[i], "node_path": oriented(i, choice[i])})
+
+    full = []
+    for piece in pieces:
+        full.extend(piece["node_path"] if not full else piece["node_path"][1:])
+    return pieces, polyline_length(graph.node_array[full])
+
+
+# ============================================================
+# EN:
 # Extraction radius.
 # The road network only has to cover the candidates that will actually be tested.
 # Every candidate is "shape of size S, centered at c, rotated by some angle", so all its points
@@ -1308,6 +1521,15 @@ def _shape_extent_m(base_points, centers, sizes):
     return max(float(np.hypot(*c)) for c in centers) + max(sizes) * r_max
 
 
+def _anchored_extent_m(base_points, sizes):
+    """Méthode « départ inclus » : le point de départ est sur le contour, donc tout le dessin tient
+    dans un disque de rayon égal à son diamètre (plus grande distance entre deux de ses points)."""
+    unit = fit_points(base_points, np.zeros(2, dtype=float), 1.0)
+    diffs = unit[:, None, :] - unit[None, :, :]
+    diameter = float(np.sqrt((diffs ** 2).sum(-1)).max())
+    return max(sizes) * diameter
+
+
 def required_radius_m(drawing, distance_m):
     drawing = drawing or {}
     mode = drawing.get("mode", "shape")
@@ -1316,7 +1538,7 @@ def required_radius_m(drawing, distance_m):
     if mode == "text":
         base = get_base_shape("text", text)
         centers, sizes = shape_layout(base, distance_m, "text", use_translation=True)
-        extent = _shape_extent_m(base, centers, sizes)
+        extent = max(_shape_extent_m(base, centers, sizes), _anchored_extent_m(base, sizes))
         # Lettres séparées : les distances au centre ne dépendent pas de l'orientation,
         # on peut donc prendre le sens de lecture (1, 0).
         direction, normal = np.array([1.0, 0.0]), np.array([0.0, 1.0])
@@ -1328,7 +1550,7 @@ def required_radius_m(drawing, distance_m):
         shape_name = drawing.get("shape", "heart")
         base = get_base_shape(shape_name, text)
         centers, sizes = shape_layout(base, distance_m, shape_name, use_translation=True)
-        extent = _shape_extent_m(base, centers, sizes)
+        extent = max(_shape_extent_m(base, centers, sizes), _anchored_extent_m(base, sizes))
 
     # Marge pour les détours ; jamais plus que l'ancien rayon (distance / 2), qui reste un plafond.
     margin = 600.0 + 0.05 * extent

@@ -34,27 +34,6 @@ const SHAPES = [
 ];
 
 /*
-============================================================
-EN:
-ToggleRow is a reusable small setting block with:
-- a label
-- an optional description
-- an optional info tooltip
-- a switch button
-
-It is used here for options such as showing or hiding the graph.
-
-FR:
-ToggleRow est un petit bloc réutilisable avec :
-- un label
-- une description optionnelle
-- une info complémentaire optionnelle
-- un bouton type interrupteur
-
-Il est utilisé ici pour des options comme l’affichage ou non du graphe.
-============================================================
-*/
-/*
 Petit drapeau du pays d'un résultat de recherche.
 Images de flagcdn.com (gratuit) plutôt que des emojis : Windows n'affiche pas les
 drapeaux emoji (on y verrait « FR », « GB »…). Si l'image ne charge pas, on affiche le code pays.
@@ -77,52 +56,6 @@ function CountryFlag({ code, country }) {
       style={styles.flag}
       onError={() => setFailed(true)}
     />
-  );
-}
-
-function ToggleRow({ label, description, checked, onChange, infoText, disabled = false }) {
-  const [showInfo, setShowInfo] = useState(false);
-
-  return (
-    <div style={{ ...styles.toggleBlock, opacity: disabled ? 0.56 : 1 }}>
-      <div style={styles.toggleTextWrap}>
-        <div style={styles.toggleLabelRow}>
-          <span style={styles.toggleLabel}>{label}</span>
-
-          {infoText ? (
-            <button
-              type="button"
-              onClick={() => setShowInfo((current) => !current)}
-              style={styles.infoButton}
-              aria-label={`Informations sur ${label}`}
-              title="Informations"
-            >
-              i
-            </button>
-          ) : null}
-        </div>
-
-        {description ? <div style={styles.toggleDescription}>{description}</div> : null}
-        {showInfo && infoText ? <div style={styles.infoTooltip}>{infoText}</div> : null}
-      </div>
-
-      <button
-        type="button"
-        onClick={disabled ? undefined : onChange}
-        disabled={disabled}
-        style={{
-          ...styles.switchButton,
-          justifyContent: checked ? "flex-end" : "flex-start",
-          background: checked ? "var(--accent-strong)" : "var(--switch-off)",
-          cursor: disabled ? "not-allowed" : "pointer",
-        }}
-        aria-pressed={checked}
-        aria-label={label}
-        title={checked ? "Activé" : "Désactivé"}
-      >
-        <span style={styles.switchThumb} />
-      </button>
-    </div>
   );
 }
 
@@ -160,9 +93,6 @@ l’état du formulaire et la recherche d’adresse.
 export default function Sidebar({
   theme,
   center,
-  showFullGraph,
-  onToggleShowFullGraph,
-  canToggleGraph,
   distanceKm,
   setDistanceKm,
   drawing,
@@ -613,20 +543,6 @@ export default function Sidebar({
             au même endroit avec la même distance est quasi immédiate.
           </div>
 
-          <ToggleRow
-            label="Afficher le graphe complet"
-            description={
-              canToggleGraph
-                ? showFullGraph
-                  ? "Le graphe extrait est actuellement affiché sur la carte."
-                  : "Le graphe a déjà été calculé, mais reste masqué pour garder une carte plus légère et plus fluide."
-                : "Lance d’abord une génération pour calculer le graphe, puis active cet affichage si besoin."
-            }
-            checked={showFullGraph}
-            onChange={onToggleShowFullGraph}
-            disabled={!canToggleGraph}
-            infoText="L’affichage du graphe complet peut alourdir le rendu. Il reste facultatif : le choix d’itinéraire fonctionne aussi sans l’afficher."
-          />
         </div>
       </section>
 
@@ -656,7 +572,6 @@ These styles define the full visual structure of the sidebar:
 - tabs
 - suggestion list
 - text hints
-- toggles
 
 The goal is to keep the flow very guided and easy to follow.
 
@@ -1107,71 +1022,12 @@ const styles = {
     boxShadow: "0 12px 24px rgba(0,122,255,0.22)",
   },
 
-  toggleBlock: {
-    display: "grid",
-    gridTemplateColumns: "1fr auto",
-    gap: 12,
-    alignItems: "flex-start",
-    background: "var(--overlay)",
-    border: "1px solid var(--border-subtle)",
-    borderRadius: 22,
-    padding: 14,
-  },
 
-  toggleTextWrap: {
-    minWidth: 0,
-  },
 
-  toggleLabelRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-  },
 
-  toggleLabel: {
-    fontWeight: 800,
-  },
 
-  toggleDescription: {
-    marginTop: 5,
-    fontSize: 13,
-    lineHeight: 1.5,
-    color: "var(--text-soft)",
-  },
 
-  infoButton: {
-    width: 22,
-    height: 22,
-    borderRadius: 999,
-    border: "1px solid var(--border)",
-    background: "transparent",
-    color: "var(--text-soft)",
-    cursor: "pointer",
-    fontWeight: 800,
-  },
 
-  infoTooltip: {
-    marginTop: 9,
-    fontSize: 12.5,
-    color: "var(--text-soft)",
-    lineHeight: 1.5,
-  },
 
-  switchButton: {
-    width: 52,
-    minWidth: 52,
-    height: 30,
-    borderRadius: 999,
-    border: "none",
-    display: "flex",
-    alignItems: "center",
-    padding: 3,
-  },
 
-  switchThumb: {
-    width: 24,
-    height: 24,
-    borderRadius: 999,
-    background: "white",
-  },
 };

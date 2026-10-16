@@ -5,11 +5,10 @@ import LoadingModal from "./components/LoadingModal";
 import Toast from "./components/Toast";
 import { fetchGraphForRun } from "./services/osmGraph";
 import { planRoutes } from "./services/routePlannerApi";
-import {
-  downloadGoogleMapsShortcut,
-  downloadKML,
-  downloadRouteGPX,
-} from "./utils/routeExport";
+import { downloadKML, downloadRouteGPX } from "./utils/routeExport";
+
+// Au-delà, on demande confirmation : le téléchargement du réseau routier devient long.
+const LONG_DISTANCE_CONFIRM_KM = 50;
 
 /*
 ============================================================
@@ -96,19 +95,6 @@ export default function App() {
     () => localStorage.getItem("runtodraw-theme") || "light"
   );
 
-  /*
-  EN:
-  This option controls whether the raw graph should be shown on the map.
-  It is also restored from localStorage.
-
-  FR:
-  Cette option contrôle si le graphe brut doit être affiché sur la carte.
-  Elle est elle aussi restaurée depuis le localStorage.
-  */
-  const [showFullGraph, setShowFullGraph] = useState(() => {
-    const saved = localStorage.getItem("runtodraw-show-full-graph");
-    return saved === null ? false : saved === "true";
-  });
 
   /*
   EN:
@@ -178,11 +164,9 @@ export default function App() {
   FR:
   États de chargement dédiés :
   - chargement de la position
-  - chargement du changement de thème
   - modal globale d’activité pour l’extraction / génération
   */
   const [loadingLocation, setLoadingLocation] = useState(false);
-  const [loadingTheme, setLoadingTheme] = useState(false);
 
   const [busyState, setBusyState] = useState({
     open: false,
@@ -216,8 +200,6 @@ export default function App() {
   sans provoquer de re-render.
   */
   const toastTimerRef = useRef(null);
-  const themeTimeoutsRef = useRef([]);
-  const busyIntervalRef = useRef(null);
 
   /*
   EN:
@@ -244,16 +226,6 @@ export default function App() {
     localStorage.setItem("runtodraw-sidebar-width", String(sidebarWidth));
   }, [sidebarWidth]);
 
-  /*
-  EN:
-  Save the graph visibility preference whenever it changes.
-
-  FR:
-  Sauvegarde la préférence d’affichage du graphe à chaque changement.
-  */
-  useEffect(() => {
-    localStorage.setItem("runtodraw-show-full-graph", String(showFullGraph));
-  }, [showFullGraph]);
 
   /*
   EN:
@@ -266,9 +238,7 @@ export default function App() {
   */
   useEffect(() => {
     return () => {
-      themeTimeoutsRef.current.forEach(clearTimeout);
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-      if (busyIntervalRef.current) clearInterval(busyIntervalRef.current);
     };
   }, []);
 
@@ -323,28 +293,9 @@ export default function App() {
     };
   }, [isResizing]);
 
-  /*
-  EN:
-  Starts a short visual transition before switching theme.
-  This keeps the effect a bit smoother for the user.
-
-  FR:
-  Lance une petite transition visuelle avant de changer de thème.
-  Cela rend l’effet un peu plus fluide pour l’utilisateur.
-  */
+  // Bascule clair / sombre, immédiatement.
   function toggleTheme() {
-    if (loadingTheme) return;
-
-    setLoadingTheme(true);
-    themeTimeoutsRef.current.forEach(clearTimeout);
-    themeTimeoutsRef.current = [
-      setTimeout(() => {
-        setTheme((current) => (current === "light" ? "dark" : "light"));
-      }, 260),
-      setTimeout(() => {
-        setLoadingTheme(false);
-      }, 980),
-    ];
+    setTheme((current) => (current === "light" ? "dark" : "light"));
   }
 
   /*
@@ -428,8 +379,7 @@ export default function App() {
     setLoadingLocation(true);
 
     navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        await new Promise((resolve) => setTimeout(resolve, 520));
+      (pos) => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
         setCenter([lat, lng]);
@@ -444,38 +394,17 @@ export default function App() {
     );
   }
 
-  /*
-  EN:
-  Opens the global loading modal and starts a fake progressive bar
-  when the real progress cannot be tracked precisely.
-
-  FR:
-  Ouvre la modal globale de chargement et lance une barre de progression simulée
-  quand la progression réelle ne peut pas être suivie précisément.
-  */
-  function startBusy({ title, kicker, description, indeterminate = false }) {
-    if (busyIntervalRef.current) clearInterval(busyIntervalRef.current);
-
+  // Ouvre la fenêtre de chargement. La durée réelle (Overpass surtout) n'est pas
+  // mesurable, donc la barre est indéterminée plutôt qu'une progression inventée.
+  function startBusy({ title, kicker, description }) {
     setBusyState({
       open: true,
       progress: 0,
       title,
       kicker,
       description,
-      indeterminate,
+      indeterminate: true,
     });
-
-    if (!indeterminate) {
-      busyIntervalRef.current = setInterval(() => {
-        setBusyState((current) => ({
-          ...current,
-          progress: Math.min(
-            92,
-            current.progress + Math.max(0.8, (92 - current.progress) * 0.06)
-          ),
-        }));
-      }, 140);
-    }
   }
 
   /*
@@ -489,30 +418,8 @@ export default function App() {
     setBusyState((current) => ({ ...current, ...patch }));
   }
 
-  /*
-  EN:
-  Finishes the loading modal smoothly by pushing progress to 100,
-  waiting a bit, then closing it.
-
-  FR:
-  Termine proprement la modal de chargement en poussant la progression à 100,
-  en attendant un peu, puis en la fermant.
-  */
-  async function stopBusy() {
-    if (busyIntervalRef.current) clearInterval(busyIntervalRef.current);
-
-    setBusyState((current) => ({
-      ...current,
-      progress: 100,
-    }));
-
-    await new Promise((resolve) => setTimeout(resolve, 180));
-
-    setBusyState((current) => ({
-      ...current,
-      open: false,
-      progress: 0,
-    }));
+  function stopBusy() {
+    setBusyState((current) => ({ ...current, open: false, progress: 0 }));
   }
 
   /*
@@ -545,10 +452,20 @@ export default function App() {
 
     const [lat, lng] = center;
 
+    if (
+      distanceKm > LONG_DISTANCE_CONFIRM_KM &&
+      !window.confirm(
+        `Tu demandes ${distanceKm} km. Sur une telle distance, le téléchargement du réseau routier ` +
+          "peut prendre plusieurs minutes. Continuer ?"
+      )
+    ) {
+      return;
+    }
+
     try {
       startBusy({
         title: "Préparation de l’itinéraire",
-        kicker: "Étape 1/3",
+        kicker: "Étape 1/2",
         description: "Extraction du graphe OpenStreetMap…",
       });
 
@@ -562,13 +479,11 @@ export default function App() {
       setGraphData(nextGraph);
       setRoutePlan(null);
       setSelectedRouteId(null);
-      setShowFullGraph(false);
 
       updateBusy({
-        kicker: "Étape 2/3",
+        kicker: "Étape 2/2",
         description:
           "Analyse de la forme demandée et recherche des meilleures trajectoires…",
-        progress: 35,
       });
 
       const nextPlan = await planRoutes({
@@ -578,24 +493,18 @@ export default function App() {
         drawing,
       });
 
-      updateBusy({
-        kicker: "Étape 3/3",
-        description:
-          "Mise en forme des propositions, calcul des distances et préparation des exports GPS…",
-        progress: 88,
-      });
 
       setRoutePlan(nextPlan);
       const preferred = nextPlan?.routes?.[0]?.id ?? null;
       setSelectedRouteId(preferred);
 
-      await stopBusy();
+      stopBusy();
       showToast("Les propositions d’itinéraires sont prêtes.", "success");
     } catch (error) {
       console.error("handleGenerateRoutes error:", error);
       setRoutePlan(null);
       setSelectedRouteId(null);
-      await stopBusy();
+      stopBusy();
       showToast(
         error?.message
           ? `Erreur pendant la génération : ${error.message}`
@@ -606,55 +515,42 @@ export default function App() {
   }
 
   /*
-  ============================================================
-  EN:
-  Handles export for the currently selected route.
-
-  Supported exports:
-  - GPX
-  - KML
-  - Google Maps shortcut
-
-  The file name is cleaned so it remains valid and readable.
-
-  FR:
-  Gère l’export de l’itinéraire actuellement sélectionné.
-
-  Exports pris en charge :
-  - GPX
-  - KML
-  - lien Google Maps
-
-  Le nom de fichier est nettoyé pour rester valide et lisible.
-  ============================================================
+  Export de l'itinéraire sélectionné (GPX ou KML). Pour un mot en lettres séparées,
+  `segmentIndex` désigne la lettre à exporter seule en GPX.
   */
-  function handleExportRoute(exportType) {
+  function handleExportRoute(exportType, segmentIndex = null) {
     const route = routePlan?.routes?.find((item) => item.id === selectedRouteId);
     if (!route) return;
 
     const safeBaseName = route.label
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
 
-    if (exportType === "gpx") {
-      downloadRouteGPX(route, `runtodraw_${safeBaseName}.gpx`);
-      showToast(
-        "Export GPX généré. C’est le plus simple pour Strava et beaucoup d’applis GPS.",
-        "success"
-      );
-      return;
-    }
+    try {
+      if (exportType === "gpx") {
+        const segment = segmentIndex === null ? null : route.segments?.[segmentIndex];
+        const suffix = segment
+          ? `_lettre-${String(segment.label).toLowerCase()}-${segmentIndex + 1}`
+          : "";
+        downloadRouteGPX(route, `runtodraw_${safeBaseName}${suffix}.gpx`, segmentIndex);
+        showToast(
+          segment
+            ? `GPX de la lettre ${segment.label} généré.`
+            : "Export GPX généré. C’est le plus simple pour Strava et beaucoup d’applis GPS.",
+          "success"
+        );
+        return;
+      }
 
-    if (exportType === "kml") {
-      downloadKML(route, `runtodraw_${safeBaseName}.kml`);
-      showToast("Export KML généré pour Google My Maps.", "success");
-      return;
-    }
-
-    if (exportType === "google_maps") {
-      downloadGoogleMapsShortcut(route);
-      showToast("Le lien Google Maps a été ouvert dans un nouvel onglet.", "success");
+      if (exportType === "kml") {
+        downloadKML(route, `runtodraw_${safeBaseName}.kml`);
+        showToast("Export KML généré pour Google My Maps.", "success");
+      }
+    } catch (error) {
+      showToast(error?.message ?? "Export impossible.", "error");
     }
   }
 
@@ -684,40 +580,24 @@ export default function App() {
       It can reflect:
       - route generation
       - location loading
-      - theme switching
 
       FR:
       Modal globale de chargement.
       Elle peut refléter :
       - la génération d’itinéraires
       - le chargement de la position
-      - le changement de thème
       */}
       <LoadingModal
-        open={busyState.open || loadingLocation || loadingTheme}
-        progress={loadingLocation || loadingTheme ? 100 : busyState.progress}
-        title={
-          loadingTheme
-            ? "Changement de thème"
-            : loadingLocation
-              ? "Localisation en cours"
-              : busyState.title || "Préparation en cours"
-        }
-        kicker={
-          loadingTheme
-            ? "Notification"
-            : loadingLocation
-              ? "Position actuelle"
-              : busyState.kicker || "RunToDraw"
-        }
+        open={busyState.open || loadingLocation}
+        progress={busyState.progress}
+        title={loadingLocation ? "Localisation en cours" : busyState.title || "Préparation en cours"}
+        kicker={loadingLocation ? "Position actuelle" : busyState.kicker || "RunToDraw"}
         description={
-          loadingTheme
-            ? "Changement de thème en cours…"
-            : loadingLocation
-              ? "On récupère ta position pour recentrer la carte de manière plus progressive…"
-              : busyState.description || "Calcul en cours…"
+          loadingLocation
+            ? "On récupère ta position…"
+            : busyState.description || "Calcul en cours…"
         }
-        indeterminate={loadingLocation || loadingTheme || busyState.indeterminate}
+        indeterminate
       />
 
       {/*
@@ -737,11 +617,6 @@ export default function App() {
         <Sidebar
           theme={theme}
           center={center}
-          showFullGraph={showFullGraph}
-          onToggleShowFullGraph={() =>
-            graphData && setShowFullGraph((current) => !current)
-          }
-          canToggleGraph={!!graphData && !busyState.open}
           distanceKm={distanceKm}
           setDistanceKm={setDistanceKm}
           drawing={drawing}
@@ -786,11 +661,9 @@ export default function App() {
         <MapView
           theme={theme}
           onToggleTheme={toggleTheme}
-          themeLoading={loadingTheme}
           center={center}
           radiusKm={radiusKm}
           graphData={graphData}
-          showFullGraph={showFullGraph}
           routePlan={routePlan}
           selectedRoute={selectedRoute}
         />

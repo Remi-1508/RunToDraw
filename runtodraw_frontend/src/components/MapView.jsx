@@ -1,7 +1,6 @@
 import { Circle, MapContainer, Polyline, TileLayer, useMap } from "react-leaflet";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { boundsFromCenterRadiusKm } from "../utils/geo";
-import GraphOverlay from "./GraphOverlay";
 
 /*
 ============================================================
@@ -62,19 +61,14 @@ ThemeControl est le petit bouton affiché sur la carte
 pour passer du mode clair au mode sombre.
 ============================================================
 */
-function ThemeControl({ theme, onToggleTheme, themeLoading }) {
+function ThemeControl({ theme, onToggleTheme }) {
   const isDark = theme === "dark";
 
   return (
     <button
       type="button"
       onClick={onToggleTheme}
-      disabled={themeLoading}
-      style={{
-        ...styles.themeControl,
-        opacity: themeLoading ? 0.72 : 1,
-        cursor: themeLoading ? "wait" : "pointer",
-      }}
+      style={styles.themeControl}
       title={isDark ? "Passer en mode jour" : "Passer en mode nuit"}
       aria-label={isDark ? "Passer en mode jour" : "Passer en mode nuit"}
     >
@@ -104,19 +98,27 @@ Deux couleurs sont alternées pour mieux distinguer les segments.
 function PlannedRouteOverlay({ selectedRoute }) {
   if (!selectedRoute?.segments?.length) return null;
 
+  // Les lettres alternent vert / orange ; les liaisons entre lettres d'un mot relié
+  // sont en pointillés gris, pour bien voir qu'elles ne font pas partie du dessin.
+  let letterIndex = 0;
   return (
     <>
-      {selectedRoute.segments.map((segment, index) => (
-        <Polyline
-          key={`${selectedRoute.id}-${index}`}
-          positions={segment.points}
-          pathOptions={{
-            color: index % 2 === 0 ? "#34c759" : "#ff9f0a",
-            weight: 5,
-            opacity: 0.9,
-          }}
-        />
-      ))}
+      {selectedRoute.segments.map((segment, index) => {
+        const isLink = segment.kind === "link";
+        const color = isLink ? "#8e8e93" : letterIndex++ % 2 === 0 ? "#34c759" : "#ff9f0a";
+        return (
+          <Polyline
+            key={`${selectedRoute.id}-${index}`}
+            positions={segment.points}
+            pathOptions={{
+              color,
+              weight: isLink ? 4 : 5,
+              opacity: isLink ? 0.85 : 0.9,
+              dashArray: isLink ? "6 8" : undefined,
+            }}
+          />
+        );
+      })}
     </>
   );
 }
@@ -129,7 +131,6 @@ MapView is the main map component of the application.
 It is responsible for:
 - displaying the base map
 - showing the selected running zone
-- optionally displaying the road graph
 - showing the selected generated route
 - keeping a few visual indicators on top of the map
 
@@ -142,7 +143,6 @@ MapView est le composant principal de carte de l’application.
 Il s’occupe de :
 - afficher le fond de carte
 - montrer la zone de course sélectionnée
-- afficher le graphe routier si besoin
 - afficher l’itinéraire généré sélectionné
 - garder quelques informations visuelles au-dessus de la carte
 
@@ -153,11 +153,9 @@ Il ne génère pas lui-même les itinéraires.
 export default function MapView({
   theme,
   onToggleTheme,
-  themeLoading,
   center,
   radiusKm,
   graphData,
-  showFullGraph,
   routePlan,
   selectedRoute,
 }) {
@@ -173,34 +171,9 @@ export default function MapView({
   */
   const safeCenter = center ?? [44.8378, -0.5792];
 
-  const [showWarn, setShowWarn] = useState(false);
-
-  /*
-  EN:
-  These limits are used to avoid slowing down the browser too much
-  when the graph is large.
-
-  FR:
-  Ces limites servent à éviter de trop ralentir le navigateur
-  quand le graphe est grand.
-  */
-  const MAX_SEG = 2000;
-  const MAX_NODES = 3000;
-
   const vertexCount = graphData?.nodeCount ?? graphData?.nodesById?.size ?? 0;
   const edgeCount = graphData?.edgeCount ?? 0;
 
-  /*
-  EN:
-  If the graph is larger than the display limits, we still keep the real stats,
-  but we warn the user that the visual rendering is limited.
-
-  FR:
-  Si le graphe dépasse les limites d’affichage, on garde quand même
-  les vraies statistiques, mais on avertit l’utilisateur que le rendu visuel est limité.
-  */
-  const limited =
-    showFullGraph && graphData?.nodesById && (edgeCount > MAX_SEG || vertexCount > MAX_NODES);
 
   /*
   EN:
@@ -255,23 +228,6 @@ export default function MapView({
           />
         )}
 
-        {/*
-        EN:
-        The raw graph is optional because drawing everything all the time
-        would be too heavy and not always useful for the user.
-
-        FR:
-        L’affichage du graphe brut est optionnel car tout dessiner en permanence
-        serait trop lourd et pas toujours utile pour l’utilisateur.
-        */}
-        {showFullGraph && graphData?.nodesById && graphData?.edgesByNode && (
-          <GraphOverlay
-            nodesById={graphData.nodesById}
-            edgesByNode={graphData.edgesByNode}
-            maxSegments={MAX_SEG}
-            maxNodes={MAX_NODES}
-          />
-        )}
 
         <PlannedRouteOverlay selectedRoute={selectedRoute} />
         <FitToRadius center={center} radiusKm={radiusKm} />
@@ -286,7 +242,7 @@ export default function MapView({
       Bouton de changement de thème placé directement sur la carte.
       */}
       <div style={styles.themeControlWrap}>
-        <ThemeControl theme={theme} onToggleTheme={onToggleTheme} themeLoading={themeLoading} />
+        <ThemeControl theme={theme} onToggleTheme={onToggleTheme}  />
       </div>
 
       {/*
@@ -322,35 +278,11 @@ export default function MapView({
             ) : null}
 
             <div style={styles.hudCaption}>
-              Vert/orange = segments du trajet sélectionné
+              {selectedRoute?.segments?.some((segment) => segment.kind === "link")
+                ? "Vert/orange = lettres · pointillés gris = liaisons"
+                : "Vert/orange = morceaux du trajet sélectionné"}
             </div>
           </div>
-
-          {/*
-          EN:
-          If the graph rendering is limited, we display a warning button
-          with an explanation box.
-
-          FR:
-          Si l’affichage du graphe est limité, on affiche un bouton d’avertissement
-          avec une boîte explicative.
-          */}
-          {limited && (
-            <div style={{ marginTop: 10 }}>
-              <button style={styles.warnBtn} onClick={() => setShowWarn((s) => !s)}>
-                Affichage limité
-              </button>
-
-              {showWarn && (
-                <div style={styles.warnBox}>
-                  Pour éviter les ralentissements du navigateur, l’affichage du graphe est limité
-                  à <b>{MAX_SEG} arêtes</b> et <b>{MAX_NODES} sommets</b>.
-                  <br />
-                  Les statistiques restent exactes.
-                </div>
-              )}
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -361,7 +293,7 @@ export default function MapView({
 ============================================================
 EN:
 The styles below define the general map layout,
-floating controls, summary card, and warning message.
+floating controls and summary card.
 
 The idea is to keep important map information visible
 without hiding too much of the map itself.
@@ -456,30 +388,5 @@ const styles = {
     marginTop: 8,
     fontSize: 11.5,
     color: "var(--text-soft)",
-  },
-
-  warnBtn: {
-    width: "100%",
-    border: "none",
-    background: "#ff9500",
-    color: "white",
-    padding: "12px 14px",
-    borderRadius: 18,
-    cursor: "pointer",
-    fontWeight: 700,
-    boxShadow: "0 10px 24px rgba(255,149,0,0.28)",
-  },
-
-  warnBox: {
-    marginTop: 10,
-    background: "var(--overlay)",
-    border: "1px solid rgba(255,149,0,0.35)",
-    borderRadius: 18,
-    padding: 12,
-    fontSize: 12,
-    color: "var(--text)",
-    lineHeight: 1.45,
-    backdropFilter: "blur(16px)",
-    boxShadow: "var(--shadow-soft)",
   },
 };

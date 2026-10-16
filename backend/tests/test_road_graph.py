@@ -259,3 +259,42 @@ def test_g_and_9_glyphs_are_upright():
     nine = GLYPHS["9"]
     assert nine[0][1] < 0.3                          # la queue part du bas
     assert nine[-1][1] >= 0.4                        # la boucle se referme au-dessus du milieu
+
+
+def _plan(drawing, km=4.0, seed=7):
+    from planner_adapter import plan_from_graph
+    graph = RoadGraph(random_road_graph(seed, n_side=45, step=70.0, oneway_ratio=0.0))
+    return graph, plan_from_graph(graph, km, drawing)
+
+
+def test_start_included_route_starts_and_ends_at_the_start_point():
+    graph, res = _plan({"mode": "shape", "shape": "heart"})
+    start = graph.node_array[int(graph.nearest_indices(np.zeros((1, 2)))[0][0])]
+    start_ll = (LAT0 + math.degrees(start[1] / 6371000),
+                LON0 + math.degrees(start[0] / (6371000 * math.cos(math.radians(LAT0)))))
+    with_start = [r for r in res["routes"] if r["includes_start"]]
+    assert with_start, "au moins une proposition passe par le point de départ"
+    for route in with_start:
+        pts = route["segments"][0]["points"]
+        assert haversine(pts[0], start_ll) < 1.0 and haversine(pts[-1], start_ll) < 1.0
+
+
+def test_duplicate_routes_are_merged():
+    _, res = _plan({"mode": "shape", "shape": "circle"})
+    keys = [tuple(map(tuple, r["segments"][0]["points"])) for r in res["routes"]]
+    assert len(keys) == len(set(keys))
+    assert [r["id"] for r in res["routes"]] == [f"route-{i}" for i in range(1, len(keys) + 1)]
+
+
+def test_text_modes_whole_word_separate_and_linked():
+    _, res = _plan({"mode": "text", "text": "LE"}, km=3.0)
+    kinds = {r["kind"] for r in res["routes"]}
+    assert {"word", "letters_separate", "letters_linked"} <= kinds
+    separate = next(r for r in res["routes"] if r["kind"] == "letters_separate")
+    assert [s["label"] for s in separate["segments"]] == ["L", "E"]
+    linked = next(r for r in res["routes"] if r["kind"] == "letters_linked")
+    segs = linked["segments"]
+    assert [s["label"] for s in segs if s["kind"] == "letter"] == ["L", "E"]
+    # tracé continu : chaque morceau commence là où le précédent finit
+    assert all(haversine(a["points"][-1], b["points"][0]) < 1.0 for a, b in zip(segs, segs[1:]))
+    assert linked["total_distance_m"] >= separate["total_distance_m"] - 1.0

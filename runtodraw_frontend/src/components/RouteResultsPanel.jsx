@@ -42,6 +42,9 @@ export default function RouteResultsPanel({
   onSelectRoute,
   onExportRoute,
 }) {
+  const selectedRoute = routePlan?.routes?.find((route) => route.id === selectedRouteId) ?? null;
+  // Lettres séparées : un fichier GPX par lettre (chaque lettre est un itinéraire distinct).
+  const letterSegments = selectedRoute?.separate ? selectedRoute.segments : null;
   /*
   EN:
   If no route generation has been launched yet,
@@ -100,6 +103,9 @@ export default function RouteResultsPanel({
                   FR: Libellé principal du trajet, par exemple une forme ou un mode texte.
                   */}
                   <div style={styles.routeLabel}>{route.label}</div>
+                  {route.includes_start ? (
+                    <div style={styles.startBadge}>Part et revient à ton point de départ</div>
+                  ) : null}
 
                   {/* 
                   EN: Secondary information describing the route variant.
@@ -159,26 +165,45 @@ export default function RouteResultsPanel({
       {/*
       EN:
       Export section.
-      The selected route can be downloaded or opened in different formats
+      The selected route can be downloaded in different formats
       depending on the target application.
 
       FR:
       Zone d’export.
-      L’itinéraire sélectionné peut être téléchargé ou ouvert dans différents formats
+      L’itinéraire sélectionné peut être téléchargé dans différents formats
       selon l’application cible.
       */}
       <div style={styles.exportZone}>
         <div style={styles.cardLabel}>Étape 6</div>
         <div style={styles.cardTitle}>Exporter pour une application GPS</div>
 
+        {letterSegments ? (
+          <div style={styles.exportHint}>
+            Un fichier GPX par lettre : chaque lettre est un itinéraire à part.
+          </div>
+        ) : null}
+
         <div style={styles.exportButtons}>
-          <button
-            type="button"
-            style={styles.exportButton}
-            onClick={() => onExportRoute("gpx")}
-          >
-            GPX (Strava)
-          </button>
+          {letterSegments ? (
+            letterSegments.map((segment, index) => (
+              <button
+                key={`${segment.label}-${index}`}
+                type="button"
+                style={styles.exportButton}
+                onClick={() => onExportRoute("gpx", index)}
+              >
+                GPX lettre {segment.label}
+              </button>
+            ))
+          ) : (
+            <button
+              type="button"
+              style={styles.exportButton}
+              onClick={() => onExportRoute("gpx")}
+            >
+              GPX (Strava)
+            </button>
+          )}
 
           <button
             type="button"
@@ -186,14 +211,6 @@ export default function RouteResultsPanel({
             onClick={() => onExportRoute("kml")}
           >
             KML (Google My Maps)
-          </button>
-
-          <button
-            type="button"
-            style={styles.exportButton}
-            onClick={() => onExportRoute("google_maps")}
-          >
-            Lien Google Maps
           </button>
         </div>
       </div>
@@ -337,6 +354,23 @@ const styles = {
     gap: 10,
     fontSize: 12.5,
     color: "var(--text-soft)",
+  },
+
+  startBadge: {
+    marginTop: 6,
+    display: "inline-block",
+    fontSize: 12,
+    fontWeight: 700,
+    color: "var(--success-strong)",
+    background: "var(--success-soft)",
+    borderRadius: 999,
+    padding: "3px 10px",
+  },
+
+  exportHint: {
+    fontSize: 13,
+    color: "var(--text-soft)",
+    marginTop: 6,
   },
 
   lettersWrap: {
