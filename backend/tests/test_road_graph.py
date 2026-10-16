@@ -219,3 +219,32 @@ def test_every_orientation_is_explored(street_angle):
         gaps = np.diff(folded + [folded[0] + period])
         assert gaps.max() <= step + 1e-9
     assert all(abs(a) <= TEXT_MAX_TILT_DEG for a in search_angles(FakeGraph, "text"))
+
+
+def test_remove_short_loops_keeps_intended_back_and_forth():
+    """Un trait parcouru en aller-retour par le dessin (barre d'un E) ne doit pas être mangé,
+    même par des boucles imbriquées qui deviennent courtes une à une."""
+    from shape_route_experiments_v16 import remove_short_loops
+    xy = np.array([[0, 0], [100, 0], [200, 0], [300, 0]], dtype=float)
+    path = [0, 1, 2, 3, 2, 1, 0]          # aller jusqu'au bout de la barre (3) puis retour
+    protected = [False, False, False, True, False, False, False]  # demi-tour voulu en 3
+    assert remove_short_loops(path, xy, 1000.0) == [0]            # sans protection : tout est mangé
+    assert remove_short_loops(path, xy, 1000.0, protected=protected) == path
+
+
+def test_reversal_samples_detects_glyph_u_turns_only():
+    from shape_route_experiments_v16 import reversal_samples, resample_polyline, single_letter_polyline
+    rs = lambda pts, n: resample_polyline(make_candidate_points(pts, np.zeros(2), 1000.0, 0.0), n)
+    assert reversal_samples(rs(single_letter_polyline("E"), 64)).any()
+    assert reversal_samples(rs(single_letter_polyline("T"), 64)).any()
+    for shape in ("heart", "circle", "square"):
+        assert not reversal_samples(rs(get_base_shape(shape, ""), 72)).any()
+
+
+def test_split_text_letters_share_one_orientation():
+    from shape_route_experiments_v16 import split_text_itineraries_full_distance
+    graph = RoadGraph(random_road_graph(6, n_side=40, step=70.0, oneway_ratio=0.0))
+    results = split_text_itineraries_full_distance(graph, "FEZ", 3000.0, 0.10)
+    angles = {round(r["metrics"]["angle_deg"], 6) for r in results}
+    assert len(angles) == 1
+    assert [r["letter"] for r in results] == ["F", "E", "Z"]
