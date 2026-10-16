@@ -248,3 +248,14 @@ def test_split_text_letters_share_one_orientation():
     angles = {round(r["metrics"]["angle_deg"], 6) for r in results}
     assert len(angles) == 1
     assert [r["letter"] for r in results] == ["F", "E", "Z"]
+
+
+def test_g_and_9_glyphs_are_upright():
+    """G : ouverture en haut à droite, barre au milieu. 9 : boucle en haut, queue en bas."""
+    from shape_route_experiments_v16 import GLYPHS
+    g = GLYPHS["G"]
+    assert g[0][0] == 1 and g[0][1] > 0.5           # départ en haut à droite
+    assert 0.3 < g[-1][1] < 0.6 and g[-1][0] < 1     # finit par la barre, au milieu, vers l'intérieur
+    nine = GLYPHS["9"]
+    assert nine[0][1] < 0.3                          # la queue part du bas
+    assert nine[-1][1] >= 0.4                        # la boucle se referme au-dessus du milieu
