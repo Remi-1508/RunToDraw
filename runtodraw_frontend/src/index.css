@@ -140,9 +140,17 @@ input:focus {
   }
 }
 
-/* Mode nuit de la carte : on assombrit les tuiles OSM claires (pas besoin d'un fournisseur "dark" avec clé d'API) */
+/*
+Fond de carte sobre, sans fournisseur payant : les tuiles OSM standard sont très colorées,
+on garde à peine un quart de leurs couleurs (l'eau et les parcs restent devinables) pour
+que l'itinéraire ressorte. Le mode nuit inverse ensuite ces tuiles atténuées.
+*/
+.tiles-light {
+  filter: saturate(0.25) brightness(1.03) contrast(0.95);
+}
+
 .tiles-dark {
-  filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
+  filter: saturate(0.22) invert(1) hue-rotate(180deg) brightness(0.92) contrast(1.02);
 }
 
 /* Barre d'attente de la recherche d'adresses à l'étranger (va-et-vient) */

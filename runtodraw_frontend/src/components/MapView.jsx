@@ -185,13 +185,14 @@ export default function MapView({
   On mémorise cette configuration pour ne la recalculer que lorsque le thème change.
   */
   // Tuiles OpenStreetMap standard : gratuites, sans clé d'API.
-  // Le mode nuit assombrit ces mêmes tuiles via un filtre CSS (classe "tiles-dark" dans index.css).
+  // Un filtre CSS les rend plus sobres (couleurs très atténuées) et le mode nuit les inverse :
+  // classes "tiles-light" / "tiles-dark" dans index.css.
   const tileConfig = useMemo(
     () => ({
       url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      className: theme === "dark" ? "tiles-dark" : "",
+      className: theme === "dark" ? "tiles-dark" : "tiles-light",
     }),
     [theme]
   );
@@ -342,6 +343,7 @@ const styles = {
     boxShadow: "var(--shadow-soft)",
     backdropFilter: "blur(16px)",
     fontWeight: 700,
+    cursor: "pointer",
   },
 
   themeControlEmoji: {
