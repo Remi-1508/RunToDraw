@@ -899,7 +899,15 @@ def dominant_graph_angle(graph):
     bins = np.arange(-90, 91, 10)
     hist, edges = np.histogram(angles, bins=bins, weights=length[keep])
     idx = int(np.argmax(hist))
-    graph._dominant_angle = float(0.5 * (edges[idx] + edges[idx + 1]))
+    coarse = 0.5 * (edges[idx] + edges[idx + 1])
+    # Affinage : moyenne pondérée des directions à moins de 10° du pic. Les directions étant définies
+    # à 180° près, on moyenne les angles doublés (moyenne circulaire) pour gérer le passage de -90 à 90.
+    diff = ((angles - coarse + 90.0) % 180.0) - 90.0
+    near = np.abs(diff) < 10.0
+    doubled = np.radians(2.0 * angles[near])
+    w = length[keep][near]
+    refined = 0.5 * math.degrees(math.atan2(np.sum(w * np.sin(doubled)), np.sum(w * np.cos(doubled))))
+    graph._dominant_angle = float(refined)
     return graph._dominant_angle
 
 
@@ -984,7 +992,8 @@ def shape_layout(base_points, desired_distance_m, shape_name, use_translation):
 # (a star looks the same every 72°, an infinity sign every 180°, a square every 90°), with a fine
 # angular step. The sweep starts on the dominant street axis, so the street-aligned orientation is
 # always among the tested ones.
-# Text is the exception: a word upside down cannot be read, so it stays within ±15° of horizontal.
+# Text is the exception: a word upside down cannot be read, so it stays within ±60° of horizontal
+# (enough to follow a tilted district such as Manhattan), with one tilt for the whole word.
 #
 # FR:
 # Recherche d'orientation.
@@ -993,7 +1002,8 @@ def shape_layout(base_points, desired_distance_m, shape_name, use_translation):
 # de symétrie (une étoile est identique tous les 72°, le signe infini tous les 180°, un carré tous les 90°),
 # avec un pas angulaire fin. Le balayage part de l'axe dominant des rues : l'orientation alignée sur les
 # rues fait donc toujours partie des angles testés.
-# Exception : le texte. Un mot à l'envers est illisible, il reste donc à ±15° de l'horizontale.
+# Exception : le texte. Un mot à l'envers est illisible : il peut s'incliner jusqu'à ±60° (assez pour
+# suivre un quartier en biais, comme Manhattan), toujours avec la même inclinaison pour tout le mot.
 ORIENTATION_RULES = {
     # forme      : (période de symétrie °, pas angulaire °)
     "square":   (90.0, 10.0),
@@ -1002,7 +1012,9 @@ ORIENTATION_RULES = {
     "star":     (72.0, 8.0),
     "infinity": (180.0, 10.0),
 }
-TEXT_MAX_TILT_DEG = 15.0
+TEXT_MAX_TILT_DEG = 60.0
+TEXT_TILT_STEP_DEG = 10.0
+SPLIT_TEXT_FINE_ANGLES = 3       # lettres séparées : angles retenus pour la passe fine
 
 
 def fold_angle(angle_deg, period_deg):
@@ -1012,7 +1024,15 @@ def fold_angle(angle_deg, period_deg):
 
 def search_angles(graph, shape_name):
     if shape_name == "text":
-        return [float(a) for a in np.linspace(-TEXT_MAX_TILT_DEG, TEXT_MAX_TILT_DEG, 5)]
+        # Grille régulière de -60° à +60°, plus les deux axes d'un quadrillage de rues (l'axe
+        # dominant et sa perpendiculaire) quand ils sont dans les limites et pas déjà dans la grille.
+        count = int(round(2 * TEXT_MAX_TILT_DEG / TEXT_TILT_STEP_DEG)) + 1
+        angles = [float(a) for a in np.linspace(-TEXT_MAX_TILT_DEG, TEXT_MAX_TILT_DEG, count)]
+        street = dominant_graph_angle(graph)
+        for axis in (fold_angle(street, 180.0), fold_angle(street + 90.0, 180.0)):
+            if abs(axis) <= TEXT_MAX_TILT_DEG and min(abs(axis - a) for a in angles) > 2.0:
+                angles.append(float(axis))
+        return angles
 
     period, step = ORIENTATION_RULES.get(shape_name, (360.0, 10.0))
     street = fold_angle(dominant_graph_angle(graph), period)
@@ -1169,7 +1189,11 @@ def rotate_closed_outline(points, fraction):
 def start_angles(graph, shape_name):
     period, step = ORIENTATION_RULES.get(shape_name, (360.0, 10.0))
     if shape_name == "text":
-        return search_angles(graph, "text")
+        # Même pas minimal que les formes (30°) : -60, -30, 0, 30, 60, plus les axes des rues.
+        angles = search_angles(graph, "text")
+        grid = [a for a in angles if abs(a / START_MIN_ANGLE_STEP - round(a / START_MIN_ANGLE_STEP)) < 1e-9]
+        axes = [a for a in angles if abs(a / TEXT_TILT_STEP_DEG - round(a / TEXT_TILT_STEP_DEG)) > 1e-9]
+        return grid + axes
     if shape_name == "circle":
         return [fold_angle(dominant_graph_angle(graph), period)]
     step = max(step, START_MIN_ANGLE_STEP)
@@ -1344,9 +1368,17 @@ def split_letter_layout(letters, per_letter_distance_m, direction, normal):
     n = len(letters)
     center, span = search_frame(per_letter_distance_m)
 
-    spacing = 0.18 * span
+    # Écart entre lettres : assez pour qu'elles ne se chevauchent pas (taille estimée de la plus
+    # grande lettre + 20 %), tant que le mot tient dans la zone téléchargée (diamètre = distance).
+    # Pour beaucoup de lettres très longues, elles se rapprochent forcément.
+    glyphs = [single_letter_polyline(ch) for ch in letters]
+    letter_size = max(
+        per_letter_distance_m / max(polyline_length(g), 1e-9) / EXPECTED_DETOUR for g in glyphs
+    )
+    spacing = 1.2 * letter_size
     if n > 1:
-        spacing = min(spacing, 0.75 * span / (n - 1))
+        previous = min(0.18 * span, 0.75 * span / (n - 1))   # ancien écart, jamais moins
+        spacing = min(spacing, max(previous, (0.9 * span - letter_size) / (n - 1)))
 
     offsets = [((i - 0.5 * (n - 1)) * spacing) for i in range(n)]
 
@@ -1380,42 +1412,56 @@ def split_letter_layout(letters, per_letter_distance_m, direction, normal):
 
 def split_text_itineraries_full_distance(graph, text, per_letter_distance_m, tolerance_ratio):
     letters = split_letters(text)
-    # Lettres droites, lues de gauche à droite (voir ORIENTATION_RULES).
+    # Lettres lues de gauche à droite, inclinées au plus de ±60° (voir ORIENTATION_RULES).
     angles = search_angles(graph, "text")
-    direction = np.array([1.0, 0.0], dtype=float)
-    normal = np.array([0.0, 1.0], dtype=float)
 
-    # 1) Chaque lettre est évaluée pour tous les angles.
-    per_letter = []
-    for ch, base, local_centers, sizes in split_letter_layout(letters, per_letter_distance_m, direction, normal):
-        evaluated = calibrated_search(
-            graph, base, local_centers, angles,
-            per_letter_distance_m, per_letter_distance_m * (1.0 + tolerance_ratio),
-            sample_count=64, min_size=min(sizes), max_size=max(sizes),
-        )
-        per_letter.append((ch, evaluated))
+    max_allowed = per_letter_distance_m * (1.0 + tolerance_ratio)
+    per_letter = [(ch, []) for ch in letters]
 
-    # EN: 2) One single orientation for the whole word: letters tilted differently are unreadable.
-    # For each angle, take each letter's best candidate at that angle and add up their scores;
-    # the angle with the lowest total wins.
-    # FR : 2) Une seule orientation pour tout le mot : des lettres inclinées différemment sont illisibles.
-    # Pour chaque angle, on prend le meilleur candidat de chaque lettre à cet angle et on additionne
-    # leurs scores ; l'angle au total le plus bas l'emporte.
     def best_at(evaluated, angle):
         same_angle = [e for e in evaluated if abs(e["metrics"]["angle_deg"] - angle) < 1e-9]
         return pick_best(same_angle)[0] if same_angle else None
 
-    best_angle, best_total = None, float("inf")
-    for angle in angles:
+    def angle_total(angle):
         picks = [best_at(evaluated, angle) for _, evaluated in per_letter]
         if any(p is None for p in picks):
-            continue
-        total = sum(
+            return float("inf")
+        return sum(
             p["metrics"]["combined"] + 0.12 * p["metrics"]["over_max"] + 0.12 * p["metrics"].get("under_min", 0.0)
             for p in picks
         )
-        if total < best_total:
-            best_angle, best_total = angle, total
+
+    def evaluate_letters(angle, centers_slice):
+        # Le mot entier s'incline : la ligne sur laquelle les lettres sont alignées tourne du même
+        # angle que les lettres elles-mêmes.
+        a = math.radians(angle)
+        direction = np.array([math.cos(a), math.sin(a)], dtype=float)
+        normal = np.array([-math.sin(a), math.cos(a)], dtype=float)
+        layout = split_letter_layout(letters, per_letter_distance_m, direction, normal)
+        for (ch, evaluated), (_, base, local_centers, sizes) in zip(per_letter, layout):
+            evaluated.extend(calibrated_search(
+                graph, base, local_centers[centers_slice], [angle],
+                per_letter_distance_m, max_allowed,
+                sample_count=64, min_size=min(sizes), max_size=max(sizes),
+            ))
+
+    # EN: 1) Coarse pass: every angle, each letter at its main position only.
+    # 2) Fine pass: the few best angles get the other positions around each letter.
+    # 3) One single orientation for the whole word (letters tilted differently are unreadable):
+    # for each angle, each letter's best candidate at that angle; the lowest total wins.
+    # FR : 1) Passe grossière : tous les angles, chaque lettre à sa position principale seulement.
+    # 2) Passe fine : les quelques meilleurs angles reçoivent les autres positions autour de chaque lettre.
+    # 3) Une seule orientation pour tout le mot (des lettres inclinées différemment sont illisibles) :
+    # pour chaque angle, le meilleur candidat de chaque lettre à cet angle ; le total le plus bas l'emporte.
+    for angle in angles:
+        evaluate_letters(angle, slice(0, 1))
+    finalists = sorted(angles, key=angle_total)[:SPLIT_TEXT_FINE_ANGLES]
+    for angle in finalists:
+        evaluate_letters(angle, slice(1, None))
+
+    best_angle = min(finalists, key=angle_total)
+    if angle_total(best_angle) == float("inf"):
+        best_angle = None
 
     results = []
     for ch, evaluated in per_letter:

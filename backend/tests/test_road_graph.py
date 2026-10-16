@@ -201,7 +201,7 @@ def test_required_radius_covers_every_candidate(drawing, distance_m):
                     assert np.hypot(pts[:, 0], pts[:, 1]).max() <= radius - margin + 1e-6
 
 
-@pytest.mark.parametrize("street_angle", [-80.0, -37.0, 0.0, 8.0, 45.0, 89.0])
+@pytest.mark.parametrize("street_angle", [-80.0, -61.0, -37.0, 0.0, 8.0, 29.0, 45.0, 89.0])
 def test_every_orientation_is_explored(street_angle):
     """Chaque forme est testée sur toute sa période de symétrie, avec un pas fin, en incluant
     l'axe des rues ; le texte reste lisible (proche de l'horizontale)."""
@@ -218,7 +218,13 @@ def test_every_orientation_is_explored(street_angle):
         folded = sorted(fold_angle(a, period) for a in angles)
         gaps = np.diff(folded + [folded[0] + period])
         assert gaps.max() <= step + 1e-9
-    assert all(abs(a) <= TEXT_MAX_TILT_DEG for a in search_angles(FakeGraph, "text"))
+    text_angles = search_angles(FakeGraph, "text")
+    assert all(abs(a) <= TEXT_MAX_TILT_DEG for a in text_angles)
+    # quartier en biais (Manhattan : rues à -29° et avenues à 61°) : les axes du quadrillage
+    # dans les limites font partie des inclinaisons testées pour le texte
+    for axis in (fold_angle(street_angle, 180.0), fold_angle(street_angle + 90.0, 180.0)):
+        if abs(axis) <= TEXT_MAX_TILT_DEG:
+            assert min(abs(a - axis) for a in text_angles) <= 2.0 + 1e-9
 
 
 def test_remove_short_loops_keeps_intended_back_and_forth():
@@ -301,3 +307,17 @@ def test_text_modes_whole_word_separate_and_linked():
     # tracé continu : chaque morceau commence là où le précédent finit
     assert all(haversine(a["points"][-1], b["points"][0]) < 1.0 for a, b in zip(segs, segs[1:]))
     assert linked["total_distance_m"] >= separate["total_distance_m"] - 1.0
+
+
+def test_split_letters_line_up_along_the_word_tilt():
+    """Mot incliné : les lettres sont alignées sur une ligne qui tourne du même angle qu'elles."""
+    import math
+    from shape_route_experiments_v16 import split_letter_layout
+
+    a = math.radians(35.0)
+    direction = np.array([math.cos(a), math.sin(a)])
+    normal = np.array([-math.sin(a), math.cos(a)])
+    anchors = np.array([centers[0] for _, _, centers, _ in split_letter_layout(list("YAMAL"), 10000.0, direction, normal)])
+    steps = np.diff(anchors, axis=0)
+    assert np.allclose(steps @ normal, 0.0, atol=1e-6)
+    assert np.all(steps @ direction > 0)
