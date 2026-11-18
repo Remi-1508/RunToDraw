@@ -1,4 +1,5 @@
-# Outils de développement : tests et tracés d'expérimentation (python shape_route_experiments_v16.py)
+# Outils de développement : tests et tracés d'expérimentation (python -m experiments.cli)
 -r requirements.txt
 pytest
 matplotlib
+httpx  # client des tests de l'API

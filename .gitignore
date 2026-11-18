@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Données volumineuses générées par les outils (backend/tools)
+*.json.gz
+backend/tools/out/
+
+# Variables d'environnement locales (modèles : .env.example)
+.env
+.env.*
+!.env.example
+env.env
+
+# Système / éditeurs
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json

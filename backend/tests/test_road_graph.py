@@ -7,7 +7,10 @@ import random
 import numpy as np
 import pytest
 
-from shape_route_experiments_v16 import RoadGraph, route_from_target, get_base_shape, make_candidate_points
+from runtodraw.road_graph import RoadGraph
+from runtodraw.routing import route_from_target
+from runtodraw.search import make_candidate_points
+from runtodraw.shapes import get_base_shape
 
 LAT0, LON0 = 44.8378, -0.5792
 
@@ -126,7 +129,7 @@ def test_snapping_never_lands_on_the_island():
 
 
 def test_remove_short_loops_cuts_back_and_forth_only():
-    from shape_route_experiments_v16 import remove_short_loops
+    from runtodraw.routing import remove_short_loops
     xy = np.array([[0, 0], [100, 0], [200, 0], [200, 50], [300, 0], [300, 1000], [0, 1000]], dtype=float)
     # 0 -> 1 -> 2 -> 3 (impasse) -> 2 -> 4 : l'aller-retour 2-3-2 (100 m) est supprimé
     assert remove_short_loops([0, 1, 2, 3, 2, 4], xy, 150.0) == [0, 1, 2, 4]
@@ -141,7 +144,7 @@ def test_remove_short_loops_cuts_back_and_forth_only():
 def test_calibration_reaches_requested_distance(shape):
     """Avec le calibrage de taille, la proposition « distance la plus proche » doit tomber
     à quelques pourcents de la distance demandée, et rester sous le maximum autorisé."""
-    from planner_adapter import plan_from_graph
+    from runtodraw.planner import plan_from_graph
     graph = RoadGraph(random_road_graph(5, n_side=45, step=70.0, oneway_ratio=0.0))
     res = plan_from_graph(graph, 6.0, {"mode": "shape", "shape": shape})
     for route in res["routes"]:
@@ -176,9 +179,9 @@ def test_route_from_target_returns_connected_path():
 def test_required_radius_covers_every_candidate(drawing, distance_m):
     """Le rayon téléchargé doit contenir tous les points de toutes les formes testées,
     pour n'importe quelle orientation du réseau."""
-    from shape_route_experiments_v16 import (
-        required_radius_m, shape_layout, split_letter_layout, split_letters, make_candidate_points,
-    )
+    from runtodraw.search import shape_layout, make_candidate_points
+    from runtodraw.search_area import required_radius_m
+    from runtodraw.text_routes import split_letter_layout, split_letters
     radius = required_radius_m(drawing, distance_m)
     if radius >= distance_m / 2.0:
         return  # rayon plafonné à l'ancienne valeur : comportement inchangé
@@ -192,7 +195,7 @@ def test_required_radius_covers_every_candidate(drawing, distance_m):
         for angle in (0.0, 37.0, 90.0):
             d = np.array([math.cos(math.radians(angle)), math.sin(math.radians(angle))])
             n = np.array([-d[1], d[0]])
-            groups += [(b, c, s) for _, b, c, s in split_letter_layout(split_letters(text), distance_m, d, n)]
+            groups += [(b, c, s) for _, b, c, s, _t in split_letter_layout(split_letters(text), distance_m, d, n)]
     for b, cs, ss in groups:
         for c in cs:
             for size in ss:
@@ -205,7 +208,8 @@ def test_required_radius_covers_every_candidate(drawing, distance_m):
 def test_every_orientation_is_explored(street_angle):
     """Chaque forme est testée sur toute sa période de symétrie, avec un pas fin, en incluant
     l'axe des rues ; le texte reste lisible (proche de l'horizontale)."""
-    from shape_route_experiments_v16 import ORIENTATION_RULES, TEXT_MAX_TILT_DEG, search_angles, fold_angle
+    from runtodraw.geometry import fold_angle
+    from runtodraw.search import ORIENTATION_RULES, TEXT_MAX_TILT_DEG, search_angles
 
     class FakeGraph:
         _dominant_angle = street_angle
@@ -224,7 +228,7 @@ def test_every_orientation_is_explored(street_angle):
 def test_remove_short_loops_keeps_intended_back_and_forth():
     """Un trait parcouru en aller-retour par le dessin (barre d'un E) ne doit pas être mangé,
     même par des boucles imbriquées qui deviennent courtes une à une."""
-    from shape_route_experiments_v16 import remove_short_loops
+    from runtodraw.routing import remove_short_loops
     xy = np.array([[0, 0], [100, 0], [200, 0], [300, 0]], dtype=float)
     path = [0, 1, 2, 3, 2, 1, 0]          # aller jusqu'au bout de la barre (3) puis retour
     protected = [False, False, False, True, False, False, False]  # demi-tour voulu en 3
@@ -233,7 +237,9 @@ def test_remove_short_loops_keeps_intended_back_and_forth():
 
 
 def test_reversal_samples_detects_glyph_u_turns_only():
-    from shape_route_experiments_v16 import reversal_samples, resample_polyline, single_letter_polyline
+    from runtodraw.geometry import resample_polyline
+    from runtodraw.glyphs import single_letter_polyline
+    from runtodraw.routing import reversal_samples
     rs = lambda pts, n: resample_polyline(make_candidate_points(pts, np.zeros(2), 1000.0, 0.0), n)
     assert reversal_samples(rs(single_letter_polyline("E"), 64)).any()
     assert reversal_samples(rs(single_letter_polyline("T"), 64)).any()
@@ -242,7 +248,7 @@ def test_reversal_samples_detects_glyph_u_turns_only():
 
 
 def test_split_text_letters_share_one_orientation():
-    from shape_route_experiments_v16 import split_text_itineraries_full_distance
+    from runtodraw.text_routes import split_text_itineraries_full_distance
     graph = RoadGraph(random_road_graph(6, n_side=40, step=70.0, oneway_ratio=0.0))
     results = split_text_itineraries_full_distance(graph, "FEZ", 3000.0, 0.10)
     angles = {round(r["metrics"]["angle_deg"], 6) for r in results}
@@ -252,7 +258,7 @@ def test_split_text_letters_share_one_orientation():
 
 def test_g_and_9_glyphs_are_upright():
     """G : ouverture en haut à droite, barre au milieu. 9 : boucle en haut, queue en bas."""
-    from shape_route_experiments_v16 import GLYPHS
+    from runtodraw.glyphs import GLYPHS
     g = GLYPHS["G"]
     assert g[0][0] == 1 and g[0][1] > 0.5           # départ en haut à droite
     assert 0.3 < g[-1][1] < 0.6 and g[-1][0] < 1     # finit par la barre, au milieu, vers l'intérieur
@@ -262,7 +268,7 @@ def test_g_and_9_glyphs_are_upright():
 
 
 def _plan(drawing, km=4.0, seed=7):
-    from planner_adapter import plan_from_graph
+    from runtodraw.planner import plan_from_graph
     graph = RoadGraph(random_road_graph(seed, n_side=45, step=70.0, oneway_ratio=0.0))
     return graph, plan_from_graph(graph, km, drawing)
 
@@ -301,3 +307,16 @@ def test_text_modes_whole_word_separate_and_linked():
     # tracé continu : chaque morceau commence là où le précédent finit
     assert all(haversine(a["points"][-1], b["points"][0]) < 1.0 for a, b in zip(segs, segs[1:]))
     assert linked["total_distance_m"] >= separate["total_distance_m"] - 1.0
+
+
+# Les segments exposent le chemin (identifiants de nœuds) et les ancrages modifiables sur la carte.
+@pytest.mark.parametrize("drawing", [{"mode": "shape", "shape": "heart"}, {"mode": "text", "text": "LE"}])
+def test_segments_expose_node_path_and_anchors(drawing):
+    _, res = _plan(drawing, km=3.0)
+    for route in res["routes"]:
+        for seg in route["segments"]:
+            assert len(seg["node_path"]) == len(seg["points"])
+            assert seg["anchors"] == sorted(set(seg["anchors"]))
+            assert all(0 <= a < len(seg["node_path"]) for a in seg["anchors"])
+            if seg.get("kind") != "link":
+                assert len(seg["anchors"]) >= 2

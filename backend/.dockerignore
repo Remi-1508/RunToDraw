@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+tests/
+tools/
+experiments/
+.env
+.env.*
+*.json.gz

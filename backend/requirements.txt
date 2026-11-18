@@ -1,5 +1,7 @@
-fastapi
-uvicorn
-numpy
-scipy
-requests
+# Dépendances d'exécution du backend (versions bornées : mises à jour mineures acceptées, pas de saut majeur).
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
+pydantic>=2.7,<3
+numpy>=2.0,<3
+scipy>=1.13,<2
+requests>=2.31,<3

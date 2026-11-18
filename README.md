@@ -46,6 +46,21 @@ Exemples disponibles :
 - Cœur
 - Étoile
 - Infini
+- Triangle, losange, croix, flèche, maison, éclair, croissant, goutte
+
+Les formes anguleuses (carré, triangle, croix, maison…) se dessinent particulièrement bien sur des rues en
+quadrillage. Les formes qui ont un « haut » (maison, éclair, goutte, croissant) ne sont inclinées que de quelques
+degrés, pour rester reconnaissables ; la flèche peut pointer dans toutes les directions.
+
+## Mode dessin
+
+L’utilisateur trace lui-même une forme **d’un seul trait** dans l’application (souris, doigt ou stylet).
+Le serveur nettoie le tracé (simplification de Douglas-Peucker, fermeture automatique si le trait revient près
+de son départ), puis le traite comme n’importe quelle forme. Les dessins simples, avec peu de détails, donnent
+les meilleurs résultats : un trait très découpé ne peut pas suivre fidèlement les vraies rues.
+
+Côté API : `drawing = {"mode": "custom", "points": [[x, y], …]}` avec les points dans le repère d’un canvas
+(y vers le bas), 2 000 points au maximum.
 
 ## Mode texte
 
@@ -69,6 +84,20 @@ En mode texte, trois versions sont proposées :
 - **mot entier** : un seul itinéraire de la distance demandée qui écrit tout le mot
 - **lettres séparées** : un itinéraire par lettre, chacun de la distance demandée
 - **lettres reliées** : ces mêmes lettres enchaînées en un seul itinéraire, reliées par le plus court chemin
+
+## Modifier le tracé sur la carte
+
+Le bouton **Modifier le tracé** (en bas de la carte) permet de retoucher l'itinéraire choisi, comme sur Strava,
+en formes comme en texte. Les points du tracé apparaissent sous forme de ronds, notamment au bout des
+aller-retours :
+
+- **déplacer** un point : on le glisse, le tracé est recalculé sur les vraies routes ;
+- **ajouter** un point : on appuie sur le tracé et on tire ;
+- **supprimer** un point : clic sur le point puis `Suppr` (ou le bouton de la barre d'outils) ;
+- **annuler / rétablir** : `Ctrl+Z` / `Ctrl+Y`, ou « Tracé d'origine » pour tout reprendre.
+
+Seuls les deux tronçons voisins du point touché sont recalculés (`POST /api/routes/edit`), donc la réponse est
+quasi instantanée. L'export GPX / KML porte sur le tracé modifié.
 
 ## Export
 
@@ -105,7 +134,25 @@ cd RunToDraw/backend
 
 python -m pip install -r requirements.txt
 
-python -m uvicorn app:app --reload --port 8000
+python -m uvicorn runtodraw.api:app --reload --port 8000
+
+Pour mettre le projet en ligne (Vercel + Render), voir [docs/deploiement.md](docs/deploiement.md).
+
+### Configuration et protections de l'API
+
+Le backend lit ses réglages dans des variables d'environnement (liste commentée dans `backend/.env.example`).
+En local, aucune n'est nécessaire. En production, il faut au minimum :
+
+- `RUNTODRAW_ALLOWED_ORIGINS` : adresse du site qui appelle l'API (CORS), par exemple `https://runtodraw.vercel.app`.
+
+Protections actives par défaut, volontairement permissives :
+
+- distance limitée à 50 km (`RUNTODRAW_MAX_DISTANCE_KM`) ;
+- 30 requêtes coûteuses par minute et par adresse IP, soit environ 15 générations (`RUNTODRAW_RATE_LIMIT_PER_MINUTE`) ;
+- 240 modifications de tracé par minute et par adresse IP, car déplacer un point sur la carte est léger mais fréquent (`RUNTODRAW_EDIT_RATE_LIMIT_PER_MINUTE`) ;
+- 2 calculs d'itinéraires simultanés, les suivants patientent puis reçoivent « serveur occupé » ;
+- une seule requête Overpass par zone, même si plusieurs utilisateurs la demandent en même temps ;
+- texte normalisé (majuscules, accents retirés), formes validées, erreurs lisibles et sans détail interne.
 
 ### Tests du moteur (facultatif)
 
@@ -115,7 +162,7 @@ python -m pytest tests
 
 ## Terminal/Onglet frontend
 
-cd RunToDraw/runtodraw_frontend
+cd RunToDraw/frontend
 
 npm install
 
