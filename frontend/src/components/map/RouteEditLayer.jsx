@@ -47,6 +47,7 @@ function legAtPoint(segment, latlng) {
 // Les icônes sont créées une seule fois et réutilisées : si le composant en fabriquait une nouvelle à chaque
 // rendu, Leaflet reconstruirait l'élément du marqueur en plein glissement et le déplacement s'interromprait.
 const ICONS = {};
+const HIT_SIZE = 32;
 function anchorIcon(selected, isEnd) {
   const key = selected ? "selected" : isEnd ? "end" : "normal";
   if (!ICONS[key]) {
@@ -55,12 +56,13 @@ function anchorIcon(selected, isEnd) {
     const border = selected ? "#fc4c02" : isEnd ? "#ffffff" : "#fc4c02";
     ICONS[key] = L.divIcon({
       className: "",
-      iconSize: [size, size],
-      iconAnchor: [size / 2, size / 2],
+      iconSize: [HIT_SIZE, HIT_SIZE],
+      iconAnchor: [HIT_SIZE / 2, HIT_SIZE / 2],
+      // Zone tactile transparente de 32 px autour du point visible : au doigt, un rond de 14 px est introuvable.
       html:
+        `<div style="width:${HIT_SIZE}px;height:${HIT_SIZE}px;display:flex;align-items:center;justify-content:center;cursor:grab">` +
         `<div style="width:${size}px;height:${size}px;box-sizing:border-box;border-radius:50%;` +
-        `background:${fill};border:3px solid ${border};` +
-        `box-shadow:0 1px 4px rgba(0,0,0,.45);cursor:grab"></div>`,
+        `background:${fill};border:3px solid ${border};box-shadow:0 1px 4px rgba(0,0,0,.45)"></div></div>`,
     });
   }
   return ICONS[key];

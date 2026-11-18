@@ -2,6 +2,7 @@ import L from "leaflet";
 import { Circle, MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import { DEFAULT_CENTER } from "../../config";
+import { useIsMobile } from "../../hooks/useIsMobile";
 import { boundsFromCenterRadiusKm } from "../../utils/geo";
 import RouteEditLayer from "./RouteEditLayer";
 import RouteEditToolbar from "./RouteEditToolbar";
@@ -70,6 +71,7 @@ function MapControl({ icon, label, onClick, pressed, disabledReason }) {
           ...(pressed ? styles.controlPressed : null),
           ...(disabled ? styles.controlDisabled : null),
         }}
+        aria-label={label}
         aria-pressed={disabled ? undefined : pressed}
         aria-disabled={disabled}
         aria-describedby={disabled ? hintId : undefined}
@@ -77,7 +79,7 @@ function MapControl({ icon, label, onClick, pressed, disabledReason }) {
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           {icon}
         </svg>
-        <span style={styles.controlText}>{label}</span>
+        <span className="rtd-control-label" style={styles.controlText}>{label}</span>
       </button>
       {disabled && hintOpen ? (
         <div id={hintId} role="status" style={styles.controlHint}>
@@ -88,6 +90,12 @@ function MapControl({ icon, label, onClick, pressed, disabledReason }) {
   );
 }
 
+const ICON_PANEL = (
+  <>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M9 4v16" />
+  </>
+);
 const ICON_SUN = (
   <>
     <circle cx="12" cy="12" r="4" />
@@ -101,6 +109,19 @@ const ICON_LAYERS = (
     <path d="M3 13l9 5 9-5" />
   </>
 );
+
+// Leaflet ne sait pas que le conteneur a changé de taille quand la barre latérale se replie ou se déplie :
+// on le lui dit à chaque changement, sinon la carte garde une zone grise ou des tuiles décalées.
+function ResizeWatcher() {
+  const map = useMap();
+  useEffect(() => {
+    const container = map.getContainer();
+    const observer = new ResizeObserver(() => map.invalidateSize());
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [map]);
+  return null;
+}
 
 // NeutralBackground applique (ou retire) la classe CSS qui remplace la carte par un aplat uni.
 // On passe par le conteneur Leaflet car MapContainer ne met pas à jour ses props après sa création.
@@ -199,9 +220,12 @@ export default function MapView({
   radiusKm,
   selectedRoute,
   editor,
+  panelOpen,
+  onTogglePanel,
   pickingOnMap,
   onPickCenter,
 }) {
+  const isMobile = useIsMobile();
   // Un centre par défaut est utilisé avant que l’utilisateur choisisse
   // une vraie localisation.
   // Ici on utilise Bordeaux comme valeur de secours.
@@ -229,9 +253,10 @@ export default function MapView({
   );
 
   return (
-    <div style={styles.shell}>
+    <div style={{ ...styles.shell, ...(isMobile ? styles.shellMobile : null) }}>
       <MapContainer center={safeCenter} zoom={13} style={styles.map}>
         <NeutralBackground neutral={neutral} />
+        <ResizeWatcher />
         <PickCenter onPick={onPickCenter} enabled={pickingOnMap} />
 
         {/* key={theme} force Leaflet à recréer la couche quand le thème change (className n'est pas mis à jour sinon).
@@ -294,8 +319,14 @@ export default function MapView({
       )}
 
       {/* Réglages d'affichage de la carte : thème et fond neutre. */}
-      <div style={styles.topBar}>
+      <div style={{ ...styles.topBar, ...(isMobile ? styles.topBarMobile : null) }}>
       <div style={styles.controls}>
+        <MapControl
+          icon={ICON_PANEL}
+          label={panelOpen ? "Masquer le panneau" : "Afficher le panneau"}
+          onClick={onTogglePanel}
+          pressed={panelOpen}
+        />
         <MapControl
           icon={theme === "dark" ? ICON_SUN : ICON_MOON}
           label={theme === "dark" ? "Mode jour" : "Mode nuit"}
@@ -312,22 +343,22 @@ export default function MapView({
 
       {/* Barre de résultats : la distance et l'écart à la cible de l'itinéraire affiché. */}
       {selectedRoute ? (
-        <div style={styles.statsBar}>
-          <div style={styles.statMain}>
+        <div style={{ ...styles.statsBar, ...(isMobile ? styles.statsBarMobile : null) }}>
+          <div style={{ ...styles.statMain, ...(isMobile ? styles.statCellMobile : null) }}>
             <span style={styles.statLabel}>Distance</span>
-            <span className="rtd-display" style={styles.statValue}>
+            <span className="rtd-display" style={{ ...styles.statValue, ...(isMobile ? styles.statValueMobile : null) }}>
               {(selectedRoute.total_distance_m / 1000).toFixed(1).replace(".", ",")} km
             </span>
           </div>
           {selectedRoute.edited ? (
-            <div style={styles.stat}>
+            <div style={{ ...styles.stat, ...(isMobile ? styles.statCellMobile : null) }}>
               <span style={styles.statLabelSoft}>Tracé</span>
-              <span className="rtd-display" style={styles.statValue}>Modifié</span>
+              <span className="rtd-display" style={{ ...styles.statValue, ...(isMobile ? styles.statValueMobile : null) }}>Modifié</span>
             </div>
           ) : (
-            <div style={styles.stat}>
+            <div style={{ ...styles.stat, ...(isMobile ? styles.statCellMobile : null) }}>
               <span style={styles.statLabelSoft}>Écart à la cible</span>
-              <span className="rtd-display" style={styles.statValue}>{Math.round(selectedRoute.length_gap_m)} m</span>
+              <span className="rtd-display" style={{ ...styles.statValue, ...(isMobile ? styles.statValueMobile : null) }}>{Math.round(selectedRoute.length_gap_m)} m</span>
             </div>
           )}
         </div>
@@ -467,6 +498,30 @@ const styles = {
     fontSize: 12.5,
     fontWeight: 600,
     color: "var(--text-soft)",
+  },
+
+  shellMobile: {
+    borderRadius: 0,
+    border: "none",
+  },
+
+  // Smartphone : pas de boutons de zoom Leaflet (le pincement suffit), donc la rangée peut partir du bord.
+  topBarMobile: {
+    top: 8,
+    left: 8,
+    right: 8,
+  },
+
+  statsBarMobile: {
+    borderRadius: "var(--radius-sm)",
+  },
+
+  statCellMobile: {
+    padding: "6px 12px",
+  },
+
+  statValueMobile: {
+    fontSize: 20,
   },
 
   statValue: {

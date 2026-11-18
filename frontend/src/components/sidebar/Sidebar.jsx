@@ -23,6 +23,7 @@ export default function Sidebar({
   onPickSuggestion,
   pickingOnMap,
   onTogglePickOnMap,
+  onClosePanel,
   onGenerateRoutes,
   canGenerate,
   routePlan,
@@ -36,9 +37,16 @@ export default function Sidebar({
     <div style={styles.sidebar}>
       {/* Logo collant : l'identité du projet reste visible quand la barre défile. */}
       <div style={styles.logoStickyWrap}>
+        <div className="rtd-sheet-grip" aria-hidden="true" />
         <div style={styles.logoZone}>
           <img src={currentLogo} alt="RunToDraw" style={styles.logoImage} />
         </div>
+        <button type="button" className="rtd-collapse" onClick={onClosePanel} aria-label="Replier le panneau" title="Replier le panneau">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path className="rtd-collapse-desktop" d="M15 6l-6 6 6 6" />
+            <path className="rtd-collapse-mobile" d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
       </div>
 
       <LocationStep

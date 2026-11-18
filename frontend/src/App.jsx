@@ -6,6 +6,7 @@ import MapView from "./components/map/MapView";
 import Sidebar from "./components/sidebar/Sidebar";
 import { useMapBackground } from "./hooks/useMapBackground";
 import { useGeolocation } from "./hooks/useGeolocation";
+import { useIsMobile } from "./hooks/useIsMobile";
 import { useRouteEditor } from "./hooks/useRouteEditor";
 import { useRouteExport } from "./hooks/useRouteExport";
 import { useRoutePlanning } from "./hooks/useRoutePlanning";
@@ -29,6 +30,10 @@ export default function App() {
   const [drawing, setDrawing] = useState(INITIAL_DRAWING);
   // Mode « Choisir un point sur la carte » : le prochain clic sur la carte fixe le départ.
   const [pickingOnMap, setPickingOnMap] = useState(false);
+  // Barre latérale ouverte ou repliée. Sur smartphone elle recouvre la carte (tiroir) : on la replie
+  // quand on a besoin de voir la carte (choix d'un point, tracé généré).
+  const isMobile = useIsMobile();
+  const [panelOpen, setPanelOpen] = useState(true);
 
   const planning = useRoutePlanning({ showToast });
   // Édition manuelle du tracé sur la carte : `editor.route` est l'itinéraire choisi, avec ses modifications.
@@ -62,12 +67,21 @@ export default function App() {
     (latlng) => {
       chooseCenter(latlng);
       setPickingOnMap(false);
+      setPanelOpen(true);
     },
     [chooseCenter]
   );
+  const togglePickOnMap = useCallback(() => {
+    setPickingOnMap((on) => !on);
+    if (isMobile) setPanelOpen(false);
+  }, [isMobile]);
   useEffect(() => {
     if (!pickingOnMap) return undefined;
-    const onKeyDown = (event) => event.key === "Escape" && setPickingOnMap(false);
+    const onKeyDown = (event) => {
+      if (event.key !== "Escape") return;
+      setPickingOnMap(false);
+      setPanelOpen(true);
+    };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [pickingOnMap]);
@@ -99,13 +113,21 @@ export default function App() {
   const { graphData } = planning;
   const radiusKm = graphData && graphData.distanceKm === distanceKm ? graphData.radiusKm : distanceKm / 2;
 
+  // Sur smartphone, dès qu'une nouvelle liste d'itinéraires arrive, le tiroir se replie pour montrer la carte.
+  // (Ajustement d'état pendant le rendu, plutôt qu'un effet : voir la doc React « You Might Not Need an Effect ».)
+  const [seenPlan, setSeenPlan] = useState(routePlan);
+  if (routePlan !== seenPlan) {
+    setSeenPlan(routePlan);
+    if (routePlan && isMobile) setPanelOpen(false);
+  }
+
   const waiting = Boolean(planning.busy) || locating;
 
   // Un dessin libre doit contenir assez de points pour être exploitable ; les autres modes sont toujours prêts.
   const drawingIsReady = drawing.mode !== "custom" || (drawing.points?.length ?? 0) >= MIN_DRAW_POINTS;
 
   return (
-    <div style={styles.page}>
+    <div className="rtd-page">
       {/* Fenêtre d'attente : génération en cours ou recherche de la position. */}
       <LoadingModal
         open={waiting}
@@ -116,7 +138,12 @@ export default function App() {
         onCancel={planning.busy && !locating ? planning.cancel : undefined}
       />
 
-      <aside style={{ ...styles.sidebarWrap, width: sidebarWidth, minWidth: sidebarWidth }}>
+      <aside
+        className={`rtd-sidebar${panelOpen ? "" : " is-closed"}`}
+        style={{ "--sidebar-w": `${sidebarWidth}px` }}
+        inert={!panelOpen}
+        aria-label="Paramètres de l’itinéraire"
+      >
         <Sidebar
           theme={theme}
           center={center}
@@ -128,7 +155,8 @@ export default function App() {
           onUseMyLocation={locate}
           onPickSuggestion={chooseCenter}
           pickingOnMap={pickingOnMap}
-          onTogglePickOnMap={() => setPickingOnMap((on) => !on)}
+          onTogglePickOnMap={togglePickOnMap}
+          onClosePanel={() => setPanelOpen(false)}
           onGenerateRoutes={handleGenerate}
           canGenerate={Boolean(center) && drawingIsReady && !planning.busy}
           routePlan={displayedPlan}
@@ -140,17 +168,17 @@ export default function App() {
 
       {/* Poignée de redimensionnement entre la barre latérale et la carte. */}
       <div
-        style={styles.resizeHandleWrap}
+        className={`rtd-resize${panelOpen ? "" : " is-hidden"}`}
         onMouseDown={startResize}
         role="separator"
         aria-orientation="vertical"
         aria-label="Redimensionner la sidebar"
         title="Glisser pour redimensionner"
       >
-        <div style={styles.resizeHandle} />
+        <div className="rtd-resize-grip" />
       </div>
 
-      <main style={styles.mapArea}>
+      <main className="rtd-map">
         <MapView
           theme={theme}
           onToggleTheme={toggleTheme}
@@ -160,6 +188,8 @@ export default function App() {
           radiusKm={radiusKm}
           selectedRoute={editor.route}
           editor={editor}
+          panelOpen={panelOpen}
+          onTogglePanel={() => setPanelOpen((open) => !open)}
           pickingOnMap={pickingOnMap}
           onPickCenter={pickOnMap}
         />
@@ -169,45 +199,3 @@ export default function App() {
     </div>
   );
 }
-
-// Mise en page : la page est divisée en deux zones, les contrôles à gauche et la carte à droite.
-const styles = {
-  page: {
-    height: "100vh",
-    width: "100vw",
-    display: "flex",
-    background: "var(--bg)",
-  },
-
-  sidebarWrap: {
-    height: "100vh",
-    overflow: "auto",
-    borderRight: "1px solid var(--border)",
-    background: "var(--bg-elevated)",
-  },
-
-  resizeHandleWrap: {
-    width: 12,
-    minWidth: 12,
-    height: "100vh",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    cursor: "col-resize",
-    background: "var(--bg)",
-  },
-
-  resizeHandle: {
-    width: 4,
-    height: 66,
-    borderRadius: 999,
-    background: "var(--border-strong)",
-  },
-
-  mapArea: {
-    flex: 1,
-    height: "100vh",
-    padding: 12,
-    minWidth: 0,
-  },
-};

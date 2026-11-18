@@ -100,7 +100,7 @@ const styles = {
 
   bar: {
     display: "flex",
-    flexWrap: "nowrap",
+    flexWrap: "wrap",
     justifyContent: "center",
     gap: 4,
     padding: 4,
@@ -112,9 +112,11 @@ const styles = {
 
   button: {
     border: "1px solid var(--border)",
-    borderRadius: 12,
+    borderRadius: "var(--radius-sm)",
     background: "var(--card)",
     color: "var(--text)",
+    minHeight: 40,
+    minWidth: 40,
     padding: "7px 10px",
     fontSize: 13,
     fontWeight: 700,
@@ -129,7 +131,7 @@ const styles = {
 
   hint: {
     padding: "6px 12px",
-    borderRadius: 12,
+    borderRadius: "var(--radius-sm)",
     background: "var(--overlay-strong)",
     border: "1px solid var(--border)",
     color: "var(--text-soft)",
