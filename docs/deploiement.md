@@ -27,7 +27,7 @@ l'étape 3, quand l'adresse du site Vercel existe.
 ## 2. Frontend sur Vercel
 
 1. Vercel → **Add New… → Project** → importer le dépôt.
-2. **Root Directory** : `runtodraw_frontend` (le reste est détecté : Vite, `npm run build`, dossier `dist`).
+2. **Root Directory** : `frontend` (le reste est détecté : Vite, `npm run build`, dossier `dist`).
 3. **Environment Variables** :
 
    | Nom | Valeur |

@@ -24,7 +24,7 @@ export const styles = {
     top: 0,
     zIndex: 20,
     paddingTop: 2,
-    background: "linear-gradient(180deg, var(--bg-elevated) 0%, var(--bg-elevated) 78%, transparent 100%)",
+    background: "var(--bg-elevated)",
   },
 
   logoZone: {
@@ -42,45 +42,12 @@ export const styles = {
     objectFit: "contain",
   },
 
-  heroCard: {
-    background: "var(--card)",
-    border: "1px solid var(--border)",
-    borderRadius: 28,
-    padding: 18,
-    boxShadow: "var(--shadow-soft)",
-    backdropFilter: "blur(18px)",
-  },
-
-  heroEyebrow: {
-    color: "var(--text-soft)",
-    fontSize: 12,
-    fontWeight: 700,
-    marginBottom: 8,
-    textTransform: "uppercase",
-    letterSpacing: 1.2,
-  },
-
-  heroTitle: {
-    margin: 0,
-    fontSize: 27,
-    lineHeight: 1.05,
-    letterSpacing: -0.7,
-  },
-
-  heroText: {
-    margin: "12px 0 0",
-    color: "var(--text-soft)",
-    fontSize: 14,
-    lineHeight: 1.58,
-  },
-
   card: {
     background: "var(--card)",
     border: "1px solid var(--border)",
-    borderRadius: 28,
+    borderRadius: "var(--radius)",
     padding: 18,
     boxShadow: "var(--shadow-soft)",
-    backdropFilter: "blur(18px)",
   },
 
   cardHeader: {
@@ -95,19 +62,33 @@ export const styles = {
     marginBottom: 14,
   },
 
-  cardLabel: {
-    color: "var(--text-soft)",
-    fontWeight: 700,
-    fontSize: 12,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: 4,
+  // En-tête d'une étape : pastille numérotée (c'est une vraie séquence) + titre.
+  stepHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  stepBadge: {
+    flexShrink: 0,
+    width: 26,
+    height: 26,
+    borderRadius: "50%",
+    background: "var(--text)",
+    color: "var(--bg-elevated)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 14,
+    fontWeight: 800,
   },
 
   cardTitle: {
+    fontFamily: "var(--font-display)",
+    fontStyle: "italic",
+    fontStretch: "112%",
     fontSize: 19,
     fontWeight: 800,
-    letterSpacing: -0.3,
   },
 
   inputHeaderRow: {
@@ -127,29 +108,28 @@ export const styles = {
 
   inlineStatus: {
     fontSize: 12,
-    color: "var(--accent-strong)",
+    color: "var(--accent-text)",
     whiteSpace: "nowrap",
     textAlign: "right",
   },
 
   locationButton: {
     width: "100%",
-    border: "none",
-    background: "var(--button-green)",
-    color: "white",
-    borderRadius: 20,
-    padding: "15px 18px",
+    border: "2px solid var(--text)",
+    background: "transparent",
+    color: "var(--text)",
+    borderRadius: "var(--radius)",
+    padding: "12px 18px",
     fontWeight: 800,
     cursor: "pointer",
-    boxShadow: "0 12px 24px rgba(52,199,89,0.26)",
   },
 
   input: {
     width: "100%",
-    borderRadius: 18,
-    border: "1px solid var(--input-border)",
+    borderRadius: "var(--radius-sm)",
+    border: "2px solid var(--input-border)",
     background: "var(--input)",
-    padding: "14px 16px",
+    padding: "12px 14px",
     color: "var(--text)",
     outline: "none",
   },
@@ -164,7 +144,7 @@ export const styles = {
   suggestItem: {
     width: "100%",
     textAlign: "left",
-    borderRadius: 18,
+    borderRadius: "var(--radius-sm)",
     border: "1px solid var(--border-subtle)",
     background: "var(--overlay)",
     color: "var(--text)",
@@ -177,8 +157,8 @@ export const styles = {
 
   worldPending: {
     marginTop: 10,
-    borderRadius: 18,
-    border: "1px dashed var(--accent-strong)",
+    borderRadius: "var(--radius-sm)",
+    border: "1px dashed var(--accent)",
     background: "var(--accent-soft)",
     padding: "12px 14px",
     display: "flex",
@@ -225,11 +205,11 @@ export const styles = {
     width: "30%",
     height: "100%",
     borderRadius: 999,
-    background: "var(--accent-strong)",
+    background: "var(--accent)",
   },
 
   suggestItemActive: {
-    borderColor: "var(--accent-strong)",
+    borderColor: "var(--accent)",
     background: "var(--accent-soft)",
   },
 
@@ -285,9 +265,13 @@ export const styles = {
     textAlign: "center",
     borderRadius: 999,
     background: "var(--chip)",
-    color: "var(--accent-strong)",
-    fontWeight: 800,
-    padding: "10px 12px",
+    color: "var(--accent-text)",
+    fontFamily: "var(--font-display)",
+    fontStyle: "italic",
+    fontStretch: "112%",
+    fontWeight: 900,
+    fontSize: 18,
+    padding: "8px 14px",
   },
 
   stepperRow: {
@@ -299,7 +283,7 @@ export const styles = {
 
   stepperButton: {
     height: 52,
-    borderRadius: 18,
+    borderRadius: "var(--radius-sm)",
     border: "1px solid var(--border)",
     background: "var(--overlay)",
     color: "var(--text)",
@@ -310,7 +294,7 @@ export const styles = {
   inputCenter: {
     height: 52,
     textAlign: "center",
-    borderRadius: 18,
+    borderRadius: "var(--radius-sm)",
     border: "1px solid var(--input-border)",
     background: "var(--input)",
     color: "var(--text)",
@@ -322,7 +306,7 @@ export const styles = {
   infoPill: {
     marginTop: 12,
     padding: "12px 14px",
-    borderRadius: 18,
+    borderRadius: "var(--radius-sm)",
     background: "var(--chip)",
     color: "var(--text)",
     fontSize: 13,
@@ -330,7 +314,7 @@ export const styles = {
 
   infoPillSoft: {
     padding: "12px 14px",
-    borderRadius: 18,
+    borderRadius: "var(--radius-sm)",
     background: "var(--overlay)",
     color: "var(--text-soft)",
     fontSize: 13,
@@ -349,7 +333,7 @@ export const styles = {
     border: "1px solid var(--border)",
     background: "var(--overlay)",
     color: "var(--text)",
-    borderRadius: 18,
+    borderRadius: "var(--radius-sm)",
     padding: "12px 14px",
     fontWeight: 800,
     cursor: "pointer",
@@ -357,50 +341,50 @@ export const styles = {
 
   modeTabActive: {
     border: "1px solid transparent",
-    background: "var(--button-blue)",
-    color: "white",
-    borderRadius: 18,
+    background: "var(--accent)",
+    color: "var(--on-accent)",
+    borderRadius: "var(--radius-sm)",
     padding: "12px 14px",
     fontWeight: 800,
     cursor: "pointer",
-    boxShadow: "0 12px 24px rgba(0,122,255,0.22)",
   },
 
   shapeGrid: {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 10,
+    gridTemplateColumns: "repeat(auto-fill, minmax(78px, 1fr))",
+    gap: 8,
   },
 
   shapeButton: {
     border: "1px solid var(--border)",
     background: "var(--overlay)",
     color: "var(--text)",
-    borderRadius: 20,
-    padding: "14px 12px",
+    borderRadius: "var(--radius)",
+    padding: "12px 6px 10px",
+    minHeight: 44,
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
     cursor: "pointer",
   },
 
   shapeButtonActive: {
-    border: "1px solid transparent",
-    background: "linear-gradient(135deg, var(--accent-strong), #6fb8ff)",
-    color: "white",
-    borderRadius: 20,
-    padding: "14px 12px",
+    border: "2px solid var(--accent)",
+    background: "var(--accent)",
+    color: "var(--on-accent)",
+    borderRadius: "var(--radius)",
+    padding: "12px 6px 10px",
+    minHeight: 44,
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
     cursor: "pointer",
-    boxShadow: "0 12px 24px rgba(0,122,255,0.22)",
   },
 
-  shapeEmoji: {
-    fontSize: 22,
+  shapeIcon: {
+    display: "flex",
   },
 
   shapeLabel: {
@@ -434,21 +418,15 @@ export const styles = {
 
   primaryButton: {
     width: "100%",
+    height: 56,
     border: "none",
-    background: "var(--button-blue)",
-    color: "white",
-    borderRadius: 20,
-    padding: "15px 18px",
-    fontWeight: 800,
-    boxShadow: "0 12px 24px rgba(0,122,255,0.22)",
+    background: "var(--accent)",
+    color: "var(--on-accent)",
+    borderRadius: "var(--radius)",
+    fontFamily: "var(--font-display)",
+    fontStyle: "italic",
+    fontStretch: "112%",
+    fontSize: 19,
+    fontWeight: 900,
   },
-
-
-
-
-
-
-
-
-
 };

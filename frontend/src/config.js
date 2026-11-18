@@ -17,13 +17,13 @@ export const LONG_DISTANCE_CONFIRM_KM = 30;
 export const INITIAL_DRAWING = { mode: "shape", shape: "heart", text: "P2I" };
 export const MAX_TEXT_LENGTH = 10;
 
-// Formes prédéfinies : identifiant (compris par le backend), libellé et emoji.
+// Formes prédéfinies : identifiant (compris par le backend) et libellé (pictogrammes : ShapeIcon).
 export const SHAPES = [
-  { id: "square", label: "Carré", emoji: "⬜" },
-  { id: "circle", label: "Rond", emoji: "⚪" },
-  { id: "heart", label: "Cœur", emoji: "💙" },
-  { id: "star", label: "Étoile", emoji: "⭐" },
-  { id: "infinity", label: "Infini", emoji: "♾️" },
+  { id: "square", label: "Carré" },
+  { id: "circle", label: "Rond" },
+  { id: "heart", label: "Cœur" },
+  { id: "star", label: "Étoile" },
+  { id: "infinity", label: "Infini" },
 ];
 
 // Largeur de la barre latérale, en pixels.
@@ -32,5 +32,6 @@ export const SIDEBAR_WIDTH = { min: 340, max: 720, default: 430 };
 // Clés de stockage local du navigateur.
 export const STORAGE_KEYS = {
   theme: "runtodraw-theme",
+  mapBackground: "runtodraw-map-background",
   sidebarWidth: "runtodraw-sidebar-width",
 };

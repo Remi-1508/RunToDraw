@@ -1,5 +1,7 @@
 import { useMemo } from "react";
 import { MAX_TEXT_LENGTH, SHAPES } from "../../config";
+import ShapeIcon from "./ShapeIcon";
+import StepHeader from "./StepHeader";
 import { styles } from "./styles";
 
 // Texte en majuscules sans accents : ce que le moteur dessinera réellement (seuls A-Z et 0-9 existent).
@@ -21,10 +23,7 @@ export default function DrawingStep({ drawing, setDrawing }) {
 
   return (
     <section style={styles.card}>
-      <div style={styles.cardHeaderSimple}>
-        <div style={styles.cardLabel}>Étape 3</div>
-        <div style={styles.cardTitle}>Forme ou texte</div>
-      </div>
+      <StepHeader step={3} title="Forme ou texte" />
 
       <div style={styles.modeTabs}>
         <button
@@ -56,7 +55,9 @@ export default function DrawingStep({ drawing, setDrawing }) {
                 style={active ? styles.shapeButtonActive : styles.shapeButton}
                 onClick={() => setDrawing((current) => ({ ...current, mode: "shape", shape: shape.id }))}
               >
-                <span style={styles.shapeEmoji}>{shape.emoji}</span>
+                <span style={styles.shapeIcon}>
+                  <ShapeIcon shape={shape.id} />
+                </span>
                 <span style={styles.shapeLabel}>{shape.label}</span>
               </button>
             );

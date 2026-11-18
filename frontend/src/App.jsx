@@ -4,6 +4,7 @@ import LoadingModal from "./components/feedback/LoadingModal";
 import Toast from "./components/feedback/Toast";
 import MapView from "./components/map/MapView";
 import Sidebar from "./components/sidebar/Sidebar";
+import { useMapBackground } from "./hooks/useMapBackground";
 import { useGeolocation } from "./hooks/useGeolocation";
 import { useRouteEditor } from "./hooks/useRouteEditor";
 import { useRouteExport } from "./hooks/useRouteExport";
@@ -17,6 +18,7 @@ import { useToast } from "./hooks/useToast";
 // et répartit l'écran en deux zones, les contrôles à gauche et la carte à droite.
 export default function App() {
   const { theme, toggleTheme } = useTheme();
+  const { neutralBackground, toggleNeutralBackground } = useMapBackground();
   const { sidebarWidth, startResize } = useSidebarResize();
   const { toast, showToast, hideToast } = useToast();
   const { maxDistanceKm } = useServerLimits();
@@ -131,10 +133,10 @@ export default function App() {
         <MapView
           theme={theme}
           onToggleTheme={toggleTheme}
+          neutralBackground={neutralBackground}
+          onToggleNeutralBackground={toggleNeutralBackground}
           center={center}
           radiusKm={radiusKm}
-          graphData={graphData}
-          routePlan={displayedPlan}
           selectedRoute={editor.route}
           editor={editor}
         />

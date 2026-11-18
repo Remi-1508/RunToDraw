@@ -1,0 +1,269 @@
+/* ───────────── Identité visuelle ─────────────
+   Orange Strava (#FC4C02) pour tout ce qui est "action" ou "tracé", gris froids pour le reste :
+   la forme dessinée reste ainsi la seule chose colorée de l'écran.
+   Deux jeux de variables : jour (par défaut) et nuit (data-theme="dark"). */
+:root {
+  --font-body: Figtree, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: Archivo, Figtree, system-ui, sans-serif;
+
+  --bg: #eef1f4;
+  --bg-elevated: #ffffff;
+  --card: #f4f6f8;
+  --card-muted: #f4f6f8;
+  --overlay: #ffffff;
+  --overlay-strong: #ffffff;
+  --text: #1b2430;
+  --text-soft: #556072;
+  --border: #dce1e7;
+  --border-subtle: #e6eaee;
+  --border-strong: #c3cad3;
+  --input: #ffffff;
+  --input-border: #cbd2da;
+
+  --accent: #fc4c02;
+  --accent-text: #c73a00; /* orange lisible en petit texte sur fond clair (contraste 5:1) */
+  --accent-soft: rgba(252, 76, 2, 0.1);
+  --on-accent: #1b2430; /* texte posé sur un aplat orange */
+  --chip: rgba(252, 76, 2, 0.1);
+
+  --success-soft: rgba(31, 143, 66, 0.12);
+  --success-strong: #1a7a39;
+  --switch-off: rgba(120, 128, 140, 0.32);
+
+  --map-neutral: #f1f3f5; /* fond de carte du mode "fond neutre" */
+  --route-casing: #ffffff; /* liseré du tracé */
+
+  --radius: 12px;
+  --radius-sm: 10px;
+  --shadow-soft: 0 1px 0 rgba(27, 36, 48, 0.06);
+  --shadow-strong: 0 2px 0 rgba(27, 36, 48, 0.08), 0 10px 26px rgba(27, 36, 48, 0.16);
+}
+
+:root[data-theme="dark"] {
+  --bg: #0c1015;
+  --bg-elevated: #171d26;
+  --card: #1f2733;
+  --card-muted: #1f2733;
+  --overlay: #252f3d;
+  --overlay-strong: #171d26;
+  --text: #f2f5f8;
+  --text-soft: #a3aebc;
+  --border: #2b3544;
+  --border-subtle: #252e3b;
+  --border-strong: #3b475a;
+  --input: #11161d;
+  --input-border: #3b475a;
+
+  --accent-text: #ff7a3d;
+  --accent-soft: rgba(252, 76, 2, 0.18);
+  --on-accent: #11161d;
+  --chip: rgba(252, 76, 2, 0.18);
+
+  --success-soft: rgba(99, 217, 133, 0.14);
+  --success-strong: #63d985;
+  --switch-off: rgba(120, 128, 140, 0.4);
+
+  --map-neutral: #11161d;
+  --route-casing: #11161d;
+
+  --shadow-soft: 0 1px 0 rgba(0, 0, 0, 0.4);
+  --shadow-strong: 0 2px 0 rgba(0, 0, 0, 0.5), 0 10px 26px rgba(0, 0, 0, 0.45);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body.app-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  transition: transform 140ms ease, opacity 140ms ease, background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+button:disabled {
+  transform: none;
+}
+
+input::placeholder {
+  color: var(--text-soft);
+}
+
+input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(127, 127, 127, 0.35);
+  border-radius: 999px;
+}
+
+.leaflet-container {
+  background: var(--bg);
+  font-family: var(--font-body);
+}
+
+/* Mode "fond neutre" : plus de tuiles, le tracé se détache sur un aplat. */
+.leaflet-container.map-neutral {
+  background: var(--map-neutral);
+}
+
+.leaflet-control-zoom a {
+  background: var(--overlay-strong) !important;
+  color: var(--text) !important;
+  border-bottom-color: var(--border) !important;
+}
+
+.leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.8) !important;
+  color: #4b5563 !important;
+}
+
+:root[data-theme="dark"] .leaflet-control-attribution {
+  background: rgba(17, 22, 29, 0.8) !important;
+  color: #c8d0dc !important;
+}
+
+@keyframes rtd-indeterminate {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(390%);
+  }
+}
+
+/* Tuiles OSM désaturées : la carte devient un fond gris, seul le tracé garde de la couleur.
+   Pas besoin d'un fournisseur de tuiles "gris" ou "dark" avec clé d'API, un filtre CSS suffit. */
+.tiles-light {
+  filter: grayscale(1) contrast(0.9) brightness(1.06);
+}
+
+.tiles-dark {
+  filter: invert(1) hue-rotate(180deg) grayscale(1) brightness(0.9) contrast(0.92);
+}
+
+/* Tracé : orange épais avec liseré (blanc le jour, sombre la nuit) pour qu'il se détache de n'importe quel fond.
+   Les couleurs passent par des classes car les variables CSS ne s'appliquent pas aux options Leaflet. */
+.rtd-route-casing {
+  stroke: var(--route-casing);
+}
+
+.rtd-route-line {
+  stroke: var(--accent);
+}
+
+.rtd-route-link {
+  stroke: var(--text-soft);
+}
+
+.rtd-zone {
+  stroke: var(--accent);
+  fill: var(--accent);
+}
+
+/* Titres et chiffres "sport" : Archivo italique large. */
+.rtd-display {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 800;
+  font-stretch: 112%;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Dossard du point de départ (marqueur Leaflet). */
+.rtd-bib {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+}
+
+.rtd-bib-plate {
+  min-width: 34px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #1b2430;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  font: italic 900 15px/1.2 var(--font-display);
+  font-stretch: 118%;
+  text-align: center;
+}
+
+.rtd-bib-pin {
+  width: 3px;
+  height: 14px;
+  background: #1b2430;
+}
+
+.rtd-bib-dot {
+  width: 14px;
+  height: 14px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: #1b2430;
+  border: 3px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+/* Barre d'attente de la recherche d'adresses à l'étranger (va-et-vient) */
+.rtd-search-progress {
+  animation: rtd-search-progress 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes rtd-search-progress {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(233%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rtd-search-progress {
+    animation: none;
+    width: 100% !important;
+    opacity: 0.5;
+  }
+}

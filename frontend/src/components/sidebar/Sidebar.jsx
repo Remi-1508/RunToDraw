@@ -39,17 +39,6 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* Carte d'introduction. */}
-      <section style={styles.heroCard}>
-        <div style={styles.heroEyebrow}>Run planner</div>
-        <h1 style={styles.heroTitle}>Prépare ton dessin de course</h1>
-        <p style={styles.heroText}>
-          Choisis une zone, une distance, puis une forme ou un texte. L’application extrait le
-          graphe, l’envoie au moteur Python et te propose ensuite les meilleurs itinéraires à
-          exporter.
-        </p>
-      </section>
-
       <LocationStep center={center} onUseMyLocation={onUseMyLocation} onPickSuggestion={onPickSuggestion} />
       <DistanceStep distanceKm={distanceKm} setDistanceKm={setDistanceKm} maxDistanceKm={maxDistanceKm} />
       <DrawingStep drawing={drawing} setDrawing={setDrawing} />

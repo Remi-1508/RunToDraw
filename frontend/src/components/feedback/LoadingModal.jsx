@@ -91,7 +91,6 @@ const styles = {
     position: "fixed",
     inset: 0,
     background: "rgba(0, 0, 0, 0.22)",
-    backdropFilter: "blur(10px)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -103,11 +102,10 @@ const styles = {
     maxWidth: "calc(100vw - 32px)",
     background: "var(--overlay-strong)",
     color: "var(--text)",
-    borderRadius: 28,
+    borderRadius: "var(--radius)",
     padding: 20,
     border: "1px solid var(--border)",
     boxShadow: "var(--shadow-strong)",
-    backdropFilter: "blur(20px)",
   },
 
   kicker: {
@@ -143,7 +141,7 @@ const styles = {
   // est connue.
   barInner: {
     height: "100%",
-    background: "linear-gradient(90deg, var(--accent-strong), #6fb8ff)",
+    background: "var(--accent)",
     borderRadius: 999,
     transition: "width 120ms linear",
   },

@@ -1,4 +1,6 @@
 import { useState } from "react";
+import StepHeader from "../sidebar/StepHeader";
+import RouteThumbnail from "./RouteThumbnail";
 
 // Cette petite fonction transforme une distance en mètres
 // en une chaîne lisible en kilomètres.
@@ -30,8 +32,7 @@ export default function RouteResultsPanel({
   if (!routePlan) {
     return (
       <section style={styles.cardMuted}>
-        <div style={styles.cardLabel}>Étape 5</div>
-        <div style={styles.cardTitle}>Choix de l’itinéraire</div>
+        <StepHeader step={5} title="Choix de l’itinéraire" />
         <div style={styles.helperText}>
           Lance une génération pour afficher ici les propositions d’itinéraires et les exports.
         </div>
@@ -54,7 +55,8 @@ export default function RouteResultsPanel({
         style={active ? styles.routeCardActive : styles.routeCard}
       >
         <div style={styles.routeHeader}>
-          <div>
+          <RouteThumbnail segments={route.segments} />
+          <div style={styles.routeInfo}>
             {/* Libellé principal du trajet, par exemple une forme ou un mode texte. */}
             <div style={styles.routeLabel}>{route.label}</div>
             {route.includes_start ? (
@@ -66,7 +68,7 @@ export default function RouteResultsPanel({
             <div style={styles.routeMeta}>{route.variant}</div>
           </div>
 
-          {/* Badge principal de distance affiché à droite. */}
+          {/* Distance affichée à droite, en grand. */}
           <div style={styles.distanceBadge}>{formatKm(route.total_distance_m)}</div>
         </div>
 
@@ -104,8 +106,7 @@ export default function RouteResultsPanel({
   return (
     <section style={styles.card}>
       {/* Présentation générale de l’étape de sélection d’itinéraire. */}
-      <div style={styles.cardLabel}>Étape 5</div>
-      <div style={styles.cardTitle}>Choisir un itinéraire</div>
+      <StepHeader step={5} title="Choisir un itinéraire" />
       <div style={styles.helperText}>{routePlan.summary}</div>
 
       {/*
@@ -146,8 +147,7 @@ export default function RouteResultsPanel({
          selon l’application cible.
       */}
       <div style={styles.exportZone}>
-        <div style={styles.cardLabel}>Étape 6</div>
-        <div style={styles.cardTitle}>Exporter pour une application GPS</div>
+        <StepHeader step={6} title="Exporter vers ton appli GPS" />
 
         {letterSegments ? (
           <div style={styles.exportHint}>
@@ -200,33 +200,17 @@ const styles = {
   card: {
     background: "var(--card)",
     border: "1px solid var(--border)",
-    borderRadius: 28,
+    borderRadius: "var(--radius)",
     padding: 18,
     boxShadow: "var(--shadow-soft)",
-    backdropFilter: "blur(18px)",
   },
 
   cardMuted: {
     background: "var(--card-muted)",
     border: "1px solid var(--border-subtle)",
-    borderRadius: 28,
+    borderRadius: "var(--radius)",
     padding: 18,
     boxShadow: "var(--shadow-soft)",
-  },
-
-  cardLabel: {
-    color: "var(--text-soft)",
-    fontWeight: 700,
-    fontSize: 12,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: 4,
-  },
-
-  cardTitle: {
-    fontSize: 19,
-    fontWeight: 800,
-    letterSpacing: -0.3,
   },
 
   helperText: {
@@ -248,7 +232,7 @@ const styles = {
     width: "100%",
     border: "1px solid var(--border-subtle)",
     background: "var(--overlay)",
-    borderRadius: 22,
+    borderRadius: "var(--radius)",
     padding: 14,
     color: "var(--text)",
     cursor: "pointer",
@@ -258,21 +242,24 @@ const styles = {
   // Style mis en avant pour l’itinéraire actuellement sélectionné.
   routeCardActive: {
     width: "100%",
-    border: "1px solid transparent",
-    background: "linear-gradient(135deg, rgba(10,132,255,0.14), rgba(111,184,255,0.18))",
-    borderRadius: 22,
+    border: "2px solid var(--accent)",
+    background: "var(--bg-elevated)",
+    borderRadius: "var(--radius)",
     padding: 14,
     color: "var(--text)",
     cursor: "pointer",
     textAlign: "left",
-    boxShadow: "0 12px 24px rgba(0,122,255,0.16)",
   },
 
   routeHeader: {
     display: "flex",
-    justifyContent: "space-between",
     gap: 12,
     alignItems: "center",
+  },
+
+  routeInfo: {
+    flex: 1,
+    minWidth: 0,
   },
 
   routeLabel: {
@@ -290,8 +277,12 @@ const styles = {
     borderRadius: 999,
     padding: "8px 10px",
     background: "var(--chip)",
-    color: "var(--accent-strong)",
-    fontWeight: 800,
+    color: "var(--accent-text)",
+    fontFamily: "var(--font-display)",
+    fontStyle: "italic",
+    fontStretch: "112%",
+    fontWeight: 900,
+    fontSize: 17,
     whiteSpace: "nowrap",
   },
 
@@ -326,7 +317,7 @@ const styles = {
     justifyContent: "space-between",
     gap: 8,
     padding: "10px 14px",
-    borderRadius: 14,
+    borderRadius: "var(--radius-sm)",
     border: "1px dashed var(--border-strong)",
     background: "transparent",
     color: "var(--text-soft)",
@@ -381,12 +372,11 @@ const styles = {
   exportButton: {
     width: "100%",
     border: "none",
-    background: "var(--button-blue)",
-    color: "white",
-    borderRadius: 18,
+    background: "var(--accent)",
+    color: "var(--on-accent)",
+    borderRadius: "var(--radius-sm)",
     padding: "14px 16px",
     fontWeight: 800,
     cursor: "pointer",
-    boxShadow: "0 12px 24px rgba(0,122,255,0.22)",
   },
 };

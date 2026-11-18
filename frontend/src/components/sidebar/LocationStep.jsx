@@ -1,5 +1,6 @@
 import { useAddressSearch } from "../../hooks/useAddressSearch";
 import CountryFlag from "./CountryFlag";
+import StepHeader from "./StepHeader";
 import { styles } from "./styles";
 
 // Étape 1 : point de départ (position actuelle ou recherche d'adresse avec suggestions).
@@ -8,12 +9,7 @@ export default function LocationStep({ center, onUseMyLocation, onPickSuggestion
 
   return (
     <section style={styles.card}>
-      <div style={styles.cardHeader}>
-        <div>
-          <div style={styles.cardLabel}>Étape 1</div>
-          <div style={styles.cardTitle}>Point de départ</div>
-        </div>
-      </div>
+      <StepHeader step={1} title="Point de départ" />
 
       <button style={styles.locationButton} onClick={onUseMyLocation}>
         Utiliser ma position actuelle

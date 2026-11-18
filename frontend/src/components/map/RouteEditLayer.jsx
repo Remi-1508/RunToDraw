@@ -13,7 +13,7 @@ import { Marker, Polyline, useMap } from "react-leaflet";
 //
 // Les liaisons entre lettres (kind « link ») ne se modifient pas : elles suivent leurs lettres.
 
-const PREVIEW_STYLE = { color: "#007aff", weight: 4, opacity: 0.9, dashArray: "4 8", interactive: false };
+const PREVIEW_STYLE = { color: "#fc4c02", weight: 4, opacity: 0.9, dashArray: "4 8", interactive: false };
 
 // Distance (au carré, dans un repère local approximatif) entre deux points [lat, lon]. Sert uniquement à
 // trouver le point du tracé le plus proche d'un clic : pas besoin d'une vraie distance géodésique.
@@ -43,7 +43,7 @@ function legAtPoint(segment, latlng) {
   return Math.min(leg, segment.anchors.length - 2);
 }
 
-// Icône d'un point d'ancrage (un rond ; plus grand et rouge quand il est sélectionné).
+// Icône d'un point d'ancrage (un rond blanc cerclé d'orange ; plus grand et sombre quand il est sélectionné).
 // Les icônes sont créées une seule fois et réutilisées : si le composant en fabriquait une nouvelle à chaque
 // rendu, Leaflet reconstruirait l'élément du marqueur en plein glissement et le déplacement s'interromprait.
 const ICONS = {};
@@ -51,8 +51,8 @@ function anchorIcon(selected, isEnd) {
   const key = selected ? "selected" : isEnd ? "end" : "normal";
   if (!ICONS[key]) {
     const size = selected ? 20 : isEnd ? 16 : 14;
-    const fill = selected ? "#ff3b30" : isEnd ? "#007aff" : "#ffffff";
-    const border = selected ? "#ffffff" : isEnd ? "#ffffff" : "#007aff";
+    const fill = selected ? "#1b2430" : isEnd ? "#fc4c02" : "#ffffff";
+    const border = selected ? "#fc4c02" : isEnd ? "#ffffff" : "#fc4c02";
     ICONS[key] = L.divIcon({
       className: "",
       iconSize: [size, size],

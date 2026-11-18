@@ -57,11 +57,10 @@ const styles = {
     color: "var(--text)",
     border: "1px solid var(--border)",
     borderLeftWidth: 4,
-    borderRadius: 22,
+    borderRadius: "var(--radius)",
     padding: 14,
     zIndex: 10000,
     boxShadow: "var(--shadow-strong)",
-    backdropFilter: "blur(16px)",
     whiteSpace: "pre-line",
   },
 

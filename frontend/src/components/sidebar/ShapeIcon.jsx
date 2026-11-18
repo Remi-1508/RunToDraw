@@ -1,0 +1,27 @@
+// Pictogrammes des formes prédéfinies (traits fins, couleur héritée du texte du bouton).
+// Remplacent les emojis, dont le rendu change d'un système à l'autre.
+const PATHS = {
+  square: <rect x="5" y="5" width="14" height="14" rx="1.5" />,
+  circle: <circle cx="12" cy="12" r="7.5" />,
+  heart: <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.4A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" />,
+  star: <path d="M12 4l2.4 5 5.4.7-4 3.8 1 5.4-4.8-2.7-4.8 2.7 1-5.4-4-3.8 5.4-.7z" />,
+  infinity: <path d="M12 12c-1.6-2.4-3.2-3.5-5-3.5a3.5 3.5 0 0 0 0 7c1.8 0 3.4-1.1 5-3.5zm0 0c1.6 2.4 3.2 3.5 5 3.5a3.5 3.5 0 0 0 0-7c-1.8 0-3.4 1.1-5 3.5z" />,
+};
+
+export default function ShapeIcon({ shape, size = 24 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {PATHS[shape] ?? PATHS.circle}
+    </svg>
+  );
+}

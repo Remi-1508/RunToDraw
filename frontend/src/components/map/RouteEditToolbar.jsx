@@ -87,10 +87,9 @@ const styles = {
     gap: 4,
     padding: 4,
     border: "1px solid var(--border)",
-    borderRadius: 18,
+    borderRadius: "var(--radius-sm)",
     background: "var(--overlay-strong)",
     boxShadow: "var(--shadow-soft)",
-    backdropFilter: "blur(16px)",
   },
 
   button: {
@@ -105,9 +104,9 @@ const styles = {
   },
 
   buttonActive: {
-    background: "var(--accent-strong)",
-    color: "#fff",
-    borderColor: "var(--accent-strong)",
+    background: "var(--accent)",
+    color: "var(--on-accent)",
+    borderColor: "var(--accent)",
   },
 
   hint: {
@@ -118,6 +117,5 @@ const styles = {
     color: "var(--text-soft)",
     fontSize: 12,
     textAlign: "center",
-    backdropFilter: "blur(16px)",
   },
 };

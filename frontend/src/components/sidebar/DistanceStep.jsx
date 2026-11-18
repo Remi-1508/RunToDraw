@@ -1,4 +1,5 @@
 import { MIN_DISTANCE_KM } from "../../config";
+import StepHeader from "./StepHeader";
 import { styles } from "./styles";
 
 // Étape 2 : distance à parcourir, bornée entre le minimum et le maximum accepté par le serveur.
@@ -7,13 +8,9 @@ export default function DistanceStep({ distanceKm, setDistanceKm, maxDistanceKm 
 
   return (
     <section style={styles.card}>
-      <div style={styles.cardHeader}>
-        <div>
-          <div style={styles.cardLabel}>Étape 2</div>
-          <div style={styles.cardTitle}>Distance à parcourir</div>
-        </div>
+      <StepHeader step={2} title="Distance à parcourir">
         <div style={styles.distanceBadge}>{distanceKm} km</div>
-      </div>
+      </StepHeader>
 
       <div style={styles.stepperRow}>
         <button style={styles.stepperButton} onClick={() => setDistanceKm(clamp(distanceKm - 1))}>

@@ -147,7 +147,7 @@ python -m pytest tests
 
 ## Terminal/Onglet frontend
 
-cd RunToDraw/runtodraw_frontend
+cd RunToDraw/frontend
 
 npm install
 

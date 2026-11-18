@@ -1,10 +1,11 @@
+import StepHeader from "./StepHeader";
 import { styles } from "./styles";
 
 // Étape 4 : lancement de la génération des itinéraires.
 export default function GenerateStep({ canGenerate, onGenerateRoutes }) {
   return (
     <section style={styles.card}>
-      <div style={styles.cardLabel}>Étape 4</div>
+      <StepHeader step={4} title="Lancer le calcul" />
 
       <div style={styles.actionsColumn}>
         <button
@@ -16,7 +17,7 @@ export default function GenerateStep({ canGenerate, onGenerateRoutes }) {
           disabled={!canGenerate}
           onClick={onGenerateRoutes}
         >
-          Générer les propositions d’itinéraires
+          Générer le parcours
         </button>
 
         <div style={styles.infoPillSoft}>
