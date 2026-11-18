@@ -322,30 +322,40 @@ export const styles = {
     border: "1px solid var(--border-subtle)",
   },
 
+  // Choix du mode (Forme / Texte / Dessin) : contrôle segmenté, volontairement différent des boutons de formes
+  // qui le suivent. Piste en retrait, onglet actif plein et sombre (l'orange est réservé aux choix de formes et aux actions).
   modeTabs: {
     display: "grid",
     gridTemplateColumns: "repeat(3, 1fr)",
-    gap: 10,
-    marginBottom: 12,
+    gap: 4,
+    padding: 4,
+    marginBottom: 16,
+    borderRadius: "var(--radius)",
+    background: "var(--bg)",
+    border: "1px solid var(--border)",
   },
 
   modeTab: {
-    border: "1px solid var(--border)",
-    background: "var(--overlay)",
-    color: "var(--text)",
+    minHeight: 44,
+    border: "none",
+    background: "transparent",
+    color: "var(--text-soft)",
     borderRadius: "var(--radius-sm)",
-    padding: "12px 14px",
+    padding: "0 12px",
     fontWeight: 800,
+    fontSize: 15,
     cursor: "pointer",
   },
 
   modeTabActive: {
-    border: "1px solid transparent",
-    background: "var(--accent)",
-    color: "var(--on-accent)",
+    minHeight: 44,
+    border: "none",
+    background: "var(--text)",
+    color: "var(--bg-elevated)",
     borderRadius: "var(--radius-sm)",
-    padding: "12px 14px",
+    padding: "0 12px",
     fontWeight: 800,
+    fontSize: 15,
     cursor: "pointer",
   },
 

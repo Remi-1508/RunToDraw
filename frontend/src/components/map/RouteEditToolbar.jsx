@@ -1,3 +1,19 @@
+// Icônes en traits (même famille que le reste de l'interface, à la place des emojis).
+function Icon({ children }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {children}
+    </svg>
+  );
+}
+
+const PENCIL = <path d="M4 20l1-4L16.5 4.5a2 2 0 0 1 3 3L8 19zM14.5 6.5l3 3" />;
+const CHECK = <path d="M5 12.5l4.5 4.5L19 7.5" />;
+const UNDO = <path d="M9 8L5 12l4 4M5 12h9a5 5 0 0 1 0 8" />;
+const REDO = <path d="M15 8l4 4-4 4M19 12h-9a5 5 0 0 0 0 8" />;
+const TRASH = <path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" />;
+const RESET = <path d="M4 12a8 8 0 1 0 2.6-5.9M4 4v4h4" />;
+
 // Barre d'outils d'édition, posée en bas de la carte : active le mode « Modifier » puis donne accès à
 // annuler / rétablir, à la suppression du point sélectionné et au retour au tracé d'origine.
 export default function RouteEditToolbar({
@@ -20,20 +36,21 @@ export default function RouteEditToolbar({
         <button
           type="button"
           onClick={onToggleEditMode}
-          style={{ ...styles.button, ...(editMode ? styles.buttonActive : null) }}
+          style={editMode ? styles.mainButtonDone : styles.mainButton}
           aria-pressed={editMode}
           title="Déplacer, ajouter ou supprimer des points du tracé"
         >
-          ✏️ {editMode ? "Terminer" : "Modifier le tracé"}
+          <Icon>{editMode ? CHECK : PENCIL}</Icon>
+          {editMode ? "Terminer" : "Modifier le tracé"}
         </button>
 
         {editMode && (
           <>
             <button type="button" onClick={onUndo} disabled={!canUndo || pending} style={styles.button} title="Annuler (Ctrl+Z)" aria-label="Annuler">
-              ↶
+              <Icon>{UNDO}</Icon>
             </button>
             <button type="button" onClick={onRedo} disabled={!canRedo || pending} style={styles.button} title="Rétablir (Ctrl+Y)" aria-label="Rétablir">
-              ↷
+              <Icon>{REDO}</Icon>
             </button>
             <button
               type="button"
@@ -43,10 +60,11 @@ export default function RouteEditToolbar({
               title="Supprimer le point sélectionné (Suppr)"
               aria-label="Supprimer le point sélectionné"
             >
-              🗑
+              <Icon>{TRASH}</Icon>
             </button>
             <button type="button" onClick={onReset} disabled={!canReset || pending} style={styles.button} title="Revenir au tracé généré">
-              ⟲ Origine
+              <Icon>{RESET}</Icon>
+              Origine
             </button>
           </>
         )}

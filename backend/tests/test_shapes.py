@@ -46,8 +46,17 @@ def test_custom_drawing_is_flipped_centered_and_closed():
     pts = np.array(prepare_custom_shape(raw))
     assert np.allclose(pts[0], pts[-1])                       # presque refermé -> refermé
     apex = pts[np.argmax(pts[:, 1])]
-    assert apex[0] == pytest.approx(0.0, abs=1.0) and apex[1] > 0   # le sommet est en haut sur la carte (y vers le haut)
+    assert apex[0] == pytest.approx(0.0, abs=0.02) and apex[1] > 0   # le sommet est en haut sur la carte (y vers le haut)
     assert pts.min(axis=0)[0] == pytest.approx(-pts.max(axis=0)[0], abs=1e-9)  # centré
+
+
+@pytest.mark.parametrize("scale", [1.0, 0.01, 300.0])
+def test_custom_drawing_is_normalized_whatever_its_pixel_size(scale):
+    """Régression : un dessin en pixels (centaines d'unités) était traité comme un contour 200 fois trop long,
+    et tracé minuscule. Quelle que soit l'échelle, la plus grande dimension doit valoir 1."""
+    raw = (np.array([[0, 0], [200, 10], [220, 150], [100, 190], [10, 120], [0, 0]]) * scale).tolist()
+    pts = np.array(prepare_custom_shape(raw))
+    assert max(np.ptp(pts[:, 0]), np.ptp(pts[:, 1])) == pytest.approx(1.0)
 
 
 def test_custom_drawing_is_simplified():
@@ -89,6 +98,19 @@ def test_custom_shape_goes_through_the_whole_engine():
     plan = plan_from_graph(graph, 4.0, {"mode": "custom", "points": pts})
     assert plan["routes"], "au moins une proposition"
     assert "Mon dessin" in plan["summary"] or plan["routes"][0]["label"] == "Mon dessin"
+
+
+def test_custom_drawing_in_pixels_gets_the_requested_distance():
+    """Régression : un dessin de 300 px de large donnait un parcours de 0,7 km au lieu de la distance demandée."""
+    from runtodraw.planner import plan_from_graph
+    from runtodraw.road_graph import RoadGraph
+    from tests.test_road_graph import random_road_graph
+
+    raw = [[40, 160], [150, 150], [250, 170], [260, 230], [150, 250], [60, 240], [30, 200], [40, 160]]
+    graph = RoadGraph(random_road_graph(7, n_side=45, step=70.0, oneway_ratio=0.0))
+    plan = plan_from_graph(graph, 4.0, {"mode": "custom", "points": prepare_custom_shape(raw)})
+    best = min(plan["routes"], key=lambda r: abs(r["total_distance_m"] - 4000.0))
+    assert 2800 < best["total_distance_m"] < 5200
 
 
 @pytest.mark.parametrize("name", NEW_SHAPES)

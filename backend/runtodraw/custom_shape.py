@@ -49,7 +49,7 @@ def simplify_rdp(points, epsilon):
 
 
 def prepare_custom_shape(raw_points):
-    """Points bruts du canvas -> forme nettoyée (liste de [x, y], y vers le haut, centrée sur son milieu).
+    """Points bruts du canvas -> forme nettoyée (liste de [x, y], y vers le haut, centrée, dans une boîte de côté 1).
 
     Étapes : validation, retournement de l'axe y, suppression des doublons, simplification, fermeture si le
     tracé revient près de son point de départ. Lève ValueError (message affichable) si le dessin est inutilisable.
@@ -84,5 +84,9 @@ def prepare_custom_shape(raw_points):
             eps *= 1.5
             pts = simplify_rdp(pts, eps)
 
+    # Centré ET ramené à une boîte de côté 1, comme toutes les formes de base : le moteur en déduit la taille
+    # à tracer à partir de la longueur du contour (distance / longueur). Avec des coordonnées en pixels, la forme
+    # aurait été jugée 200 fois trop longue et dessinée minuscule (quelques dizaines de mètres).
     center = 0.5 * (pts.min(axis=0) + pts.max(axis=0))
-    return (pts - center).tolist()
+    pts = (pts - center) / max(float(np.ptp(pts[:, 0])), float(np.ptp(pts[:, 1])))
+    return pts.tolist()
