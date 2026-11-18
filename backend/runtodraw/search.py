@@ -6,6 +6,7 @@ from runtodraw.geometry import fit_points, fold_angle, is_closed, point_at_fract
 from runtodraw.road_graph import dominant_graph_angle
 from runtodraw.routing import route_from_target
 from runtodraw.scoring import score_solution
+from runtodraw.validation import SHAPES
 
 
 # Construit plusieurs tailles candidates autour de la taille nominale demandée.
@@ -15,7 +16,7 @@ def estimate_size_candidates(base_points, desired_distance_m, shape_name):
 
     if shape_name == "text":
         factors = [0.45, 0.60, 0.75, 0.90, 1.05]
-    elif shape_name in {"heart", "star", "infinity", "circle", "square"}:
+    elif shape_name == "custom" or shape_name in SHAPES:
         factors = [0.65, 0.80, 0.95, 1.10]
     else:
         factors = [0.75, 0.90, 1.00, 1.10]
@@ -82,13 +83,31 @@ ORIENTATION_RULES = {
     "heart":    (360.0, 10.0),
     "star":     (72.0, 8.0),
     "infinity": (180.0, 10.0),
+    "triangle": (120.0, 10.0),
+    "diamond":  (180.0, 10.0),
+    "cross":    (90.0, 10.0),
+    "custom":   (360.0, 15.0),     # dessin libre : aucune symétrie connue, pas plus gros pour limiter le calcul
 }
 TEXT_MAX_TILT_DEG = 15.0
+
+# Formes qui ont un « haut » reconnaissable (maison, éclair, goutte, croissant) : comme le texte, on ne les
+# incline que de quelques degrés autour de l'horizontale (écart maximal, en degrés). Une maison à l'envers
+# ne ressemble plus à rien. Les autres formes, dont la flèche, restent testées dans toutes les orientations.
+MAX_TILT_DEG = {"house": 25.0, "lightning": 25.0, "drop": 25.0, "crescent": 40.0}
+TILT_STEP_DEG = 12.5
+
+
+def tilt_angles(max_tilt_deg):
+    count = int(round(2 * max_tilt_deg / TILT_STEP_DEG)) + 1
+    return [float(a) for a in np.linspace(-max_tilt_deg, max_tilt_deg, count)]
 
 
 def search_angles(graph, shape_name):
     if shape_name == "text":
         return [float(a) for a in np.linspace(-TEXT_MAX_TILT_DEG, TEXT_MAX_TILT_DEG, 5)]
+
+    if shape_name in MAX_TILT_DEG:
+        return tilt_angles(MAX_TILT_DEG[shape_name])
 
     period, step = ORIENTATION_RULES.get(shape_name, (360.0, 10.0))
     street = fold_angle(dominant_graph_angle(graph), period)
@@ -195,8 +214,8 @@ START_MIN_ANGLE_STEP = 30.0  # pas angulaire minimal (l'ancrage multiplie déjà
 
 def start_angles(graph, shape_name):
     period, step = ORIENTATION_RULES.get(shape_name, (360.0, 10.0))
-    if shape_name == "text":
-        return search_angles(graph, "text")
+    if shape_name == "text" or shape_name in MAX_TILT_DEG:
+        return search_angles(graph, shape_name)
     if shape_name == "circle":
         return [fold_angle(dominant_graph_angle(graph), period)]
     step = max(step, START_MIN_ANGLE_STEP)

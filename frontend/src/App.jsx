@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { DEFAULT_DISTANCE_KM, INITIAL_DRAWING, LONG_DISTANCE_CONFIRM_KM } from "./config";
+import { DEFAULT_DISTANCE_KM, INITIAL_DRAWING, LONG_DISTANCE_CONFIRM_KM, MIN_DRAW_POINTS } from "./config";
 import LoadingModal from "./components/feedback/LoadingModal";
 import Toast from "./components/feedback/Toast";
 import MapView from "./components/map/MapView";
@@ -85,6 +85,9 @@ export default function App() {
 
   const waiting = Boolean(planning.busy) || locating;
 
+  // Un dessin libre doit contenir assez de points pour être exploitable ; les autres modes sont toujours prêts.
+  const drawingIsReady = drawing.mode !== "custom" || (drawing.points?.length ?? 0) >= MIN_DRAW_POINTS;
+
   return (
     <div style={styles.page}>
       {/* Fenêtre d'attente : génération en cours ou recherche de la position. */}
@@ -109,7 +112,7 @@ export default function App() {
           onUseMyLocation={locate}
           onPickSuggestion={chooseCenter}
           onGenerateRoutes={handleGenerate}
-          canGenerate={Boolean(center) && !planning.busy}
+          canGenerate={Boolean(center) && drawingIsReady && !planning.busy}
           routePlan={displayedPlan}
           selectedRouteId={planning.selectedRouteId}
           onSelectRoute={planning.setSelectedRouteId}

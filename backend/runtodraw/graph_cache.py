@@ -37,7 +37,7 @@ def extraction_radius_m(distance_km, drawing):
     distance_m = distance_km * 1000.0
     if not drawing:
         return distance_m / 2.0
-    if drawing.get("mode", "shape") == "text":
+    if drawing.get("mode", "shape") in ("text", "custom"):
         return required_radius_m(drawing, distance_m)
     return max(required_radius_m({"mode": "shape", "shape": name}, distance_m) for name in SHAPES)
 

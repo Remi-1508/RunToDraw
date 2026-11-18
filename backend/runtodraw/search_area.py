@@ -46,8 +46,8 @@ def required_radius_m(drawing, distance_m):
         ):
             extent = max(extent, _shape_extent_m(letter_base, letter_centers, letter_sizes))
     else:
-        shape_name = drawing.get("shape", "heart")
-        base = get_base_shape(shape_name, text)
+        shape_name = "custom" if mode == "custom" else drawing.get("shape", "heart")
+        base = get_base_shape(shape_name, text, drawing.get("points"))
         centers, sizes = shape_layout(base, distance_m, shape_name, use_translation=True)
         extent = max(_shape_extent_m(base, centers, sizes), _anchored_extent_m(base, sizes))
 

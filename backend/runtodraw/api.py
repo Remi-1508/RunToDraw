@@ -13,6 +13,7 @@ from runtodraw.graph_cache import NoRoadsFoundError, cache_key, extraction_radiu
 from runtodraw.planner import plan_from_graph, route_points_xy_to_latlon
 from runtodraw.route_editing import EditError, edit_route, path_length_m
 from runtodraw.protection import ComputeSlots, RateLimiter, RateLimitExceeded, ServerBusy, client_ip
+from runtodraw.custom_shape import MAX_RAW_POINTS, prepare_custom_shape
 from runtodraw.validation import SHAPES, normalize_text
 
 # Les messages des modules RunToDraw (téléchargements Overpass, cache…) apparaissent dans les journaux de l'hébergeur.
@@ -41,9 +42,12 @@ compute_slots = ComputeSlots(settings.max_concurrent_plans, settings.queue_timeo
 
 # Modèles de requête : ils définissent et valident les données acceptées par l'API.
 class Drawing(BaseModel):
-    mode: Literal["shape", "text"] = "shape"
+    mode: Literal["shape", "text", "custom"] = "shape"
     shape: Literal[SHAPES] = "heart"
     text: str = "P2I"
+    # Dessin libre (mode "custom") : points [x, y] du tracé, dans le repère d'un canvas (y vers le bas).
+    # Après validation, ce champ contient la forme nettoyée (simplifiée, y vers le haut) utilisée par le moteur.
+    points: Optional[List[List[float]]] = Field(default=None, max_length=MAX_RAW_POINTS)
 
     @field_validator("text")
     @classmethod
@@ -52,6 +56,19 @@ class Drawing(BaseModel):
             return normalize_text(value)
         except ValueError as e:
             raise ValueError(str(e))
+
+
+    @model_validator(mode="after")
+    def _prepare_points(self):
+        if self.mode == "custom":
+            if not self.points:
+                raise ValueError("Le dessin est vide : trace une forme avant de générer.")
+            if any(len(point) != 2 for point in self.points):
+                raise ValueError("Le dessin n'est pas lisible.")
+            self.points = prepare_custom_shape(self.points)
+        else:
+            self.points = None   # les points n'ont de sens que pour le dessin libre
+        return self
 
 
 class GraphFetchRequest(BaseModel):

@@ -3,7 +3,10 @@ import unicodedata
 
 from runtodraw.glyphs import GLYPHS
 
-SHAPES = ("square", "circle", "heart", "star", "infinity")
+SHAPES = (
+    "square", "circle", "heart", "star", "infinity",
+    "triangle", "diamond", "cross", "arrow", "house", "lightning", "crescent", "drop",
+)
 MAX_TEXT_LENGTH = 10
 
 

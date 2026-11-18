@@ -45,6 +45,15 @@ SHAPE_LABELS = {
     "circle": "Rond",
     "star": "Étoile",
     "infinity": "Infini",
+    "triangle": "Triangle",
+    "diamond": "Losange",
+    "cross": "Croix",
+    "arrow": "Flèche",
+    "house": "Maison",
+    "lightning": "Éclair",
+    "crescent": "Croissant",
+    "drop": "Goutte",
+    "custom": "Mon dessin",
 }
 
 METHODS = [
@@ -129,8 +138,9 @@ def dedupe_routes(routes):
 
 
 def build_shape_routes(graph, drawing, distance_m, tolerance_ratio):
-    shape = drawing.get("shape", "heart")
-    base_points = get_base_shape(shape, drawing.get("text", "P2I"))
+    # Dessin libre : la forme est celle tracée par l'utilisateur (voir custom_shape.py) ; sinon une forme prédéfinie.
+    shape = "custom" if drawing.get("mode") == "custom" else drawing.get("shape", "heart")
+    base_points = get_base_shape(shape, drawing.get("text", "P2I"), drawing.get("points"))
     label = SHAPE_LABELS.get(shape, shape.capitalize())
     return method_routes(graph, base_points, distance_m, tolerance_ratio, shape, label, "shape")
 
@@ -228,7 +238,7 @@ def plan_from_graph(graph, distance_km, drawing, tolerance_ratio=0.10) -> Dict[s
         summary = f"{len(routes)} proposition(s) pour le texte {(drawing.get('text') or 'P2I').upper()}."
     else:
         routes = dedupe_routes(build_shape_routes(graph, drawing, distance_m, tolerance_ratio))
-        shape = drawing.get("shape", "heart")
+        shape = "custom" if mode == "custom" else drawing.get("shape", "heart")
         summary = f"{len(routes)} proposition(s) pour la forme {SHAPE_LABELS.get(shape, shape)}."
 
     return {

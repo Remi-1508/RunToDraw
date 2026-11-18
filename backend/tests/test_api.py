@@ -154,3 +154,31 @@ def test_edit_has_its_own_rate_limit(edit_graph, monkeypatch):
     api.edit_rate_limiter._hits.clear()
     assert client.post("/api/routes/edit", json=_edit_body(edit_graph)).status_code == 200
     assert client.post("/api/routes/edit", json=_edit_body(edit_graph)).status_code == 429
+
+
+SQUARE_POINTS = [[0, 0], [100, 0], [100, 100], [0, 100], [2, 3]]
+
+
+def test_custom_drawing_is_accepted_and_cleaned(fake_graph):
+    body = {**BODY, "drawing": {"mode": "custom", "points": SQUARE_POINTS}}
+    assert client.post("/api/routes/plan", json=body).status_code == 200
+    drawing = api.GraphFetchRequest(**body).drawing
+    assert drawing.points[0] == drawing.points[-1]        # presque refermé : le serveur ferme la forme
+
+
+@pytest.mark.parametrize("drawing", [
+    {"mode": "custom"},                                              # pas de points
+    {"mode": "custom", "points": []},
+    {"mode": "custom", "points": [[1, 2]]},                         # un seul point
+    {"mode": "custom", "points": [[1, 2, 3], [4, 5, 6], [7, 8, 9]]},  # mauvaise forme
+    {"mode": "custom", "points": [[0, i] for i in range(2001)]},     # trop de points
+    {"mode": "custom", "points": [[0, 0], [1e12, 5], [3, 4]]},      # coordonnées absurdes
+])
+def test_invalid_custom_drawings_are_rejected(fake_graph, drawing):
+    assert client.post("/api/routes/plan", json={**BODY, "drawing": drawing}).status_code == 422
+
+
+def test_points_are_ignored_outside_custom_mode(fake_graph):
+    body = {**BODY, "drawing": {"mode": "shape", "shape": "heart", "points": [[1, 2]]}}
+    assert api.GraphFetchRequest(**body).drawing.points is None
+    assert client.post("/api/routes/plan", json=body).status_code == 200

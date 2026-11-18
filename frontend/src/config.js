@@ -14,7 +14,7 @@ export const FALLBACK_MAX_DISTANCE_KM = 50;
 export const LONG_DISTANCE_CONFIRM_KM = 30;
 
 // Dessin choisi au chargement : un cœur (le texte par défaut sert quand on passe en mode texte).
-export const INITIAL_DRAWING = { mode: "shape", shape: "heart", text: "P2I" };
+export const INITIAL_DRAWING = { mode: "shape", shape: "heart", text: "P2I", points: [] };
 export const MAX_TEXT_LENGTH = 10;
 
 // Formes prédéfinies : identifiant (compris par le backend) et libellé (pictogrammes : ShapeIcon).
@@ -24,7 +24,21 @@ export const SHAPES = [
   { id: "heart", label: "Cœur" },
   { id: "star", label: "Étoile" },
   { id: "infinity", label: "Infini" },
+  { id: "triangle", label: "Triangle" },
+  { id: "diamond", label: "Losange" },
+  { id: "cross", label: "Croix" },
+  { id: "arrow", label: "Flèche" },
+  { id: "house", label: "Maison" },
+  { id: "lightning", label: "Éclair" },
+  { id: "crescent", label: "Croissant" },
+  { id: "drop", label: "Goutte" },
 ];
+
+// Dessin libre : taille logique de la zone de dessin (le serveur ne s'en sert que pour les proportions),
+// nombre maximal de points envoyés (le serveur en accepte 2000) et nombre minimal pour générer.
+export const DRAW_AREA_SIZE = 300;
+export const MAX_DRAW_POINTS = 1500;
+export const MIN_DRAW_POINTS = 8;
 
 // Largeur de la barre latérale, en pixels.
 export const SIDEBAR_WIDTH = { min: 340, max: 720, default: 430 };

@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { MAX_TEXT_LENGTH, SHAPES } from "../../config";
+import DrawingCanvas from "./DrawingCanvas";
 import ShapeIcon from "./ShapeIcon";
 import StepHeader from "./StepHeader";
 import { styles } from "./styles";
@@ -23,7 +24,7 @@ export default function DrawingStep({ drawing, setDrawing }) {
 
   return (
     <section style={styles.card}>
-      <StepHeader step={3} title="Forme ou texte" />
+      <StepHeader step={3} title="Forme, texte ou dessin" />
 
       <div style={styles.modeTabs}>
         <button
@@ -40,6 +41,14 @@ export default function DrawingStep({ drawing, setDrawing }) {
           onClick={() => setDrawing((current) => ({ ...current, mode: "text" }))}
         >
           Texte
+        </button>
+
+        <button
+          type="button"
+          style={drawing.mode === "custom" ? styles.modeTabActive : styles.modeTab}
+          onClick={() => setDrawing((current) => ({ ...current, mode: "custom" }))}
+        >
+          Dessin
         </button>
       </div>
 
@@ -63,6 +72,11 @@ export default function DrawingStep({ drawing, setDrawing }) {
             );
           })}
         </div>
+      ) : drawing.mode === "custom" ? (
+        <DrawingCanvas
+          points={drawing.points}
+          onChange={(points) => setDrawing((current) => ({ ...current, mode: "custom", points }))}
+        />
       ) : (
         <div style={styles.textBlock}>
           <input

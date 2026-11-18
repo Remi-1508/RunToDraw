@@ -46,6 +46,21 @@ Exemples disponibles :
 - Cœur
 - Étoile
 - Infini
+- Triangle, losange, croix, flèche, maison, éclair, croissant, goutte
+
+Les formes anguleuses (carré, triangle, croix, maison…) se dessinent particulièrement bien sur des rues en
+quadrillage. Les formes qui ont un « haut » (maison, éclair, goutte, croissant) ne sont inclinées que de quelques
+degrés, pour rester reconnaissables ; la flèche peut pointer dans toutes les directions.
+
+## Mode dessin
+
+L’utilisateur trace lui-même une forme **d’un seul trait** dans l’application (souris, doigt ou stylet).
+Le serveur nettoie le tracé (simplification de Douglas-Peucker, fermeture automatique si le trait revient près
+de son départ), puis le traite comme n’importe quelle forme. Les dessins simples, avec peu de détails, donnent
+les meilleurs résultats : un trait très découpé ne peut pas suivre fidèlement les vraies rues.
+
+Côté API : `drawing = {"mode": "custom", "points": [[x, y], …]}` avec les points dans le repère d’un canvas
+(y vers le bas), 2 000 points au maximum.
 
 ## Mode texte
 

@@ -324,7 +324,7 @@ export const styles = {
 
   modeTabs: {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr",
+    gridTemplateColumns: "repeat(3, 1fr)",
     gap: 10,
     marginBottom: 12,
   },
@@ -389,6 +389,43 @@ export const styles = {
 
   shapeLabel: {
     fontWeight: 800,
+  },
+
+  drawBlock: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+
+  drawArea: {
+    width: "100%",
+    aspectRatio: "1 / 1",
+    display: "block",
+    borderRadius: "var(--radius)",
+    border: "2px solid var(--input-border)",
+    background: "var(--map-neutral)",
+    cursor: "crosshair",
+    touchAction: "none", // sans cela, le doigt fait défiler la page au lieu de dessiner
+    userSelect: "none",
+  },
+
+  drawFooter: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+
+  drawClear: {
+    flexShrink: 0,
+    minHeight: 44,
+    padding: "0 16px",
+    border: "2px solid var(--text)",
+    borderRadius: "var(--radius-sm)",
+    background: "transparent",
+    color: "var(--text)",
+    fontWeight: 800,
+    cursor: "pointer",
   },
 
   textBlock: {
