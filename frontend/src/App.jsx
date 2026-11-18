@@ -142,6 +142,7 @@ export default function App() {
           radiusKm={radiusKm}
           selectedRoute={editor.route}
           editor={editor}
+          onPickCenter={chooseCenter}
         />
       </main>
 

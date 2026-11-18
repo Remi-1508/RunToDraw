@@ -241,3 +241,6 @@ a:focus-visible {
     opacity: 0.5;
   }
 }
+
+/* Carte cliquable pour choisir le point de départ. */
+.leaflet-container.map-pickable { cursor: crosshair; }

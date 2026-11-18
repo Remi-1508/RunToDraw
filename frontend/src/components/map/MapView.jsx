@@ -1,5 +1,5 @@
 import L from "leaflet";
-import { Circle, MapContainer, Marker, Polyline, TileLayer, useMap } from "react-leaflet";
+import { Circle, MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import { DEFAULT_CENTER } from "../../config";
 import { boundsFromCenterRadiusKm } from "../../utils/geo";
@@ -112,6 +112,21 @@ function NeutralBackground({ neutral }) {
   return null;
 }
 
+// Un clic sur la carte choisit le point de départ. Désactivé pendant l'édition du tracé, où les clics
+// servent à manipuler les points ; le curseur en croix indique que la carte est cliquable.
+function PickCenter({ onPick, enabled }) {
+  const map = useMap();
+  useMapEvents({
+    click(event) {
+      if (enabled && onPick) onPick([event.latlng.lat, event.latlng.lng]);
+    },
+  });
+  useEffect(() => {
+    map.getContainer().classList.toggle("map-pickable", Boolean(enabled && onPick));
+  }, [map, enabled, onPick]);
+  return null;
+}
+
 // Marqueur de départ : un simple point cerclé de blanc. Il ne porte volontairement aucune étiquette,
 // car une pastille de texte posée sur la carte masquait une partie du dessin (le nom s'affiche au survol).
 // L'icône est créée une seule fois (voir RouteEditLayer : en recréer une à chaque rendu ferait
@@ -184,6 +199,7 @@ export default function MapView({
   radiusKm,
   selectedRoute,
   editor,
+  onPickCenter,
 }) {
   // Un centre par défaut est utilisé avant que l’utilisateur choisisse
   // une vraie localisation.
@@ -215,6 +231,7 @@ export default function MapView({
     <div style={styles.shell}>
       <MapContainer center={safeCenter} zoom={13} style={styles.map}>
         <NeutralBackground neutral={neutral} />
+        <PickCenter onPick={onPickCenter} enabled={!editor?.editMode} />
 
         {/* key={theme} force Leaflet à recréer la couche quand le thème change (className n'est pas mis à jour sinon).
             En fond neutre, aucune tuile n'est chargée. */}
@@ -241,6 +258,8 @@ export default function MapView({
         )}
 
 
+        {/* Avant la génération, le point choisi est repéré par le même point que le départ du tracé. */}
+        {center && !selectedRoute && <Marker position={center} icon={START_ICON} title="Départ" interactive={false} />}
         <PlannedRouteOverlay selectedRoute={selectedRoute} />
         {editor?.editMode && selectedRoute && (
           <RouteEditLayer
