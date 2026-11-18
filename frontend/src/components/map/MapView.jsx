@@ -112,8 +112,8 @@ function NeutralBackground({ neutral }) {
   return null;
 }
 
-// Un clic sur la carte choisit le point de départ. Désactivé pendant l'édition du tracé, où les clics
-// servent à manipuler les points ; le curseur en croix indique que la carte est cliquable.
+// Un clic sur la carte fixe le point de départ, uniquement quand l'utilisateur a choisi « Choisir un point
+// sur la carte » dans la barre latérale ; le curseur en croix indique que la carte attend ce clic.
 function PickCenter({ onPick, enabled }) {
   const map = useMap();
   useMapEvents({
@@ -199,6 +199,7 @@ export default function MapView({
   radiusKm,
   selectedRoute,
   editor,
+  pickingOnMap,
   onPickCenter,
 }) {
   // Un centre par défaut est utilisé avant que l’utilisateur choisisse
@@ -231,7 +232,7 @@ export default function MapView({
     <div style={styles.shell}>
       <MapContainer center={safeCenter} zoom={13} style={styles.map}>
         <NeutralBackground neutral={neutral} />
-        <PickCenter onPick={onPickCenter} enabled={!editor?.editMode} />
+        <PickCenter onPick={onPickCenter} enabled={pickingOnMap} />
 
         {/* key={theme} force Leaflet à recréer la couche quand le thème change (className n'est pas mis à jour sinon).
             En fond neutre, aucune tuile n'est chargée. */}

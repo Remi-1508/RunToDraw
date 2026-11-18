@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { DEFAULT_DISTANCE_KM, INITIAL_DRAWING, LONG_DISTANCE_CONFIRM_KM, MIN_DRAW_POINTS } from "./config";
 import LoadingModal from "./components/feedback/LoadingModal";
 import Toast from "./components/feedback/Toast";
@@ -27,6 +27,8 @@ export default function App() {
   const [center, setCenter] = useState(null);
   const [requestedDistanceKm, setDistanceKm] = useState(DEFAULT_DISTANCE_KM);
   const [drawing, setDrawing] = useState(INITIAL_DRAWING);
+  // Mode « Choisir un point sur la carte » : le prochain clic sur la carte fixe le départ.
+  const [pickingOnMap, setPickingOnMap] = useState(false);
 
   const planning = useRoutePlanning({ showToast });
   // Édition manuelle du tracé sur la carte : `editor.route` est l'itinéraire choisi, avec ses modifications.
@@ -55,6 +57,20 @@ export default function App() {
     },
     [resetPlanning]
   );
+  // Le choix sur la carte se termine dès qu'un point est posé ; Échap l'annule.
+  const pickOnMap = useCallback(
+    (latlng) => {
+      chooseCenter(latlng);
+      setPickingOnMap(false);
+    },
+    [chooseCenter]
+  );
+  useEffect(() => {
+    if (!pickingOnMap) return undefined;
+    const onKeyDown = (event) => event.key === "Escape" && setPickingOnMap(false);
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [pickingOnMap]);
   const showError = useCallback((message) => showToast(message, "error"), [showToast]);
   const { locating, locate } = useGeolocation({ onPosition: chooseCenter, onError: showError });
 
@@ -111,6 +127,8 @@ export default function App() {
           setDrawing={setDrawing}
           onUseMyLocation={locate}
           onPickSuggestion={chooseCenter}
+          pickingOnMap={pickingOnMap}
+          onTogglePickOnMap={() => setPickingOnMap((on) => !on)}
           onGenerateRoutes={handleGenerate}
           canGenerate={Boolean(center) && drawingIsReady && !planning.busy}
           routePlan={displayedPlan}
@@ -142,7 +160,8 @@ export default function App() {
           radiusKm={radiusKm}
           selectedRoute={editor.route}
           editor={editor}
-          onPickCenter={chooseCenter}
+          pickingOnMap={pickingOnMap}
+          onPickCenter={pickOnMap}
         />
       </main>
 

@@ -3,8 +3,8 @@ import CountryFlag from "./CountryFlag";
 import StepHeader from "./StepHeader";
 import { styles } from "./styles";
 
-// Étape 1 : point de départ (position actuelle ou recherche d'adresse avec suggestions).
-export default function LocationStep({ center, onUseMyLocation, onPickSuggestion }) {
+// Étape 1 : point de départ (position actuelle, recherche d'adresse avec suggestions, ou clic sur la carte).
+export default function LocationStep({ center, onUseMyLocation, onPickSuggestion, pickingOnMap, onTogglePickOnMap }) {
   const search = useAddressSearch({ center, onPick: onPickSuggestion });
 
   return (
@@ -13,6 +13,15 @@ export default function LocationStep({ center, onUseMyLocation, onPickSuggestion
 
       <button style={styles.locationButton} onClick={onUseMyLocation}>
         Utiliser ma position actuelle
+      </button>
+
+      <button
+        type="button"
+        style={pickingOnMap ? { ...styles.locationButton, ...styles.locationButtonActive } : styles.locationButton}
+        onClick={onTogglePickOnMap}
+        aria-pressed={pickingOnMap}
+      >
+        {pickingOnMap ? "Clique sur la carte… (annuler)" : "Choisir un point sur la carte"}
       </button>
 
       <div style={styles.inputHeaderRow}>

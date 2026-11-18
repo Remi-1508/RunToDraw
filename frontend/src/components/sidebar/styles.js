@@ -124,6 +124,12 @@ export const styles = {
     cursor: "pointer",
   },
 
+  locationButtonActive: {
+    borderColor: "var(--accent)",
+    background: "var(--accent)",
+    color: "var(--on-accent)",
+  },
+
   input: {
     width: "100%",
     borderRadius: "var(--radius-sm)",

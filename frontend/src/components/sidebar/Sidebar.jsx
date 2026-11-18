@@ -21,6 +21,8 @@ export default function Sidebar({
   setDrawing,
   onUseMyLocation,
   onPickSuggestion,
+  pickingOnMap,
+  onTogglePickOnMap,
   onGenerateRoutes,
   canGenerate,
   routePlan,
@@ -39,7 +41,13 @@ export default function Sidebar({
         </div>
       </div>
 
-      <LocationStep center={center} onUseMyLocation={onUseMyLocation} onPickSuggestion={onPickSuggestion} />
+      <LocationStep
+        center={center}
+        onUseMyLocation={onUseMyLocation}
+        onPickSuggestion={onPickSuggestion}
+        pickingOnMap={pickingOnMap}
+        onTogglePickOnMap={onTogglePickOnMap}
+      />
       <DistanceStep distanceKm={distanceKm} setDistanceKm={setDistanceKm} maxDistanceKm={maxDistanceKm} />
       <DrawingStep drawing={drawing} setDrawing={setDrawing} />
       <GenerateStep canGenerate={canGenerate} onGenerateRoutes={onGenerateRoutes} />
