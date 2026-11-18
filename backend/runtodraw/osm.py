@@ -5,9 +5,7 @@ import time
 import requests
 
 
-# EN: Several Overpass servers are listed here because one server can be slow,
-# unavailable, or reject a request. We try them one after another if needed.
-# FR: On garde plusieurs serveurs Overpass ici car un serveur peut être lent,
+# On garde plusieurs serveurs Overpass ici car un serveur peut être lent,
 # indisponible, ou refuser une requête. On les teste donc les uns après les autres si besoin.
 # Liste issue de https://wiki.openstreetmap.org/wiki/Overpass_API (instances publiques gratuites).
 # overpass-api.de est souvent saturé ; overpass.openstreetmap.ru n'est plus listé.
@@ -20,9 +18,7 @@ OVERPASS_ENDPOINTS = [
 ]
 
 
-# EN: This function computes the distance in meters between two GPS points.
-# It is used when converting raw OpenStreetMap road segments into weighted graph edges.
-# FR: Cette fonction calcule la distance en mètres entre deux points GPS.
+# Cette fonction calcule la distance en mètres entre deux points GPS.
 # Elle est utilisée quand on transforme les segments bruts d’OpenStreetMap en arêtes pondérées du graphe.
 def haversine_meters(lat1, lon1, lat2, lon2):
     r = 6371000.0
@@ -36,12 +32,7 @@ def haversine_meters(lat1, lon1, lat2, lon2):
     return 2 * r * math.asin(math.sqrt(a))
 
 
-# EN: This builds the Overpass query used to extract the road network around the user's point.
-# We ask for the square (bounding box) that contains the useful circle: on Overpass, a bbox filter
-# is about twice as fast as an "around" (circle) filter, even though it returns ~20 % more roads
-# (measured in Bordeaux, 6 km radius: 46 s instead of 93 s).
-# We also filter out roads that are not useful here, such as motorways or private roads.
-# FR: Cette fonction construit la requête Overpass qui extrait le réseau routier autour du point choisi.
+# Cette fonction construit la requête Overpass qui extrait le réseau routier autour du point choisi.
 # On demande le carré (bbox) qui contient le cercle utile : sur Overpass, un filtre bbox est environ
 # deux fois plus rapide qu'un filtre "around" (cercle), même s'il renvoie ~20 % de routes en plus
 # (mesuré à Bordeaux, rayon 6 km : 46 s au lieu de 93 s).
@@ -64,10 +55,7 @@ out skel qt;
 """.strip()
 
 
-# EN: This sends one request to one Overpass endpoint.
-# We use a GET request here because it was more stable in our tests than a direct POST.
-# If the server answers with an error, we raise an exception with a short preview.
-# FR: Cette fonction envoie une requête à un serveur Overpass donné.
+# Cette fonction envoie une requête à un serveur Overpass donné.
 # On utilise ici une requête GET car elle s’est montrée plus stable dans nos tests qu’un POST direct.
 # Si le serveur renvoie une erreur, on lève une exception avec un petit aperçu de la réponse.
 def post_overpass(endpoint, query):
@@ -88,10 +76,7 @@ def post_overpass(endpoint, query):
     return res.json()
 
 
-# EN: This helper retries the Overpass request on several mirrors.
-# It makes the extraction step more robust, because Overpass servers can be unstable.
-# We keep the last error to report something meaningful if all attempts fail.
-# FR: Cette fonction réessaie la requête Overpass sur plusieurs miroirs.
+# Cette fonction réessaie la requête Overpass sur plusieurs miroirs.
 # Cela rend l’extraction plus robuste, car les serveurs Overpass peuvent être instables.
 # On conserve la dernière erreur pour renvoyer un message utile si toutes les tentatives échouent.
 def fetch_overpass_with_fallback(query, max_tries=len(OVERPASS_ENDPOINTS)):
@@ -110,10 +95,7 @@ def fetch_overpass_with_fallback(query, max_tries=len(OVERPASS_ENDPOINTS)):
     raise last_err or RuntimeError("Overpass failed")
 
 
-# EN: This converts the raw Overpass response into the graph format expected by the route planner.
-# Nodes are road points with latitude/longitude, and edges are road segments with a length in meters.
-# For one-way streets, we only keep the allowed direction.
-# FR: Cette fonction transforme la réponse brute d’Overpass en un format de graphe
+# Cette fonction transforme la réponse brute d’Overpass en un format de graphe
 # attendu par le planificateur d’itinéraires. Les nœuds sont des points routiers avec latitude/longitude,
 # et les arêtes sont des segments de route avec une longueur en mètres.
 # Sens uniques : l'appli trace des parcours de course à pied. Le tag "oneway" ne concerne que

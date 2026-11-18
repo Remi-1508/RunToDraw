@@ -13,14 +13,6 @@ class NoRoadsFoundError(Exception):
     """Aucune route exploitable autour du point demandé."""
 
 
-# EN:
-# Server-side graph cache.
-# The road graph stays on the server: the browser no longer downloads it and sends it back
-# (several tens of MB of JSON each way). A small LRU cache keeps the last graphs, keyed by
-# (center, radius), so a second generation in the same area skips Overpass entirely.
-# Only the compact RoadGraph is kept (the raw JSON dicts are released) to limit memory use.
-#
-# FR:
 # Cache des graphes côté serveur.
 # Le graphe routier reste sur le serveur : le navigateur ne le télécharge plus pour le renvoyer
 # ensuite (plusieurs dizaines de Mo de JSON dans chaque sens). Un petit cache LRU garde les derniers
@@ -34,9 +26,7 @@ _graph_cache_lock = Lock()
 SHAPES = ("square", "circle", "heart", "star", "infinity")
 
 
-# EN: Radius to download. In shape mode we take the largest radius over all shapes, so that
-# trying another shape at the same place and distance reuses the cached graph (≈ +15 % area).
-# FR: Rayon à télécharger. En mode forme, on prend le plus grand rayon parmi toutes les formes :
+# Rayon à télécharger. En mode forme, on prend le plus grand rayon parmi toutes les formes :
 # essayer une autre forme au même endroit et à la même distance réutilise le graphe en cache (≈ +15 % de surface).
 def extraction_radius_m(distance_km, drawing):
     distance_m = distance_km * 1000.0

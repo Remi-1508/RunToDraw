@@ -10,17 +10,6 @@ from scipy.spatial import cKDTree
 import numpy as np
 
 
-# EN:
-# This class rebuilds the road graph from the exported JSON format.
-# Performance-oriented layout:
-# - nodes are re-indexed 0..N-1 and stored in a NumPy array (local x/y in meters),
-# - a KD-tree finds the nearest node in O(log N) instead of scanning all nodes,
-# - adjacency is stored in CSR form (flat arrays) for a fast A* search,
-# - strongly connected components tell instantly when a node cannot be reached,
-#   instead of exploring the whole graph to find out.
-# The public methods keep working with OpenStreetMap node IDs, as before.
-#
-# FR:
 # Cette classe reconstruit le graphe routier à partir du format JSON exporté.
 # Organisation pensée pour la performance :
 # - les nœuds sont réindexés 0..N-1 et rangés dans un tableau NumPy (x/y locaux en mètres),
@@ -65,9 +54,7 @@ class RoadGraph:
         w = np.asarray(w, dtype=float)
         n = len(self.node_ids)
 
-        # EN: CSR layout. A stable sort by source keeps each node's neighbours in insertion order,
-        # so ties are explored in the same order as the previous adjacency list.
-        # FR: Format CSR. Un tri stable par source conserve l'ordre d'insertion des voisins de chaque nœud,
+        # Format CSR. Un tri stable par source conserve l'ordre d'insertion des voisins de chaque nœud,
         # donc les égalités sont explorées dans le même ordre qu'avec l'ancienne liste d'adjacence.
         order = np.argsort(src, kind="stable")
         self._arc_src, self._arc_dst, self._arc_w = src, dst, w  # ordre d'insertion d'origine
@@ -81,9 +68,7 @@ class RoadGraph:
         self._xs = xs.tolist()
         self._ys = ys.tolist()
 
-        # EN: A* heuristic = straight-line distance in the local plane, scaled by k so that it never
-        # exceeds the real edge length (haversine). This keeps A* exact (same optimal cost as Dijkstra).
-        # FR: Heuristique A* = distance à vol d'oiseau dans le plan local, multipliée par k pour qu'elle
+        # Heuristique A* = distance à vol d'oiseau dans le plan local, multipliée par k pour qu'elle
         # ne dépasse jamais la vraie longueur d'arête (haversine). A* reste ainsi exact (même coût optimal que Dijkstra).
         if len(w):
             planar = np.hypot(xs[dst] - xs[src], ys[dst] - ys[src])
@@ -93,8 +78,7 @@ class RoadGraph:
         else:
             self._h_scale = 0.0
 
-        # EN: Strongly connected components + their condensation (a DAG) give exact reachability.
-        # FR: Composantes fortement connexes + leur graphe condensé (acyclique) donnent l'accessibilité exacte.
+        # Composantes fortement connexes + leur graphe condensé (acyclique) donnent l'accessibilité exacte.
         adj_matrix = csr_matrix((np.ones(len(src), dtype=np.int8), (src, dst)), shape=(n, n))
         _, self._scc = connected_components(adj_matrix, directed=True, connection="strong")
         cs, cd = self._scc[src], self._scc[dst]
@@ -106,11 +90,7 @@ class RoadGraph:
         )
         self._reach_cache = {}
 
-        # EN: Snapping only targets the largest strongly connected component (the main road network).
-        # Small isolated pieces (parking aisles, private bits cut by the extraction) can never be
-        # reached from the rest: snapping onto them used to create jumps in the route.
-        # The KD-tree is built once per graph, then queried for every sampled point of every candidate.
-        # FR: L'accroche ne vise que la plus grande composante fortement connexe (le réseau principal).
+        # L'accroche ne vise que la plus grande composante fortement connexe (le réseau principal).
         # Les petits morceaux isolés (allées de parking, bouts coupés par l'extraction) ne sont jamais
         # accessibles depuis le reste : s'y accrocher créait des sauts dans le trajet.
         # Le KD-tree est construit une fois par graphe, puis interrogé pour chaque point de chaque candidat.
@@ -130,28 +110,24 @@ class RoadGraph:
         self._sp_cache = {}
         self._dominant_angle = None
 
-    # EN: ID -> x/y dictionary, built only if someone asks for it (plots).
-    # FR: Dictionnaire identifiant -> x/y, construit seulement si on en a besoin (tracés).
+    # Dictionnaire identifiant -> x/y, construit seulement si on en a besoin (tracés).
     @property
     def node_xy(self):
         if self._node_xy_dict is None:
             self._node_xy_dict = {nid: self.node_array[i] for i, nid in enumerate(self.node_ids)}
         return self._node_xy_dict
 
-    # EN: Finds the nearest node of the main road network to a target point (KD-tree query).
-    # FR: Trouve le nœud du réseau principal le plus proche d'un point cible (requête KD-tree).
+    # Trouve le nœud du réseau principal le plus proche d'un point cible (requête KD-tree).
     def nearest_node(self, point):
         d, k = self._kdtree.query(np.asarray(point, dtype=float))
         return self.node_ids[int(self._snap_idx[int(k)])], float(d)
 
-    # EN: Vectorized version: all the points of a shape in a single call. Returns node indices.
-    # FR: Version vectorisée : tous les points d'une forme en un seul appel. Renvoie des indices de nœuds.
+    # Version vectorisée : tous les points d'une forme en un seul appel. Renvoie des indices de nœuds.
     def nearest_indices(self, points):
         d, k = self._kdtree.query(np.asarray(points, dtype=float))
         return self._snap_idx[np.asarray(k, dtype=np.int64)], np.asarray(d, dtype=float)
 
-    # EN: True if `goal` can be reached from `start` (one BFS per source component, cached).
-    # FR: Vrai si `goal` est accessible depuis `start` (un parcours par composante source, mis en cache).
+    # Vrai si `goal` est accessible depuis `start` (un parcours par composante source, mis en cache).
     def _reachable(self, s, g):
         cs, cg = int(self._scc[s]), int(self._scc[g])
         if cs == cg:
@@ -164,8 +140,7 @@ class RoadGraph:
             self._reach_cache[cs] = reach
         return bool(reach[cg])
 
-    # EN: Exact A* shortest path between two node indices. Returns (index path, cost).
-    # FR: Plus court chemin A* exact entre deux indices de nœuds. Renvoie (chemin d'indices, coût).
+    # Plus court chemin A* exact entre deux indices de nœuds. Renvoie (chemin d'indices, coût).
     def shortest_path_idx(self, s, g):
         if s == g:
             return [s], 0.0
@@ -211,16 +186,14 @@ class RoadGraph:
         self._sp_cache[key] = out
         return out
 
-    # EN: Same as before: shortest path between two OSM node IDs.
-    # FR: Comme avant : plus court chemin entre deux identifiants de nœuds OSM.
+    # Comme avant : plus court chemin entre deux identifiants de nœuds OSM.
     def shortest_path(self, start, goal):
         path, cost = self.shortest_path_idx(self._idx_of[start], self._idx_of[goal])
         if path is None:
             return None, cost
         return [self.node_ids[i] for i in path], cost
 
-    # EN: Converts a node path (OSM IDs) into x/y points.
-    # FR: Convertit un chemin de nœuds (identifiants OSM) en points x/y.
+    # Convertit un chemin de nœuds (identifiants OSM) en points x/y.
     def path_to_points(self, node_path):
         return self.node_array[[self._idx_of[nid] for nid in node_path]]
 
@@ -232,16 +205,10 @@ def graph_center(graph):
     ], dtype=float)
 
 
-# EN: Estimates the dominant direction of the road network.
-# This is useful to align shapes with the general street orientation.
-# FR: Estime la direction dominante du réseau routier.
+# Estime la direction dominante du réseau routier.
 # Cela permet d’aligner les formes avec l’orientation générale des rues.
 def dominant_graph_angle(graph):
-    # EN: Main orientation of the streets: histogram of segment directions (folded to [-90, 90]),
-    # weighted by segment length, over the whole graph. Before, only the first 2000 segments in
-    # file order were used, so the result depended on how OSM happened to order its data.
-    # Computed once per graph and cached.
-    # FR: Orientation principale des rues : histogramme des directions des segments (ramenées dans
+    # Orientation principale des rues : histogramme des directions des segments (ramenées dans
     # [-90, 90]), pondéré par leur longueur, sur tout le graphe. Avant, seuls les 2000 premiers segments
     # dans l'ordre du fichier étaient utilisés : le résultat dépendait de l'ordre des données OSM.
     # Calculé une fois par graphe puis mis en cache.

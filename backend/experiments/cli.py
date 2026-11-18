@@ -52,12 +52,6 @@ def print_split_summary(split_results):
         )
 
 
-# EN:
-# Main experiment function.
-# It loads a graph from JSON, runs either a shape search or a text search,
-# plots the results, and prints a summary.
-#
-# FR:
 # Fonction principale d’expérimentation.
 # Elle charge un graphe depuis un JSON, lance soit une recherche de forme,
 # soit une recherche de texte, affiche les résultats, puis imprime un résumé.
@@ -98,9 +92,7 @@ def run_experiment(json_path, shape_name="heart", text="P2I", distance_m=None, t
     return results
 
 
-# EN: Command-line entry point.
-# This makes the file usable as a standalone experiment script.
-# FR: Point d’entrée en ligne de commande.
+# Point d’entrée en ligne de commande.
 # Cela permet d’utiliser ce fichier comme script d’expérimentation autonome.
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

@@ -9,9 +9,7 @@ from runtodraw.shapes import get_base_shape
 from runtodraw.text_routes import link_letter_routes, split_text_itineraries_full_distance
 
 
-# EN: A candidate route is first computed in local coordinates.
-# This function converts the whole polyline back to GPS points.
-# FR: Un trajet candidat est d’abord calculé en coordonnées locales.
+# Un trajet candidat est d’abord calculé en coordonnées locales.
 # Cette fonction reconvertit toute la polyligne en points GPS.
 def route_points_xy_to_latlon(graph, route_points):
     out = []
@@ -21,16 +19,12 @@ def route_points_xy_to_latlon(graph, route_points):
     return out
 
 
-# EN: This formats one route segment in the structure expected by the frontend.
-# It keeps a label, the GPS points, and the measured distance.
-# FR: Cette fonction met en forme un segment d’itinéraire dans la structure attendue
+# Cette fonction met en forme un segment d’itinéraire dans la structure attendue
 # par le frontend. On garde un label, les points GPS et la distance mesurée.
 def build_segment_from_candidate(graph, candidate, label):
     metrics = candidate.get("metrics", {})
 
-    # EN: We send the full path, node by node, so that the drawn route and the GPX export follow
-    # the streets exactly. (The simplified polyline is only used internally for scoring.)
-    # FR: On envoie le chemin complet, nœud par nœud, pour que le tracé affiché et l'export GPX
+    # On envoie le chemin complet, nœud par nœud, pour que le tracé affiché et l'export GPX
     # suivent exactement les rues. (La polyligne simplifiée ne sert qu'en interne, pour l'évaluation.)
     node_path = candidate.get("node_path")
     if node_path:
@@ -77,9 +71,7 @@ def route_metrics(metrics):
     }
 
 
-# EN: Runs the three search methods on one drawing (shape or whole word) and formats every
-# (method, variant) result as a route proposal.
-# FR: Lance les trois méthodes de recherche sur un dessin (forme ou mot entier) et met en forme
+# Lance les trois méthodes de recherche sur un dessin (forme ou mot entier) et met en forme
 # chaque résultat (méthode, variante) comme une proposition d'itinéraire.
 def method_routes(graph, base_points, distance_m, tolerance_ratio, shape_name, label, kind):
     results = {
@@ -104,10 +96,7 @@ def method_routes(graph, base_points, distance_m, tolerance_ratio, shape_name, l
     return routes
 
 
-# EN: Removes duplicate proposals. The same route is often found by several methods or variants
-# (e.g. the best translation is the centered one, so it equals the projection). Identical routes
-# (same nodes, in the same order) are merged and their labels are combined.
-# FR: Supprime les propositions en double. Le même trajet est souvent trouvé par plusieurs méthodes ou
+# Supprime les propositions en double. Le même trajet est souvent trouvé par plusieurs méthodes ou
 # variantes (ex. la meilleure translation est la position centrée : elle égale la projection). Les trajets
 # identiques (mêmes nœuds, dans le même ordre) sont fusionnés et leurs libellés regroupés.
 def merged_variant_label(tags):
@@ -148,14 +137,7 @@ def build_shape_routes(graph, drawing, distance_m, tolerance_ratio):
     return method_routes(graph, base_points, distance_m, tolerance_ratio, shape, label, "shape")
 
 
-# EN: Text mode, three ways to draw a word of n letters for a distance D
-# (returned in the order 2), 3), 1): "whole word" comes last, flagged `secondary`,
-# and the interface shows it in an "other proposals" section):
-# 1) "Whole word": one route of about D km drawing the whole word (three search methods);
-# 2) "Separate letters": n routes of about D km each, one per letter (n GPX files);
-# 3) "Linked letters": one route of about n x D km that draws the letters of 2) one after the other,
-#    joined by the shortest paths, each letter run in the direction that keeps the links shortest.
-# FR: Mode texte, trois façons de dessiner un mot de n lettres pour une distance D
+# Mode texte, trois façons de dessiner un mot de n lettres pour une distance D
 # (renvoyées dans l'ordre 2), 3), 1) : « mot entier » vient en dernier, marqué `secondary`,
 # et l'interface le range dans une section « autres propositions ») :
 # 1) « Mot entier » : un itinéraire d'environ D km qui dessine tout le mot (trois méthodes de recherche) ;
@@ -232,9 +214,7 @@ def build_text_routes(graph, drawing, distance_m, tolerance_ratio):
     return routes + word_routes
 
 
-# EN: Main entry point: computes all route proposals on an already built RoadGraph.
-# It converts the requested distance, then sends the request either to shape mode or text mode.
-# FR: Point d'entrée principal : calcule toutes les propositions sur un RoadGraph déjà construit.
+# Point d'entrée principal : calcule toutes les propositions sur un RoadGraph déjà construit.
 # Il convertit la distance demandée, puis envoie la demande vers le mode forme ou le mode texte.
 def plan_from_graph(graph, distance_km, drawing, tolerance_ratio=0.10) -> Dict[str, Any]:
     drawing = drawing or {}
@@ -257,9 +237,7 @@ def plan_from_graph(graph, distance_km, drawing, tolerance_ratio=0.10) -> Dict[s
     }
 
 
-# EN: Former entry point, still used when the whole graph is sent in the request
-# (and by the experiment scripts). It validates the payload and rebuilds the graph.
-# FR: Ancien point d'entrée, toujours utilisé quand le graphe complet est envoyé dans la requête
+# Ancien point d'entrée, toujours utilisé quand le graphe complet est envoyé dans la requête
 # (et par les scripts d'expérimentation). Il vérifie le contenu reçu et reconstruit le graphe.
 def plan_from_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     graph_payload = payload.get("graph_payload")

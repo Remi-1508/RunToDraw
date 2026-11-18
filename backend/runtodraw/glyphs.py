@@ -52,9 +52,7 @@ GLYPHS = {
 }
 
 
-# EN: Builds one single polyline for the whole word.
-# This is used when the text is treated as one global shape.
-# FR: Construit une seule polyligne pour le mot complet.
+# Construit une seule polyligne pour le mot complet.
 # C’est utilisé quand le texte est traité comme une forme globale.
 def simple_text_polyline(text):
     text = (text or "P2I").upper()
@@ -84,8 +82,7 @@ def simple_text_polyline(text):
     return normalize_points(np.asarray(parts, dtype=float))
 
 
-# EN: Returns one normalized polyline for one single letter.
-# FR: Renvoie une polyligne normalisée pour une seule lettre.
+# Renvoie une polyligne normalisée pour une seule lettre.
 def single_letter_polyline(ch):
     glyph = GLYPHS.get(ch.upper())
     if glyph is None:

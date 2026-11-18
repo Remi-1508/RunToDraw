@@ -53,8 +53,7 @@ def make_infinity(n=220):
     return normalize_points(pts)
 
 
-# EN: Selects the base shape requested by the user.
-# FR: Sélectionne la forme de base demandée par l’utilisateur.
+# Sélectionne la forme de base demandée par l’utilisateur.
 def get_base_shape(shape_name, text):
     name = shape_name.lower()
     if name == "square":

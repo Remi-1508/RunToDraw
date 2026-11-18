@@ -8,21 +8,6 @@ import numpy as np
 from runtodraw.geometry import path_turn_penalty, polyline_length, resample_polyline
 
 
-# EN:
-# Shape distance (in meters) between the route and the target drawing.
-# Former metric: both polylines were resampled to 180 points and compared point by point, in order.
-# A smooth, rounded route scored well even when it "planed off" the details that make a shape
-# recognizable (the dip and the tip of a heart, the points of a star), because those details are a
-# small part of the outline. With a wider search (every orientation), the optimizer exploited this.
-# New metric, symmetric Chamfer distance + a high percentile:
-# - for each point of the drawing, the distance to the nearest point of the route (d_target),
-# - for each point of the route, the distance to the nearest point of the drawing (d_route),
-# - shape_distance = (mean(d_target) + mean(d_route)) / 2 + 0.5 * percentile_90(d_target).
-# The two means measure the overall fit in both directions (a detour away from the drawing is
-# penalized by d_route); the 90th percentile makes a missed detail costly. Both polylines are
-# densified every ~10 m and queried with KD-trees: O(n log n), about a millisecond per candidate.
-#
-# FR:
 # Distance de forme (en mètres) entre le trajet et le dessin cible.
 # Ancienne mesure : les deux polylignes étaient rééchantillonnées en 180 points et comparées point à point,
 # dans l'ordre. Un trajet lisse et arrondi obtenait une bonne note même s'il « rabotait » les détails qui
@@ -52,9 +37,7 @@ def shape_distance_m(route_points, target_points):
     return float(0.5 * (d_target.mean() + d_route.mean()) + 0.5 * np.percentile(d_target, 90))
 
 
-# EN: `route_length_m` is the real length of the path on the roads. When it is not given, we fall
-# back to the length of `route_points` (which may be a simplified polyline, hence slightly shorter).
-# FR: `route_length_m` est la vraie longueur du trajet sur les routes. Si elle n'est pas fournie, on
+# `route_length_m` est la vraie longueur du trajet sur les routes. Si elle n'est pas fournie, on
 # prend la longueur de `route_points` (qui peut être une polyligne simplifiée, donc un peu plus courte).
 def score_solution(route_points, target_points, desired_distance_m, max_allowed_m, route_length_m=None):
     length_target = polyline_length(target_points)

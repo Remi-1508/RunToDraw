@@ -4,9 +4,7 @@ import math
 import numpy as np
 
 
-# EN: matplotlib is only needed for the experiment plots (command line), not by the API.
-# Importing it lazily keeps the backend lighter and faster to start.
-# FR: matplotlib ne sert qu'aux tracés d'expérimentation (ligne de commande), pas à l'API.
+# matplotlib ne sert qu'aux tracés d'expérimentation (ligne de commande), pas à l'API.
 # On l'importe à la demande pour alléger le backend et accélérer son démarrage.
 def _plt():
     import matplotlib.pyplot as plt

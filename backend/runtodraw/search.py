@@ -8,8 +8,7 @@ from runtodraw.routing import route_from_target
 from runtodraw.scoring import score_solution
 
 
-# EN: Builds a few size candidates around the nominal requested size.
-# FR: Construit plusieurs tailles candidates autour de la taille nominale demandée.
+# Construit plusieurs tailles candidates autour de la taille nominale demandée.
 def estimate_size_candidates(base_points, desired_distance_m, shape_name):
     base_len = max(polyline_length(base_points), 1e-9)
     base_size = desired_distance_m / max(base_len, 1e-9)
@@ -24,9 +23,7 @@ def estimate_size_candidates(base_points, desired_distance_m, shape_name):
     return [max(80.0, base_size * f) for f in factors]
 
 
-# EN: Builds one transformed candidate from a base shape:
-# size + rotation + translation.
-# FR: Construit un candidat transformé à partir d’une forme de base :
+# Construit un candidat transformé à partir d’une forme de base :
 # taille + rotation + translation.
 def make_candidate_points(base_points, center, size_m, angle_deg):
     pts = fit_points(base_points, np.array([0.0, 0.0], dtype=float), size_m)
@@ -36,21 +33,11 @@ def make_candidate_points(base_points, center, size_m, angle_deg):
     return pts
 
 
-# EN:
-# Generates all search candidates for a shape:
-# possible centers, angles, and sizes.
-# Translation mode explores a few shifted centers, while projection mode only uses the graph center.
-#
-# FR:
 # Génère tous les candidats de recherche pour une forme :
 # centres possibles, angles et tailles.
 # Le mode translation explore quelques centres décalés, alors que le mode projection
 # n’utilise que le centre du graphe.
-# EN: Search frame: the point chosen by the user (origin of the local x/y system) and a square
-# whose side equals the requested distance. Before, this frame was the bounding box of the
-# downloaded graph (radius = distance / 2), i.e. the same square. Defining it explicitly means the
-# candidates no longer depend on how much road network we download.
-# FR: Cadre de recherche : le point choisi par l'utilisateur (origine du repère local x/y) et un carré
+# Cadre de recherche : le point choisi par l'utilisateur (origine du repère local x/y) et un carré
 # de côté égal à la distance demandée. Avant, ce cadre était la boîte englobante du graphe téléchargé
 # (rayon = distance / 2), c'est-à-dire le même carré. Le définir explicitement permet que les
 # candidats ne dépendent plus de la quantité de réseau routier téléchargée.
@@ -58,8 +45,7 @@ def search_frame(desired_distance_m):
     return np.zeros(2, dtype=float), float(desired_distance_m)
 
 
-# EN: Centers and sizes tested for a shape (angles are added separately, they need the graph).
-# FR: Centres et tailles testés pour une forme (les angles sont ajoutés à part, ils dépendent du graphe).
+# Centres et tailles testés pour une forme (les angles sont ajoutés à part, ils dépendent du graphe).
 def shape_layout(base_points, desired_distance_m, shape_name, use_translation):
     center, span = search_frame(desired_distance_m)
     step = 0.12 * span
@@ -82,16 +68,6 @@ def shape_layout(base_points, desired_distance_m, shape_name, use_translation):
     return centers, sizes
 
 
-# EN:
-# Orientation search.
-# Shapes are tested in every orientation, so that the best-looking result is found wherever the
-# streets allow it. To avoid wasted work, each shape is only rotated over its symmetry period
-# (a star looks the same every 72°, an infinity sign every 180°, a square every 90°), with a fine
-# angular step. The sweep starts on the dominant street axis, so the street-aligned orientation is
-# always among the tested ones.
-# Text is the exception: a word upside down cannot be read, so it stays within ±15° of horizontal.
-#
-# FR:
 # Recherche d'orientation.
 # Les formes sont testées dans toutes les orientations, pour trouver le meilleur résultat là où les rues
 # le permettent. Pour ne pas refaire des calculs identiques, chaque forme n'est tournée que sur sa période
@@ -120,8 +96,7 @@ def search_angles(graph, shape_name):
     return [street + k * period / count for k in range(count)]
 
 
-# EN: Routes one candidate (shape at a given center, size and angle) and scores it.
-# FR: Construit le trajet d'un candidat (forme à un centre, une taille et un angle donnés) et l'évalue.
+# Construit le trajet d'un candidat (forme à un centre, une taille et un angle donnés) et l'évalue.
 def evaluate_candidate(graph, base_points, center, size_m, angle_deg, desired_distance_m, max_allowed_m, sample_count):
     target = make_candidate_points(base_points, center, size_m, angle_deg)
     node_path, route_points, extra = route_from_target(graph, target, sample_count=sample_count)
@@ -146,18 +121,6 @@ def evaluate_candidate(graph, base_points, center, size_m, angle_deg, desired_di
     }
 
 
-# EN:
-# Size calibration.
-# The route on real roads is always longer than the ideal drawing (streets do not follow the
-# curve exactly), and by how much depends on the place. Instead of testing a few fixed sizes,
-# each (center, angle) pair adjusts the size until the route length matches the requested
-# distance: size <- size * desired / measured. The route length grows roughly linearly with the
-# size, so 2 or 3 steps are usually enough. The size/length ratio learned on one pair is used
-# as the starting point for the next one. Sizes stay within [min_size, max_size] so that the
-# shape always fits in the downloaded area (see required_radius_m).
-# Every evaluated size is kept: the "best compromise" choice can use them all.
-#
-# FR:
 # Calibrage de la taille.
 # Le trajet sur les vraies routes est toujours plus long que le dessin idéal (les rues ne suivent pas
 # exactement la courbe), et l'écart dépend du lieu. Au lieu de tester quelques tailles fixes, chaque
@@ -301,12 +264,7 @@ def evaluate_start_method(graph, base_points, desired_distance_m, tolerance_rati
             "all_candidates_count": len(evaluated)}
 
 
-# EN: Picks the two proposals among the evaluated candidates:
-# - "closest to distance": among the candidates within ±3 % of the requested distance, the one
-#   that looks best (lowest combined score); if none is that close, simply the closest one,
-# - the best overall compromise between shape, distance and smoothness.
-# Candidates outside the tolerance (too long or too short) are only used if nothing else is available.
-# FR: Choisit les deux propositions parmi les candidats évalués :
+# Choisit les deux propositions parmi les candidats évalués :
 # - « distance la plus proche » : parmi les candidats à ±3 % de la distance demandée, celui qui
 #   ressemble le plus à la forme (meilleur score combiné) ; si aucun n'est aussi proche, le plus proche,
 # - le meilleur compromis global entre forme, distance et fluidité.
@@ -359,8 +317,7 @@ def pick_best(evaluated):
     return best_close, best_comp
 
 
-# EN: Runs one search method (projection or translation) with size calibration.
-# FR: Lance une méthode de recherche (projection ou translation) avec calibrage de la taille.
+# Lance une méthode de recherche (projection ou translation) avec calibrage de la taille.
 def evaluate_method(graph, base_points, desired_distance_m, tolerance_ratio, shape_name, method_name):
     max_allowed_m = desired_distance_m * (1.0 + tolerance_ratio)
     use_translation = (method_name == "translation")

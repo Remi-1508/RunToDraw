@@ -9,16 +9,13 @@ from runtodraw.glyphs import GLYPHS, single_letter_polyline
 from runtodraw.search import calibrated_search, pick_best, search_angles, search_frame
 
 
-# EN: Letters to draw in split mode (unknown characters are skipped, "P" if nothing is left).
-# FR: Lettres à dessiner en mode séparé (caractères inconnus ignorés, "P" s'il ne reste rien).
+# Lettres à dessiner en mode séparé (caractères inconnus ignorés, "P" s'il ne reste rien).
 def split_letters(text):
     letters = [ch for ch in (text or "").upper() if ch != " " and ch in GLYPHS]
     return letters or ["P"]
 
 
-# EN: Layout of each letter in split mode: base polyline, tested centers and sizes.
-# `direction` is the reading direction (unit vector), `normal` is perpendicular to it.
-# FR: Mise en page de chaque lettre en mode séparé : polyligne de base, centres et tailles testés.
+# Mise en page de chaque lettre en mode séparé : polyligne de base, centres et tailles testés.
 # `direction` est le sens de lecture (vecteur unitaire), `normal` lui est perpendiculaire.
 def split_letter_layout(letters, per_letter_distance_m, direction, normal):
     n = len(letters)
@@ -75,10 +72,7 @@ def split_text_itineraries_full_distance(graph, text, per_letter_distance_m, tol
         )
         per_letter.append((ch, evaluated))
 
-    # EN: 2) One single orientation for the whole word: letters tilted differently are unreadable.
-    # For each angle, take each letter's best candidate at that angle and add up their scores;
-    # the angle with the lowest total wins.
-    # FR : 2) Une seule orientation pour tout le mot : des lettres inclinées différemment sont illisibles.
+    # 2) Une seule orientation pour tout le mot : des lettres inclinées différemment sont illisibles.
     # Pour chaque angle, on prend le meilleur candidat de chaque lettre à cet angle et on additionne
     # leurs scores ; l'angle au total le plus bas l'emporte.
     def best_at(evaluated, angle):

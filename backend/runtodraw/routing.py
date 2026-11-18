@@ -15,16 +15,7 @@ def simplify_consecutive_duplicates(seq):
     return out
 
 
-# EN: Removes short loops from a node path. When the path comes back to a node it already visited
-# after less than `max_loop_m`, the detour in between is cut. This removes the back-and-forth "comb
-# teeth" created when a shape point snaps to a node in a side street (go there, come back).
-# Long loops are kept: they are part of the drawing (e.g. the crossing of the infinity sign).
-# Intended back-and-forths are kept too: some drawings retrace their own strokes (the bars of an
-# E, the stem of a T, the tips of a star). `protected[i]` marks the path nodes where the drawing
-# itself turns around; a loop that contains such a node is never cut. Without this, the removal
-# ate a retraced stroke step by step (each nested loop became short once the inner one was cut).
-# Linear time: each node is pushed and popped at most once.
-# FR: Supprime les boucles courtes d'un chemin de nœuds. Quand le chemin revient sur un nœud déjà visité
+# Supprime les boucles courtes d'un chemin de nœuds. Quand le chemin revient sur un nœud déjà visité
 # après moins de `max_loop_m`, le détour entre les deux est coupé. Cela supprime les « dents de peigne »
 # créées quand un point de la forme s'accroche à un nœud dans une rue latérale (on y va, on revient).
 # Les grandes boucles sont gardées : elles font partie du dessin (ex. le croisement du signe infini).
@@ -62,12 +53,10 @@ def remove_short_loops(path_idx, node_array, max_loop_m, protected=None):
     return out
 
 
-# EN: Loops shorter than this many sampling steps are considered back-and-forth noise.
-# FR: Les boucles plus courtes que ce nombre de pas d'échantillonnage sont considérées comme des allers-retours parasites.
+# Les boucles plus courtes que ce nombre de pas d'échantillonnage sont considérées comme des allers-retours parasites.
 LOOP_REMOVAL_STEPS = 3.0
 
-# EN: A sample where the drawing turns by more than this angle is a deliberate U-turn.
-# FR: Un point où le dessin tourne de plus de cet angle est un demi-tour voulu.
+# Un point où le dessin tourne de plus de cet angle est un demi-tour voulu.
 REVERSAL_ANGLE_DEG = 120.0
 
 
@@ -104,8 +93,7 @@ def route_from_target(graph, target_points, sample_count=60, pinned=None):
     des allers-retours."""
     target_rs = resample_polyline(target_points, n_samples=sample_count)
 
-    # EN: All sampled points are snapped in one vectorized KD-tree query.
-    # FR: Tous les points échantillonnés sont accrochés en une seule requête KD-tree vectorisée.
+    # Tous les points échantillonnés sont accrochés en une seule requête KD-tree vectorisée.
     snapped_idx, snap_dists = graph.nearest_indices(target_rs)
 
     # Points consécutifs accrochés au même nœud : fusionnés, en gardant l'information « demi-tour ».
@@ -158,8 +146,7 @@ def route_from_target(graph, target_points, sample_count=60, pinned=None):
         "shortest_path_cost": total_cost,
         "unreachable_segments": unreachable,
         "n_route_nodes": len(full_path),
-        # EN: real length of the path on the roads (the simplified polyline cuts corners).
-        # FR: vraie longueur du trajet sur les routes (la polyligne simplifiée coupe les virages).
+        # vraie longueur du trajet sur les routes (la polyligne simplifiée coupe les virages).
         "path_length_m": polyline_length(path_points),
     }
     return full_path, route_points, extra
