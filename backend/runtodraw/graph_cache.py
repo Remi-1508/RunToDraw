@@ -1,4 +1,5 @@
 """Cache des graphes routiers côté serveur : calcul du rayon à télécharger et accès au graphe."""
+import logging
 import math
 import time
 from collections import OrderedDict
@@ -7,6 +8,9 @@ from threading import Lock
 from runtodraw.osm import build_graph_from_overpass, build_overpass_query_bbox, fetch_overpass_with_fallback
 from runtodraw.road_graph import RoadGraph
 from runtodraw.search_area import required_radius_m
+from runtodraw.validation import SHAPES
+
+logger = logging.getLogger(__name__)
 
 
 class NoRoadsFoundError(Exception):
@@ -22,8 +26,8 @@ GRAPH_CACHE_SIZE = 3
 _graph_cache: "OrderedDict[tuple, RoadGraph]" = OrderedDict()
 _graph_cache_lock = Lock()
 
-
-SHAPES = ("square", "circle", "heart", "star", "infinity")
+# Un verrou par zone : deux demandes simultanées pour la même zone ne téléchargent qu'une fois.
+_download_locks: "dict[tuple, Lock]" = {}
 
 
 # Rayon à télécharger. En mode forme, on prend le plus grand rayon parmi toutes les formes :
@@ -42,32 +46,58 @@ def cache_key(lat, lon, radius_m):
     return (round(lat, 5), round(lon, 5), int(math.ceil(radius_m / 50.0) * 50))
 
 
-def get_road_graph(lat, lon, radius_m):
-    key = cache_key(lat, lon, radius_m)
+def _cached_graph(key):
     with _graph_cache_lock:
         graph = _graph_cache.get(key)
         if graph is not None:
             _graph_cache.move_to_end(key)
-            print(f"[Graphe] cache : {key}")
-            return graph
+        return graph
 
+
+def _download_lock(key) -> Lock:
+    with _graph_cache_lock:
+        return _download_locks.setdefault(key, Lock())
+
+
+def _build_graph(lat, lon, radius_m):
     t0 = time.perf_counter()
-    osm = fetch_overpass_with_fallback(build_overpass_query_bbox(lat, lon, key[2]))
+    osm = fetch_overpass_with_fallback(build_overpass_query_bbox(lat, lon, radius_m))
     t1 = time.perf_counter()
     raw = build_graph_from_overpass(osm)
     del osm
     if not raw["nodes"]:
         raise NoRoadsFoundError("Aucune route trouvée autour de ce point.")
-    graph = RoadGraph({"meta": {"center": [lat, lon], "radius_km": key[2] / 1000.0}, **raw})
+    graph = RoadGraph({"meta": {"center": [lat, lon], "radius_km": radius_m / 1000.0}, **raw})
     graph.segment_count = len(raw["edges"])
     graph.nodes = graph.edges = None  # libère les dicts JSON bruts
     del raw
     t2 = time.perf_counter()
-    print(f"[Graphe] {len(graph.node_ids)} nœuds, rayon {key[2]} m | Overpass {t1 - t0:.1f} s, construction {t2 - t1:.1f} s")
+    logger.info(
+        "Graphe : %d nœuds, rayon %d m | Overpass %.1f s, construction %.1f s",
+        len(graph.node_ids), radius_m, t1 - t0, t2 - t1,
+    )
+    return graph
 
-    with _graph_cache_lock:
-        _graph_cache[key] = graph
-        _graph_cache.move_to_end(key)
-        while len(_graph_cache) > GRAPH_CACHE_SIZE:
-            _graph_cache.popitem(last=False)
+
+def get_road_graph(lat, lon, radius_m):
+    """Renvoie le graphe de la zone, depuis le cache si possible, sinon en le téléchargeant."""
+    key = cache_key(lat, lon, radius_m)
+    graph = _cached_graph(key)
+    if graph is not None:
+        logger.info("Graphe : cache %s", key)
+        return graph
+
+    with _download_lock(key):
+        try:
+            graph = _cached_graph(key)  # une autre requête l'a peut-être téléchargé pendant l'attente
+            if graph is None:
+                graph = _build_graph(lat, lon, key[2])
+                with _graph_cache_lock:
+                    _graph_cache[key] = graph
+                    _graph_cache.move_to_end(key)
+                    while len(_graph_cache) > GRAPH_CACHE_SIZE:
+                        _graph_cache.popitem(last=False)
+        finally:
+            with _graph_cache_lock:
+                _download_locks.pop(key, None)
     return graph

@@ -1,8 +1,11 @@
 """Téléchargement du réseau routier depuis OpenStreetMap (Overpass) et conversion en graphe JSON."""
+import logging
 import math
 import time
 
 import requests
+
+logger = logging.getLogger(__name__)
 
 
 # On garde plusieurs serveurs Overpass ici car un serveur peut être lent,
@@ -85,10 +88,10 @@ def fetch_overpass_with_fallback(query, max_tries=len(OVERPASS_ENDPOINTS)):
     for attempt in range(max_tries):
         endpoint = OVERPASS_ENDPOINTS[attempt % len(OVERPASS_ENDPOINTS)]
         try:
-            print(f"[Overpass] tentative {attempt + 1}/{max_tries} sur {endpoint}")
+            logger.info("Overpass : tentative %d/%d sur %s", attempt + 1, max_tries, endpoint)
             return post_overpass(endpoint, query)
         except Exception as e:
-            print(f"[Overpass] échec sur {endpoint}: {e}")
+            logger.warning("Overpass : échec sur %s : %s", endpoint, e)
             last_err = e
             time.sleep(2.0)
 

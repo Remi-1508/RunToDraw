@@ -107,6 +107,21 @@ python -m pip install -r requirements.txt
 
 python -m uvicorn runtodraw.api:app --reload --port 8000
 
+### Configuration et protections de l'API
+
+Le backend lit ses réglages dans des variables d'environnement (liste commentée dans `backend/.env.example`).
+En local, aucune n'est nécessaire. En production, il faut au minimum :
+
+- `RUNTODRAW_ALLOWED_ORIGINS` : adresse du site qui appelle l'API (CORS), par exemple `https://runtodraw.vercel.app`.
+
+Protections actives par défaut, volontairement permissives :
+
+- distance limitée à 50 km (`RUNTODRAW_MAX_DISTANCE_KM`) ;
+- 30 requêtes coûteuses par minute et par adresse IP, soit environ 15 générations (`RUNTODRAW_RATE_LIMIT_PER_MINUTE`) ;
+- 2 calculs d'itinéraires simultanés, les suivants patientent puis reçoivent « serveur occupé » ;
+- une seule requête Overpass par zone, même si plusieurs utilisateurs la demandent en même temps ;
+- texte normalisé (majuscules, accents retirés), formes validées, erreurs lisibles et sans détail interne.
+
 ### Tests du moteur (facultatif)
 
 python -m pip install -r requirements-dev.txt

@@ -3,7 +3,6 @@ import math
 from typing import Any, Dict, List
 
 from runtodraw.geometry import xy_to_latlon_m
-from runtodraw.road_graph import RoadGraph
 from runtodraw.search import evaluate_method, evaluate_start_method
 from runtodraw.shapes import get_base_shape
 from runtodraw.text_routes import link_letter_routes, split_text_itineraries_full_distance
@@ -235,22 +234,3 @@ def plan_from_graph(graph, distance_km, drawing, tolerance_ratio=0.10) -> Dict[s
         "summary": summary,
         "routes": routes,
     }
-
-
-# Ancien point d'entrée, toujours utilisé quand le graphe complet est envoyé dans la requête
-# (et par les scripts d'expérimentation). Il vérifie le contenu reçu et reconstruit le graphe.
-def plan_from_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
-    graph_payload = payload.get("graph_payload")
-
-    if not graph_payload:
-        raise ValueError("graph_payload manquant")
-
-    if "meta" not in graph_payload or "nodes" not in graph_payload or "edges" not in graph_payload:
-        raise ValueError("graph_payload invalide : meta/nodes/edges requis")
-
-    return plan_from_graph(
-        RoadGraph(graph_payload),
-        float(payload.get("distance_km", 0.0)),
-        payload.get("drawing", {}) or {},
-        payload.get("tolerance_ratio", 0.10),
-    )
