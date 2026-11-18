@@ -27,8 +27,8 @@ def fake_graph(monkeypatch):
     monkeypatch.setattr(api, "plan_from_graph", lambda *a, **k: {"summary": "ok", "routes": []})
 
 
-def test_health():
-    assert client.get("/health").json() == {"ok": True}
+def test_health_exposes_server_limits():
+    assert client.get("/health").json() == {"ok": True, "max_distance_km": api.settings.max_distance_km}
 
 
 def test_fetch_and_plan_accept_valid_request(fake_graph):
