@@ -105,7 +105,7 @@ cd RunToDraw/backend
 
 python -m pip install -r requirements.txt
 
-python -m uvicorn app:app --reload --port 8000
+python -m uvicorn runtodraw.api:app --reload --port 8000
 
 ### Tests du moteur (facultatif)
 

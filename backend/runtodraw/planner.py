@@ -1,27 +1,12 @@
+"""Planificateur : transforme les résultats du moteur en propositions d'itinéraires (lat/lon) pour l'API."""
 import math
 from typing import Any, Dict, List
 
-from shape_route_experiments_v16 import (
-    RoadGraph,
-    evaluate_method,
-    evaluate_start_method,
-    get_base_shape,
-    link_letter_routes,
-    split_text_itineraries_full_distance,
-)
-
-
-# EN: The route generator works internally in a local x/y coordinate system.
-# This helper converts one point back to latitude/longitude so that the frontend
-# can display the route on the real map.
-# FR: Le générateur d’itinéraires travaille en interne avec un repère local x/y.
-# Cette fonction reconvertit un point en latitude/longitude pour que le frontend
-# puisse afficher le trajet sur la vraie carte.
-def xy_to_latlon_m(x, y, lat0, lon0):
-    r = 6371000.0
-    lat = lat0 + math.degrees(y / r)
-    lon = lon0 + math.degrees(x / (r * math.cos(math.radians(lat0))))
-    return lat, lon
+from runtodraw.geometry import xy_to_latlon_m
+from runtodraw.road_graph import RoadGraph
+from runtodraw.search import evaluate_method, evaluate_start_method
+from runtodraw.shapes import get_base_shape
+from runtodraw.text_routes import link_letter_routes, split_text_itineraries_full_distance
 
 
 # EN: A candidate route is first computed in local coordinates.

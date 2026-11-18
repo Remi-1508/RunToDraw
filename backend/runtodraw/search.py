@@ -1,0 +1,379 @@
+"""Recherche du meilleur itinéraire : génération des candidats (position, taille, angle), calibrage de la taille
+sur la distance demandée, méthodes « projection », « translation » et « départ inclus »."""
+import numpy as np
+
+from runtodraw.geometry import fit_points, fold_angle, is_closed, point_at_fraction, polyline_length, resample_polyline, rotate_closed_outline, rotate_points
+from runtodraw.road_graph import dominant_graph_angle
+from runtodraw.routing import route_from_target
+from runtodraw.scoring import score_solution
+
+
+# EN: Builds a few size candidates around the nominal requested size.
+# FR: Construit plusieurs tailles candidates autour de la taille nominale demandée.
+def estimate_size_candidates(base_points, desired_distance_m, shape_name):
+    base_len = max(polyline_length(base_points), 1e-9)
+    base_size = desired_distance_m / max(base_len, 1e-9)
+
+    if shape_name == "text":
+        factors = [0.45, 0.60, 0.75, 0.90, 1.05]
+    elif shape_name in {"heart", "star", "infinity", "circle", "square"}:
+        factors = [0.65, 0.80, 0.95, 1.10]
+    else:
+        factors = [0.75, 0.90, 1.00, 1.10]
+
+    return [max(80.0, base_size * f) for f in factors]
+
+
+# EN: Builds one transformed candidate from a base shape:
+# size + rotation + translation.
+# FR: Construit un candidat transformé à partir d’une forme de base :
+# taille + rotation + translation.
+def make_candidate_points(base_points, center, size_m, angle_deg):
+    pts = fit_points(base_points, np.array([0.0, 0.0], dtype=float), size_m)
+    pts = rotate_points(pts, angle_deg)
+    pts[:, 0] += center[0]
+    pts[:, 1] += center[1]
+    return pts
+
+
+# EN:
+# Generates all search candidates for a shape:
+# possible centers, angles, and sizes.
+# Translation mode explores a few shifted centers, while projection mode only uses the graph center.
+#
+# FR:
+# Génère tous les candidats de recherche pour une forme :
+# centres possibles, angles et tailles.
+# Le mode translation explore quelques centres décalés, alors que le mode projection
+# n’utilise que le centre du graphe.
+# EN: Search frame: the point chosen by the user (origin of the local x/y system) and a square
+# whose side equals the requested distance. Before, this frame was the bounding box of the
+# downloaded graph (radius = distance / 2), i.e. the same square. Defining it explicitly means the
+# candidates no longer depend on how much road network we download.
+# FR: Cadre de recherche : le point choisi par l'utilisateur (origine du repère local x/y) et un carré
+# de côté égal à la distance demandée. Avant, ce cadre était la boîte englobante du graphe téléchargé
+# (rayon = distance / 2), c'est-à-dire le même carré. Le définir explicitement permet que les
+# candidats ne dépendent plus de la quantité de réseau routier téléchargée.
+def search_frame(desired_distance_m):
+    return np.zeros(2, dtype=float), float(desired_distance_m)
+
+
+# EN: Centers and sizes tested for a shape (angles are added separately, they need the graph).
+# FR: Centres et tailles testés pour une forme (les angles sont ajoutés à part, ils dépendent du graphe).
+def shape_layout(base_points, desired_distance_m, shape_name, use_translation):
+    center, span = search_frame(desired_distance_m)
+    step = 0.12 * span
+
+    if shape_name == "text":
+        step *= 0.95
+
+    if use_translation:
+        centers = [
+            center,
+            center + np.array([ step, 0.0]),
+            center + np.array([-step, 0.0]),
+            center + np.array([0.0,  step]),
+            center + np.array([0.0, -step]),
+        ]
+    else:
+        centers = [center]
+
+    sizes = estimate_size_candidates(base_points, desired_distance_m, shape_name)
+    return centers, sizes
+
+
+# EN:
+# Orientation search.
+# Shapes are tested in every orientation, so that the best-looking result is found wherever the
+# streets allow it. To avoid wasted work, each shape is only rotated over its symmetry period
+# (a star looks the same every 72°, an infinity sign every 180°, a square every 90°), with a fine
+# angular step. The sweep starts on the dominant street axis, so the street-aligned orientation is
+# always among the tested ones.
+# Text is the exception: a word upside down cannot be read, so it stays within ±15° of horizontal.
+#
+# FR:
+# Recherche d'orientation.
+# Les formes sont testées dans toutes les orientations, pour trouver le meilleur résultat là où les rues
+# le permettent. Pour ne pas refaire des calculs identiques, chaque forme n'est tournée que sur sa période
+# de symétrie (une étoile est identique tous les 72°, le signe infini tous les 180°, un carré tous les 90°),
+# avec un pas angulaire fin. Le balayage part de l'axe dominant des rues : l'orientation alignée sur les
+# rues fait donc toujours partie des angles testés.
+# Exception : le texte. Un mot à l'envers est illisible, il reste donc à ±15° de l'horizontale.
+ORIENTATION_RULES = {
+    # forme      : (période de symétrie °, pas angulaire °)
+    "square":   (90.0, 10.0),
+    "circle":   (360.0, 90.0),    # toutes les orientations se valent : quelques angles suffisent
+    "heart":    (360.0, 10.0),
+    "star":     (72.0, 8.0),
+    "infinity": (180.0, 10.0),
+}
+TEXT_MAX_TILT_DEG = 15.0
+
+
+def search_angles(graph, shape_name):
+    if shape_name == "text":
+        return [float(a) for a in np.linspace(-TEXT_MAX_TILT_DEG, TEXT_MAX_TILT_DEG, 5)]
+
+    period, step = ORIENTATION_RULES.get(shape_name, (360.0, 10.0))
+    street = fold_angle(dominant_graph_angle(graph), period)
+    count = int(round(period / step))
+    return [street + k * period / count for k in range(count)]
+
+
+# EN: Routes one candidate (shape at a given center, size and angle) and scores it.
+# FR: Construit le trajet d'un candidat (forme à un centre, une taille et un angle donnés) et l'évalue.
+def evaluate_candidate(graph, base_points, center, size_m, angle_deg, desired_distance_m, max_allowed_m, sample_count):
+    target = make_candidate_points(base_points, center, size_m, angle_deg)
+    node_path, route_points, extra = route_from_target(graph, target, sample_count=sample_count)
+
+    metrics = score_solution(route_points, target, desired_distance_m, max_allowed_m,
+                             route_length_m=extra["path_length_m"])
+    metrics.update(extra)
+    metrics["length_target_request"] = float(desired_distance_m)
+    # Tolérance symétrique : trop court est aussi un écart (ex. ±10 % -> entre 13,5 et 16,5 km pour 15 km).
+    min_allowed_m = 2.0 * desired_distance_m - max_allowed_m
+    metrics["under_min"] = max(0.0, min_allowed_m - metrics["length_route"])
+    metrics["angle_deg"] = float(angle_deg)
+    metrics["size_m"] = float(size_m)
+    metrics["center_x"] = float(center[0])
+    metrics["center_y"] = float(center[1])
+
+    return {
+        "target": target,
+        "node_path": node_path,
+        "route_points": route_points,
+        "metrics": metrics,
+    }
+
+
+# EN:
+# Size calibration.
+# The route on real roads is always longer than the ideal drawing (streets do not follow the
+# curve exactly), and by how much depends on the place. Instead of testing a few fixed sizes,
+# each (center, angle) pair adjusts the size until the route length matches the requested
+# distance: size <- size * desired / measured. The route length grows roughly linearly with the
+# size, so 2 or 3 steps are usually enough. The size/length ratio learned on one pair is used
+# as the starting point for the next one. Sizes stay within [min_size, max_size] so that the
+# shape always fits in the downloaded area (see required_radius_m).
+# Every evaluated size is kept: the "best compromise" choice can use them all.
+#
+# FR:
+# Calibrage de la taille.
+# Le trajet sur les vraies routes est toujours plus long que le dessin idéal (les rues ne suivent pas
+# exactement la courbe), et l'écart dépend du lieu. Au lieu de tester quelques tailles fixes, chaque
+# couple (centre, angle) ajuste la taille jusqu'à ce que la longueur du trajet corresponde à la distance
+# demandée : taille <- taille * demandée / mesurée. La longueur grandit à peu près proportionnellement
+# à la taille : 2 ou 3 étapes suffisent en général. Le rapport taille/longueur appris sur un couple sert
+# de point de départ au suivant. Les tailles restent dans [min_size, max_size] pour que la forme tienne
+# toujours dans la zone téléchargée (voir required_radius_m).
+# Toutes les tailles évaluées sont gardées : le choix du « meilleur compromis » peut les utiliser.
+CALIBRATION_MAX_STEPS = 4
+CALIBRATION_TOLERANCE = 0.03   # on s'arrête à ±3 % de la distance demandée
+EXPECTED_DETOUR = 1.5          # estimation initiale : trajet ≈ 1,5 × longueur du dessin
+
+
+def _calibrate(evaluate_at, start_size, desired_distance_m, min_size, max_size):
+    """Ajuste la taille d'un candidat jusqu'à la distance demandée. `evaluate_at(size)` route et
+    évalue le candidat à cette taille. Renvoie (candidats évalués, dernier rapport taille/longueur)."""
+    evaluated = []
+    size_per_meter = None
+    size = start_size
+    for _ in range(CALIBRATION_MAX_STEPS):
+        size = float(np.clip(size, min_size, max_size))
+        cand = evaluate_at(size)
+        evaluated.append(cand)
+        length = cand["metrics"]["length_route"]
+        if length <= 0:
+            break
+        size_per_meter = size / length
+        if abs(length - desired_distance_m) <= CALIBRATION_TOLERANCE * desired_distance_m:
+            break
+        next_size = float(np.clip(size * float(np.clip(desired_distance_m / length, 0.6, 1.5)),
+                                  min_size, max_size))
+        if abs(next_size - size) < 1e-6:
+            break  # bloqué sur une borne : inutile d'insister
+        size = next_size
+    return evaluated, size_per_meter
+
+
+def calibrated_search(graph, base_points, centers, angles, desired_distance_m, max_allowed_m,
+                      sample_count, min_size, max_size):
+    nominal = desired_distance_m / max(polyline_length(base_points), 1e-9)
+    size_per_meter = None
+    evaluated = []
+
+    for center in centers:
+        for angle in angles:
+            start = nominal / EXPECTED_DETOUR if size_per_meter is None else desired_distance_m * size_per_meter
+            found, ratio = _calibrate(
+                lambda size: evaluate_candidate(graph, base_points, center, size, angle,
+                                                desired_distance_m, max_allowed_m, sample_count),
+                start, desired_distance_m, min_size, max_size,
+            )
+            evaluated.extend(found)
+            size_per_meter = ratio if ratio is not None else size_per_meter
+    return evaluated
+
+
+# Méthode « départ inclus ».
+# L'utilisateur peut vouloir partir (et, pour une forme fermée, revenir) exactement au point choisi.
+# Au lieu de centrer le dessin sur ce point, on le déplace pour que le point soit SUR son contour,
+# à n'importe quelle position (la pointe du cœur n'a rien de particulier) : pour chaque position
+# d'ancrage le long du contour et chaque angle, la forme est translatée pour que ce point du contour
+# tombe sur le point de départ, et le trajet est forcé à passer par le nœud de départ. Pour une forme
+# fermée, le contour est aussi « tourné » pour commencer à l'ancrage : la boucle part et revient au
+# point de l'utilisateur. Chaque couple (ancrage, angle) passe par le même calibrage de taille.
+
+START_ANCHORS = 12          # positions d'ancrage testées le long du contour
+START_MIN_ANGLE_STEP = 30.0  # pas angulaire minimal (l'ancrage multiplie déjà les essais)
+
+
+def start_angles(graph, shape_name):
+    period, step = ORIENTATION_RULES.get(shape_name, (360.0, 10.0))
+    if shape_name == "text":
+        return search_angles(graph, "text")
+    if shape_name == "circle":
+        return [fold_angle(dominant_graph_angle(graph), period)]
+    step = max(step, START_MIN_ANGLE_STEP)
+    street = fold_angle(dominant_graph_angle(graph), period)
+    count = max(1, int(round(period / step)))
+    return [street + k * period / count for k in range(count)]
+
+
+def evaluate_anchored_candidate(graph, base_points, fraction, size_m, angle_deg, start_node,
+                                desired_distance_m, max_allowed_m, sample_count):
+    shape = make_candidate_points(base_points, np.zeros(2), size_m, angle_deg)
+    if is_closed(shape):
+        shape = rotate_closed_outline(shape, fraction)
+        anchor = shape[0].copy()
+        target = shape - anchor              # le point d'ancrage tombe sur l'origine = point de départ
+        pinned = {0: start_node, sample_count - 1: start_node}
+    else:
+        anchor, _ = point_at_fraction(shape, fraction)
+        target = shape - anchor
+        # échantillon le plus proche de l'ancrage (le tracé passe par le départ en cours de route)
+        rs = resample_polyline(target, n_samples=sample_count)
+        pinned = {int(np.argmin(np.hypot(rs[:, 0], rs[:, 1]))): start_node}
+
+    node_path, route_points, extra = route_from_target(graph, target, sample_count=sample_count, pinned=pinned)
+    metrics = score_solution(route_points, target, desired_distance_m, max_allowed_m,
+                             route_length_m=extra["path_length_m"])
+    metrics.update(extra)
+    metrics["length_target_request"] = float(desired_distance_m)
+    min_allowed_m = 2.0 * desired_distance_m - max_allowed_m
+    metrics["under_min"] = max(0.0, min_allowed_m - metrics["length_route"])
+    metrics["angle_deg"] = float(angle_deg)
+    metrics["size_m"] = float(size_m)
+    metrics["anchor_fraction"] = float(fraction)
+    center = -anchor
+    metrics["center_x"], metrics["center_y"] = float(center[0]), float(center[1])
+    return {"target": target, "node_path": node_path, "route_points": route_points,
+            "metrics": metrics, "start_node": graph.node_ids[start_node]}
+
+
+def evaluate_start_method(graph, base_points, desired_distance_m, tolerance_ratio, shape_name):
+    """Méthode « départ inclus » : mêmes sorties que evaluate_method."""
+    max_allowed_m = desired_distance_m * (1.0 + tolerance_ratio)
+    _, sizes = shape_layout(base_points, desired_distance_m, shape_name, use_translation=False)
+    sample_count = 60 if shape_name == "text" else 72
+    start_idx, _ = graph.nearest_indices(np.zeros((1, 2)))
+    start_node = int(start_idx[0])
+
+    closed = is_closed(base_points)
+    fractions = [k / START_ANCHORS for k in range(START_ANCHORS)] if closed else \
+        [k / (START_ANCHORS - 1) for k in range(START_ANCHORS)]
+    nominal = desired_distance_m / max(polyline_length(base_points), 1e-9)
+
+    evaluated, size_per_meter = [], None
+    for angle in start_angles(graph, shape_name):
+        for fraction in fractions:
+            start = nominal / EXPECTED_DETOUR if size_per_meter is None else desired_distance_m * size_per_meter
+            found, ratio = _calibrate(
+                lambda size: evaluate_anchored_candidate(graph, base_points, fraction, size, angle, start_node,
+                                                         desired_distance_m, max_allowed_m, sample_count),
+                start, desired_distance_m, 80.0, max(sizes),
+            )
+            evaluated.extend(found)
+            size_per_meter = ratio if ratio is not None else size_per_meter
+
+    best_close, best_comp = pick_best(evaluated)
+    return {"closest_to_distance": best_close, "best_compromise": best_comp,
+            "all_candidates_count": len(evaluated)}
+
+
+# EN: Picks the two proposals among the evaluated candidates:
+# - "closest to distance": among the candidates within ±3 % of the requested distance, the one
+#   that looks best (lowest combined score); if none is that close, simply the closest one,
+# - the best overall compromise between shape, distance and smoothness.
+# Candidates outside the tolerance (too long or too short) are only used if nothing else is available.
+# FR: Choisit les deux propositions parmi les candidats évalués :
+# - « distance la plus proche » : parmi les candidats à ±3 % de la distance demandée, celui qui
+#   ressemble le plus à la forme (meilleur score combiné) ; si aucun n'est aussi proche, le plus proche,
+# - le meilleur compromis global entre forme, distance et fluidité.
+# Les candidats hors tolérance (trop longs ou trop courts) ne servent que si rien d'autre n'est disponible.
+def pick_best(evaluated):
+    feasible = [
+        e for e in evaluated
+        if e["metrics"]["over_max"] <= 1e-6 and e["metrics"].get("under_min", 0.0) <= 1e-6
+    ]
+
+    if feasible:
+        close_enough = [
+            e for e in feasible
+            if e["metrics"]["length_gap"] <= CALIBRATION_TOLERANCE * (e["metrics"]["length_target_request"])
+        ]
+        if close_enough:
+            best_close = min(close_enough, key=lambda e: (e["metrics"]["combined"], e["metrics"]["length_gap"]))
+        else:
+            best_close = min(
+                feasible,
+                key=lambda e: (
+                    e["metrics"]["length_gap"],
+                    e["metrics"]["shape_error"],
+                    e["metrics"]["turn_penalty"],
+                ),
+            )
+        best_comp = min(
+            feasible,
+            key=lambda e: (
+                e["metrics"]["combined"],
+                e["metrics"]["length_gap"],
+            ),
+        )
+    else:
+        best_close = min(
+            evaluated,
+            key=lambda e: (
+                e["metrics"]["over_max"],
+                e["metrics"]["length_gap"],
+                e["metrics"]["shape_error"],
+            ),
+        )
+        best_comp = min(
+            evaluated,
+            key=lambda e: (
+                e["metrics"]["combined"],
+                e["metrics"]["over_max"],
+            ),
+        )
+    return best_close, best_comp
+
+
+# EN: Runs one search method (projection or translation) with size calibration.
+# FR: Lance une méthode de recherche (projection ou translation) avec calibrage de la taille.
+def evaluate_method(graph, base_points, desired_distance_m, tolerance_ratio, shape_name, method_name):
+    max_allowed_m = desired_distance_m * (1.0 + tolerance_ratio)
+    use_translation = (method_name == "translation")
+    centers, sizes = shape_layout(base_points, desired_distance_m, shape_name, use_translation)
+    angles = search_angles(graph, shape_name)
+    sample_count = 60 if shape_name == "text" else 72
+
+    evaluated = calibrated_search(graph, base_points, centers, angles, desired_distance_m, max_allowed_m,
+                                  sample_count, min_size=80.0, max_size=max(sizes))
+    best_close, best_comp = pick_best(evaluated)
+
+    return {
+        "closest_to_distance": best_close,
+        "best_compromise": best_comp,
+        "all_candidates_count": len(evaluated),
+    }

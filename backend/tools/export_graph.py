@@ -14,10 +14,10 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app import (  # noqa: E402
+from runtodraw.graph_cache import extraction_radius_m  # noqa: E402
+from runtodraw.osm import (  # noqa: E402
     build_graph_from_overpass,
     build_overpass_query_bbox,
-    extraction_radius_m,
     fetch_overpass_with_fallback,
 )
 
