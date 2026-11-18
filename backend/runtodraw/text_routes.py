@@ -110,15 +110,25 @@ def split_text_itineraries_full_distance(graph, text, per_letter_distance_m, tol
 
 def link_letter_routes(graph, letter_results):
     """Renvoie (morceaux, longueur totale) ; morceaux = liste de dicts
-    {"kind": "letter" | "link", "letter": str | None, "node_path": [indices de nœuds]}."""
+    {"kind": "letter" | "link", "letter": str | None, "node_path": [indices de nœuds], "anchors": [positions]}.
+    Les liaisons sont toujours présentes (même vides, d'un seul nœud) : ainsi, déplacer le bord d'une
+    lettre à la main peut les rallonger."""
     paths = [[graph._idx_of[n] for n in r["node_path"]] for r in letter_results]
-    paths = [p for p in paths if p]
+    anchor_lists = [list(r.get("anchor_idx", [])) for r in letter_results]
+    keep = [i for i, p in enumerate(paths) if p]
+    paths = [paths[i] for i in keep]
+    anchor_lists = [anchor_lists[i] for i in keep]
     letters = [r["letter"] for r in letter_results if r["node_path"]]
     if not paths:
         return [], 0.0
 
     def oriented(i, reverse):
         return paths[i][::-1] if reverse else paths[i]
+
+    # Une lettre parcourue à l'envers : les positions des ancrages sont retournées avec le chemin.
+    def oriented_anchors(i, reverse):
+        n = len(paths[i])
+        return [n - 1 - a for a in reversed(anchor_lists[i])] if reverse else anchor_lists[i]
 
     # coût[i][r] = longueur minimale des liaisons jusqu'à la lettre i parcourue dans le sens r
     cost = [[0.0, 0.0]]
@@ -150,10 +160,9 @@ def link_letter_routes(graph, letter_results):
     pieces = []
     for i in range(len(paths)):
         if i > 0:
-            link = links[i][choice[i]]
-            if len(link) > 1:
-                pieces.append({"kind": "link", "letter": None, "node_path": link})
-        pieces.append({"kind": "letter", "letter": letters[i], "node_path": oriented(i, choice[i])})
+            pieces.append({"kind": "link", "letter": None, "node_path": links[i][choice[i]], "anchors": []})
+        pieces.append({"kind": "letter", "letter": letters[i], "node_path": oriented(i, choice[i]),
+                       "anchors": oriented_anchors(i, choice[i])})
 
     full = []
     for piece in pieces:

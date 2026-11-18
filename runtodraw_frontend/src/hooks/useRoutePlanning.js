@@ -7,6 +7,9 @@ import { fetchGraph, planRoutes } from "../api/runtodraw";
 export function useRoutePlanning({ showToast }) {
   const [graphData, setGraphData] = useState(null);
   const [routePlan, setRoutePlan] = useState(null);
+  // Paramètres de la génération en cours de validité ({ lat, lon, distanceKm, drawing }) : nécessaires
+  // pour modifier ensuite le tracé sur le même réseau routier, même si le formulaire a changé entre-temps.
+  const [planContext, setPlanContext] = useState(null);
   const [selectedRouteId, setSelectedRouteId] = useState(null);
   // null quand rien n'est en cours, sinon { kicker, description } pour la fenêtre d'attente.
   const [busy, setBusy] = useState(null);
@@ -18,6 +21,7 @@ export function useRoutePlanning({ showToast }) {
   const reset = useCallback(() => {
     setGraphData(null);
     setRoutePlan(null);
+    setPlanContext(null);
     setSelectedRouteId(null);
   }, []);
 
@@ -45,10 +49,12 @@ export function useRoutePlanning({ showToast }) {
         });
         const nextPlan = await planRoutes({ lat, lon, distanceKm, drawing }, options);
         setRoutePlan(nextPlan);
+        setPlanContext({ lat, lon, distanceKm, drawing });
         setSelectedRouteId(nextPlan?.routes?.[0]?.id ?? null);
         showToast("Les propositions d’itinéraires sont prêtes.", "success");
       } catch (error) {
         setRoutePlan(null);
+        setPlanContext(null);
         setSelectedRouteId(null);
         if (error.name === "AbortError") {
           showToast("Génération annulée.", "info");
@@ -64,5 +70,5 @@ export function useRoutePlanning({ showToast }) {
     [showToast]
   );
 
-  return { graphData, routePlan, selectedRoute, selectedRouteId, setSelectedRouteId, busy, generate, cancel, reset };
+  return { graphData, routePlan, planContext, selectedRoute, selectedRouteId, setSelectedRouteId, busy, generate, cancel, reset };
 }

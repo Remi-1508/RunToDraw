@@ -42,3 +42,28 @@ export function planRoutes({ lat, lon, distanceKm, drawing }, { signal } = {}) {
     fallback: "Calcul des itinéraires impossible",
   });
 }
+
+// Modifie un point du tracé (déplacer, insérer ou supprimer) : le serveur ne recalcule que les tronçons
+// voisins et renvoie les segments à jour. `context` est celui de la génération (point de départ, distance,
+// dessin), qui permet au serveur de retrouver le même réseau routier dans son cache.
+export function editRoute({ lat, lon, distanceKm, drawing }, segments, segmentIndex, operation, { signal } = {}) {
+  return request("/api/routes/edit", {
+    method: "POST",
+    body: {
+      lat,
+      lon,
+      distance_km: distanceKm,
+      drawing,
+      segments: segments.map(({ label, kind, node_path, anchors }) => ({
+        label: String(label ?? "").slice(0, 60),
+        kind: kind ?? "",
+        node_path,
+        anchors,
+      })),
+      segment_index: segmentIndex,
+      operation,
+    },
+    signal,
+    fallback: "Modification du tracé impossible",
+  });
+}

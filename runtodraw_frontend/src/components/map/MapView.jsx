@@ -1,7 +1,9 @@
 import { Circle, MapContainer, Polyline, TileLayer, useMap } from "react-leaflet";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { DEFAULT_CENTER } from "../../config";
 import { boundsFromCenterRadiusKm } from "../../utils/geo";
+import RouteEditLayer from "./RouteEditLayer";
+import RouteEditToolbar from "./RouteEditToolbar";
 
 // FitToRadius ajuste automatiquement la vue de la carte
 // à la zone de course choisie quand le centre ou le rayon change.
@@ -20,15 +22,21 @@ function FitToRadius({ center, radiusKm }) {
 
 // FitToRoute recentre la carte sur l’itinéraire actuellement sélectionné.
 // C’est utile une fois que l’utilisateur choisit un trajet parmi les résultats.
+// Le recadrage n'a lieu que lorsqu'on change d'itinéraire (id), jamais après une modification manuelle :
+// sinon la carte bougerait sous les doigts de l'utilisateur à chaque point déplacé.
 function FitToRoute({ selectedRoute }) {
   const map = useMap();
+  const routeId = selectedRoute?.id;
+  const routeRef = useRef(selectedRoute);
+  routeRef.current = selectedRoute;
 
   useEffect(() => {
-    if (!selectedRoute?.segments?.length) return;
-    const allPoints = selectedRoute.segments.flatMap((segment) => segment.points || []);
+    const route = routeRef.current;
+    if (!route?.segments?.length) return;
+    const allPoints = route.segments.flatMap((segment) => segment.points || []);
     if (allPoints.length < 2) return;
     map.fitBounds(allPoints, { padding: [45, 45] });
-  }, [selectedRoute, map]);
+  }, [routeId, map]);
 
   return null;
 }
@@ -103,6 +111,7 @@ export default function MapView({
   graphData,
   routePlan,
   selectedRoute,
+  editor,
 }) {
   // Un centre par défaut est utilisé avant que l’utilisateur choisisse
   // une vraie localisation.
@@ -157,9 +166,36 @@ export default function MapView({
 
 
         <PlannedRouteOverlay selectedRoute={selectedRoute} />
+        {editor?.editMode && selectedRoute && (
+          <RouteEditLayer
+            route={selectedRoute}
+            pending={editor.pending}
+            selectedAnchor={editor.selectedAnchor}
+            onSelect={editor.selectAnchor}
+            onOperation={editor.applyOperation}
+          />
+        )}
         <FitToRadius center={center} radiusKm={radiusKm} />
         <FitToRoute selectedRoute={selectedRoute} />
       </MapContainer>
+
+      {/* Édition du tracé : seulement quand un itinéraire de forme ou de mot est affiché. */}
+      {editor && selectedRoute && (
+        <RouteEditToolbar
+          editMode={editor.editMode}
+          onToggleEditMode={editor.toggleEditMode}
+          pending={editor.pending}
+          canUndo={editor.canUndo}
+          canRedo={editor.canRedo}
+          canReset={editor.canReset}
+          hasSelection={Boolean(editor.selectedAnchor)}
+          isEdited={editor.isEdited}
+          onUndo={editor.undo}
+          onRedo={editor.redo}
+          onReset={editor.reset}
+          onDeleteSelected={editor.deleteSelected}
+        />
+      )}
 
       {/* Bouton de changement de thème placé directement sur la carte. */}
       <div style={styles.themeControlWrap}>
@@ -184,7 +220,10 @@ export default function MapView({
             ) : null}
 
             {selectedRoute ? (
-              <div style={styles.hudStat}>Itinéraire : {selectedRoute.label}</div>
+              <div style={styles.hudStat}>
+                Itinéraire : {selectedRoute.label}
+                {selectedRoute.edited ? " (modifié)" : ""}
+              </div>
             ) : null}
 
             {selectedRoute ? (

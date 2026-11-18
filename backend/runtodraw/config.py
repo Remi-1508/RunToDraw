@@ -34,6 +34,8 @@ class Settings:
     max_distance_km: float
     # Nombre de requêtes coûteuses (graphe, calcul) autorisées par minute et par adresse IP.
     rate_limit_per_minute: int
+    # Les éditions sur la carte (déplacement d'un point…) sont légères mais très fréquentes : limite à part.
+    edit_rate_limit_per_minute: int
     # Nombre de calculs d'itinéraires menés en même temps (le calcul occupe un processeur).
     max_concurrent_plans: int
     # Temps d'attente maximal pour obtenir une place de calcul avant de répondre « serveur occupé ».
@@ -54,6 +56,7 @@ def get_settings() -> Settings:
         allowed_origin_regex=os.environ.get("RUNTODRAW_ALLOWED_ORIGIN_REGEX") or None,
         max_distance_km=_env_number("RUNTODRAW_MAX_DISTANCE_KM", 50.0),
         rate_limit_per_minute=_env_number("RUNTODRAW_RATE_LIMIT_PER_MINUTE", 30, int),
+        edit_rate_limit_per_minute=_env_number("RUNTODRAW_EDIT_RATE_LIMIT_PER_MINUTE", 240, int),
         max_concurrent_plans=_env_number("RUNTODRAW_MAX_CONCURRENT_PLANS", 2, int),
         queue_timeout_s=_env_number("RUNTODRAW_QUEUE_TIMEOUT_S", 60.0),
         graph_cache_size=_env_number("RUNTODRAW_GRAPH_CACHE_SIZE", 3, int),

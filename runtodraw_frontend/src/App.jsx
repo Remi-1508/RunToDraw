@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { DEFAULT_DISTANCE_KM, INITIAL_DRAWING, LONG_DISTANCE_CONFIRM_KM } from "./config";
 import LoadingModal from "./components/feedback/LoadingModal";
 import Toast from "./components/feedback/Toast";
 import MapView from "./components/map/MapView";
 import Sidebar from "./components/sidebar/Sidebar";
 import { useGeolocation } from "./hooks/useGeolocation";
+import { useRouteEditor } from "./hooks/useRouteEditor";
 import { useRouteExport } from "./hooks/useRouteExport";
 import { useRoutePlanning } from "./hooks/useRoutePlanning";
 import { useServerLimits } from "./hooks/useServerLimits";
@@ -26,7 +27,22 @@ export default function App() {
   const [drawing, setDrawing] = useState(INITIAL_DRAWING);
 
   const planning = useRoutePlanning({ showToast });
-  const exportRoute = useRouteExport({ selectedRoute: planning.selectedRoute, showToast });
+  // Édition manuelle du tracé sur la carte : `editor.route` est l'itinéraire choisi, avec ses modifications.
+  const editor = useRouteEditor({
+    routePlan: planning.routePlan,
+    selectedRoute: planning.selectedRoute,
+    planContext: planning.planContext,
+    showToast,
+  });
+  const exportRoute = useRouteExport({ selectedRoute: editor.route, showToast });
+
+  // Liste de propositions affichée dans la barre latérale : l'itinéraire modifié remplace son original
+  // (distance à jour, exports sur le tracé modifié).
+  const { routePlan } = planning;
+  const displayedPlan = useMemo(() => {
+    if (!routePlan || !editor.route) return routePlan;
+    return { ...routePlan, routes: routePlan.routes.map((r) => (r.id === editor.route.id ? editor.route : r)) };
+  }, [routePlan, editor.route]);
 
   // Changer de point de départ efface les résultats précédents.
   const chooseCenter = useCallback(
@@ -93,7 +109,7 @@ export default function App() {
           onPickSuggestion={chooseCenter}
           onGenerateRoutes={handleGenerate}
           canGenerate={Boolean(center) && !planning.busy}
-          routePlan={planning.routePlan}
+          routePlan={displayedPlan}
           selectedRouteId={planning.selectedRouteId}
           onSelectRoute={planning.setSelectedRouteId}
           onExportRoute={exportRoute}
@@ -119,8 +135,9 @@ export default function App() {
           center={center}
           radiusKm={radiusKm}
           graphData={graphData}
-          routePlan={planning.routePlan}
-          selectedRoute={planning.selectedRoute}
+          routePlan={displayedPlan}
+          selectedRoute={editor.route}
+          editor={editor}
         />
       </main>
 

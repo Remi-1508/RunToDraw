@@ -60,6 +60,7 @@ export default function RouteResultsPanel({
             {route.includes_start ? (
               <div style={styles.startBadge}>Part et revient à ton point de départ</div>
             ) : null}
+            {route.edited ? <div style={styles.startBadge}>Modifié à la main</div> : null}
 
             {/* Information secondaire décrivant la variante de l’itinéraire. */}
             <div style={styles.routeMeta}>{route.variant}</div>
@@ -75,16 +76,19 @@ export default function RouteResultsPanel({
            - écart à la cible
            - erreur de forme
         */}
-        <div style={styles.routeStatsRow}>
-          <span>Écart cible : {Math.round(route.length_gap_m)} m</span>
-          <span>Erreur forme : {route.shape_error.toFixed(1)}</span>
-        </div>
+        {/* Après une modification manuelle, ces mesures (calculées sur le tracé généré) ne sont plus valables. */}
+        {route.edited ? null : (
+          <div style={styles.routeStatsRow}>
+            <span>Écart cible : {Math.round(route.length_gap_m)} m</span>
+            <span>Erreur forme : {route.shape_error.toFixed(1)}</span>
+          </div>
+        )}
 
         {/*
            En mode texte, un itinéraire peut contenir un résultat par lettre.
            Ces petites pastilles rendent la lecture des distances lettre par lettre plus simple.
         */}
-        {route.letters?.length ? (
+        {route.letters?.length && !route.edited ? (
           <div style={styles.lettersWrap}>
             {route.letters.map((letter, index) => (
               <div key={`${letter.letter}-${index}`} style={styles.letterPill}>

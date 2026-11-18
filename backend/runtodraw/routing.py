@@ -87,6 +87,21 @@ def reversal_samples(points, min_turn_deg=REVERSAL_ANGLE_DEG):
     return flags
 
 
+# Positions, dans le chemin final, des points d'ancrage conservés (dans l'ordre). Un ancrage dont le nœud a
+# disparu avec une boucle supprimée est ignoré. Ce sont les « sommets » que l'utilisateur peut déplacer.
+def anchor_positions(path_idx, anchors):
+    positions = []
+    start = 0
+    for node in anchors:
+        try:
+            position = path_idx.index(node, start)
+        except ValueError:
+            continue
+        positions.append(position)
+        start = position + 1
+    return positions
+
+
 def route_from_target(graph, target_points, sample_count=60, pinned=None):
     """`pinned` : {indice d'échantillon: indice de nœud} pour imposer le passage par un nœud précis
     (le point de départ de l'utilisateur). Un nœud imposé n'est jamais retiré par la suppression
@@ -142,6 +157,8 @@ def route_from_target(graph, target_points, sample_count=60, pinned=None):
 
     full_path = [graph.node_ids[i] for i in path_idx]
     extra = {
+        # indices (dans full_path) des points d'ancrage : les sommets modifiables du tracé
+        "anchor_idx": anchor_positions(path_idx, snapped),
         "snap_mean": float(np.mean(snap_dists)) if len(snap_dists) else float("inf"),
         "shortest_path_cost": total_cost,
         "unreachable_segments": unreachable,

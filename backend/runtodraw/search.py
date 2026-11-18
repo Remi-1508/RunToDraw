@@ -100,6 +100,7 @@ def search_angles(graph, shape_name):
 def evaluate_candidate(graph, base_points, center, size_m, angle_deg, desired_distance_m, max_allowed_m, sample_count):
     target = make_candidate_points(base_points, center, size_m, angle_deg)
     node_path, route_points, extra = route_from_target(graph, target, sample_count=sample_count)
+    anchor_idx = extra.pop("anchor_idx")
 
     metrics = score_solution(route_points, target, desired_distance_m, max_allowed_m,
                              route_length_m=extra["path_length_m"])
@@ -116,6 +117,7 @@ def evaluate_candidate(graph, base_points, center, size_m, angle_deg, desired_di
     return {
         "target": target,
         "node_path": node_path,
+        "anchor_idx": anchor_idx,
         "route_points": route_points,
         "metrics": metrics,
     }
@@ -219,6 +221,7 @@ def evaluate_anchored_candidate(graph, base_points, fraction, size_m, angle_deg,
         pinned = {int(np.argmin(np.hypot(rs[:, 0], rs[:, 1]))): start_node}
 
     node_path, route_points, extra = route_from_target(graph, target, sample_count=sample_count, pinned=pinned)
+    anchor_idx = extra.pop("anchor_idx")
     metrics = score_solution(route_points, target, desired_distance_m, max_allowed_m,
                              route_length_m=extra["path_length_m"])
     metrics.update(extra)
@@ -230,7 +233,7 @@ def evaluate_anchored_candidate(graph, base_points, fraction, size_m, angle_deg,
     metrics["anchor_fraction"] = float(fraction)
     center = -anchor
     metrics["center_x"], metrics["center_y"] = float(center[0]), float(center[1])
-    return {"target": target, "node_path": node_path, "route_points": route_points,
+    return {"target": target, "node_path": node_path, "anchor_idx": anchor_idx, "route_points": route_points,
             "metrics": metrics, "start_node": graph.node_ids[start_node]}
 
 

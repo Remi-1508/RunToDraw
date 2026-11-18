@@ -1,16 +1,17 @@
 """API FastAPI : point d'entrée HTTP de RunToDraw (lancement : uvicorn runtodraw.api:app)."""
 import logging
 import os
-from typing import Literal
+from typing import List, Literal, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from runtodraw.config import get_settings
 from runtodraw.graph_cache import NoRoadsFoundError, cache_key, extraction_radius_m, get_road_graph
-from runtodraw.planner import plan_from_graph
+from runtodraw.planner import plan_from_graph, route_points_xy_to_latlon
+from runtodraw.route_editing import EditError, edit_route, path_length_m
 from runtodraw.protection import ComputeSlots, RateLimiter, RateLimitExceeded, ServerBusy, client_ip
 from runtodraw.validation import SHAPES, normalize_text
 
@@ -34,6 +35,7 @@ app.add_middleware(
 )
 
 rate_limiter = RateLimiter(limit=settings.rate_limit_per_minute)
+edit_rate_limiter = RateLimiter(limit=settings.edit_rate_limit_per_minute)
 compute_slots = ComputeSlots(settings.max_concurrent_plans, settings.queue_timeout_s)
 
 
@@ -63,21 +65,63 @@ class RoutePlanRequest(GraphFetchRequest):
     tolerance_ratio: float = Field(default=0.10, ge=0.01, le=0.5)
 
 
-# Limitation de débit : appliquée aux deux endpoints coûteux (téléchargement du graphe et calcul).
-def limit_rate(request: Request) -> None:
-    ip = client_ip(
-        request.headers.get("x-forwarded-for"),
-        request.client.host if request.client else None,
-        settings.trusted_proxy_hops,
-    )
-    try:
-        rate_limiter.check(ip)
-    except RateLimitExceeded as e:
-        raise HTTPException(
-            status_code=429,
-            detail="Trop de requêtes : patiente un instant avant de relancer une génération.",
-            headers={"Retry-After": str(e.retry_after_s)},
+# Édition manuelle : un segment du tracé (chemin en identifiants de nœuds OSM + positions des ancrages).
+MAX_EDIT_SEGMENTS = 40          # un mot de 10 lettres reliées : 10 lettres + 9 liaisons
+MAX_EDIT_PATH_NODES = 30_000    # largement au-dessus d'un tracé de 50 km
+
+
+class EditSegment(BaseModel):
+    label: str = Field(default="", max_length=60)
+    kind: str = Field(default="", max_length=20)
+    node_path: List[int] = Field(min_length=1, max_length=MAX_EDIT_PATH_NODES)
+    anchors: List[int] = Field(max_length=MAX_EDIT_PATH_NODES)
+
+    @model_validator(mode="after")
+    def _check_anchors(self):
+        if self.anchors != sorted(set(self.anchors)) or any(not 0 <= a < len(self.node_path) for a in self.anchors):
+            raise ValueError("Points d'ancrage incohérents avec le chemin.")
+        return self
+
+
+class EditOperation(BaseModel):
+    type: Literal["move", "insert", "delete"]
+    anchor: int = Field(ge=0, le=MAX_EDIT_PATH_NODES)
+    lat: Optional[float] = Field(default=None, ge=-90, le=90)
+    lon: Optional[float] = Field(default=None, ge=-180, le=180)
+
+    @model_validator(mode="after")
+    def _check_position(self):
+        if self.type != "delete" and (self.lat is None or self.lon is None):
+            raise ValueError("Une position est nécessaire pour déplacer ou insérer un point.")
+        return self
+
+
+class RouteEditRequest(GraphFetchRequest):
+    segments: List[EditSegment] = Field(min_length=1, max_length=MAX_EDIT_SEGMENTS)
+    segment_index: int = Field(ge=0, lt=MAX_EDIT_SEGMENTS)
+    operation: EditOperation
+
+
+# Limitation de débit : une instance par type d'endpoint (calcul lourd / édition légère).
+def _limiter_dependency(limiter: RateLimiter, message: str):
+    def check(request: Request) -> None:
+        ip = client_ip(
+            request.headers.get("x-forwarded-for"),
+            request.client.host if request.client else None,
+            settings.trusted_proxy_hops,
         )
+        try:
+            limiter.check(ip)
+        except RateLimitExceeded as e:
+            raise HTTPException(status_code=429, detail=message, headers={"Retry-After": str(e.retry_after_s)})
+    return check
+
+
+# Calcul lourd (téléchargement du graphe, génération) et édition légère : deux compteurs distincts.
+limit_rate = _limiter_dependency(
+    rate_limiter, "Trop de requêtes : patiente un instant avant de relancer une génération.")
+limit_edit_rate = _limiter_dependency(
+    edit_rate_limiter, "Trop de modifications d'un coup : patiente quelques secondes.")
 
 
 # Récupère le graphe routier en transformant les erreurs techniques en erreurs HTTP claires.
@@ -134,3 +178,37 @@ def plan_routes(request: RoutePlanRequest):
     graph, _ = _load_graph(request)
     with compute_slots.acquire():
         return plan_from_graph(graph, request.distance_km, request.drawing.model_dump(), request.tolerance_ratio)
+
+
+# Édite un point du tracé (déplacer / insérer / supprimer) et renvoie les segments recalculés.
+# Sans état côté serveur : le client renvoie les segments courants, seuls les tronçons voisins du point
+# modifié sont recalculés (deux plus courts chemins), donc la réponse est quasi instantanée.
+@app.post("/api/routes/edit", dependencies=[Depends(limit_edit_rate)])
+def edit_route_endpoint(request: RouteEditRequest):
+    if request.segment_index >= len(request.segments):
+        raise HTTPException(status_code=422, detail="Segment inconnu.")
+    graph, _ = _load_graph(request)
+
+    try:
+        segments = [{"label": s.label, "kind": s.kind, "anchors": s.anchors,
+                     "node_path": [graph._idx_of[n] for n in s.node_path]} for s in request.segments]
+    except KeyError:
+        raise HTTPException(status_code=422, detail="Ce tracé ne correspond plus à la carte chargée : relance la génération.")
+
+    try:
+        edited = edit_route(graph, segments, request.segment_index, request.operation.model_dump())
+    except EditError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    out = []
+    for seg in edited:
+        path = seg["node_path"]
+        out.append({
+            "label": seg["label"],
+            "kind": seg["kind"],
+            "points": route_points_xy_to_latlon(graph, graph.node_array[path]),
+            "distance_m": path_length_m(graph, path),
+            "node_path": [graph.node_ids[i] for i in path],
+            "anchors": seg["anchors"],
+        })
+    return {"segments": out, "total_distance_m": sum(s["distance_m"] for s in out)}

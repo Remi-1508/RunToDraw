@@ -2,7 +2,7 @@
 import math
 from typing import Any, Dict, List
 
-from runtodraw.geometry import xy_to_latlon_m
+from runtodraw.geometry import xy_array_to_latlon
 from runtodraw.search import evaluate_method, evaluate_start_method
 from runtodraw.shapes import get_base_shape
 from runtodraw.text_routes import link_letter_routes, split_text_itineraries_full_distance
@@ -11,15 +11,12 @@ from runtodraw.text_routes import link_letter_routes, split_text_itineraries_ful
 # Un trajet candidat est d’abord calculé en coordonnées locales.
 # Cette fonction reconvertit toute la polyligne en points GPS.
 def route_points_xy_to_latlon(graph, route_points):
-    out = []
-    for p in route_points:
-        lat, lon = xy_to_latlon_m(float(p[0]), float(p[1]), graph.center_lat, graph.center_lon)
-        out.append([lat, lon])
-    return out
+    return xy_array_to_latlon(route_points, graph.center_lat, graph.center_lon)
 
 
 # Cette fonction met en forme un segment d’itinéraire dans la structure attendue
-# par le frontend. On garde un label, les points GPS et la distance mesurée.
+# par le frontend. On garde un label, les points GPS et la distance mesurée, ainsi que les identifiants
+# des nœuds du chemin et la position des points d'ancrage (sommets modifiables sur la carte).
 def build_segment_from_candidate(graph, candidate, label):
     metrics = candidate.get("metrics", {})
 
@@ -37,6 +34,8 @@ def build_segment_from_candidate(graph, candidate, label):
         "label": label,
         "points": latlon_points,
         "distance_m": float(metrics.get("length_route", 0.0)),
+        "node_path": list(node_path) if node_path else [],
+        "anchors": list(candidate.get("anchor_idx", [])),
     }
 
 
@@ -195,6 +194,8 @@ def build_text_routes(graph, drawing, distance_m, tolerance_ratio):
                 "kind": piece["kind"],
                 "points": route_points_xy_to_latlon(graph, pts),
                 "distance_m": length,
+                "node_path": [graph.node_ids[i] for i in piece["node_path"]],
+                "anchors": piece["anchors"],
             })
         routes.append({
             "label": f"{text} — lettres reliées",

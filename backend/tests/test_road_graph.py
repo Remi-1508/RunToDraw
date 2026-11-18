@@ -307,3 +307,16 @@ def test_text_modes_whole_word_separate_and_linked():
     # tracé continu : chaque morceau commence là où le précédent finit
     assert all(haversine(a["points"][-1], b["points"][0]) < 1.0 for a, b in zip(segs, segs[1:]))
     assert linked["total_distance_m"] >= separate["total_distance_m"] - 1.0
+
+
+# Les segments exposent le chemin (identifiants de nœuds) et les ancrages modifiables sur la carte.
+@pytest.mark.parametrize("drawing", [{"mode": "shape", "shape": "heart"}, {"mode": "text", "text": "LE"}])
+def test_segments_expose_node_path_and_anchors(drawing):
+    _, res = _plan(drawing, km=3.0)
+    for route in res["routes"]:
+        for seg in route["segments"]:
+            assert len(seg["node_path"]) == len(seg["points"])
+            assert seg["anchors"] == sorted(set(seg["anchors"]))
+            assert all(0 <= a < len(seg["node_path"]) for a in seg["anchors"])
+            if seg.get("kind") != "link":
+                assert len(seg["anchors"]) >= 2

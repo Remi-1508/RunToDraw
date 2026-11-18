@@ -195,3 +195,12 @@ def xy_to_latlon_m(x, y, lat0, lon0):
     lat = lat0 + math.degrees(y / r)
     lon = lon0 + math.degrees(x / (r * math.cos(math.radians(lat0))))
     return lat, lon
+
+
+# Version vectorisée : convertit un tableau de points x/y (en mètres) en liste de [lat, lon].
+def xy_array_to_latlon(xy, lat0, lon0):
+    xy = np.asarray(xy, dtype=float).reshape(-1, 2)
+    r = 6371000.0
+    lat = lat0 + np.degrees(xy[:, 1] / r)
+    lon = lon0 + np.degrees(xy[:, 0] / (r * math.cos(math.radians(lat0))))
+    return np.column_stack([lat, lon]).tolist()

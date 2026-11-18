@@ -70,6 +70,20 @@ En mode texte, trois versions sont proposées :
 - **lettres séparées** : un itinéraire par lettre, chacun de la distance demandée
 - **lettres reliées** : ces mêmes lettres enchaînées en un seul itinéraire, reliées par le plus court chemin
 
+## Modifier le tracé sur la carte
+
+Le bouton **Modifier le tracé** (en bas de la carte) permet de retoucher l'itinéraire choisi, comme sur Strava,
+en formes comme en texte. Les points du tracé apparaissent sous forme de ronds, notamment au bout des
+aller-retours :
+
+- **déplacer** un point : on le glisse, le tracé est recalculé sur les vraies routes ;
+- **ajouter** un point : on appuie sur le tracé et on tire ;
+- **supprimer** un point : clic sur le point puis `Suppr` (ou le bouton de la barre d'outils) ;
+- **annuler / rétablir** : `Ctrl+Z` / `Ctrl+Y`, ou « Tracé d'origine » pour tout reprendre.
+
+Seuls les deux tronçons voisins du point touché sont recalculés (`POST /api/routes/edit`), donc la réponse est
+quasi instantanée. L'export GPX / KML porte sur le tracé modifié.
+
 ## Export
 
 Les itinéraires peuvent être exportés en :
@@ -120,6 +134,7 @@ Protections actives par défaut, volontairement permissives :
 
 - distance limitée à 50 km (`RUNTODRAW_MAX_DISTANCE_KM`) ;
 - 30 requêtes coûteuses par minute et par adresse IP, soit environ 15 générations (`RUNTODRAW_RATE_LIMIT_PER_MINUTE`) ;
+- 240 modifications de tracé par minute et par adresse IP, car déplacer un point sur la carte est léger mais fréquent (`RUNTODRAW_EDIT_RATE_LIMIT_PER_MINUTE`) ;
 - 2 calculs d'itinéraires simultanés, les suivants patientent puis reçoivent « serveur occupé » ;
 - une seule requête Overpass par zone, même si plusieurs utilisateurs la demandent en même temps ;
 - texte normalisé (majuscules, accents retirés), formes validées, erreurs lisibles et sans détail interne.

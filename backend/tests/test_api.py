@@ -72,3 +72,85 @@ def test_cors_allows_configured_origin_only(fake_graph):
         "Origin": "https://evil.example", "Access-Control-Request-Method": "POST"})
     assert ok.headers.get("access-control-allow-origin") == "http://localhost:5173"
     assert "access-control-allow-origin" not in bad.headers
+
+
+# ---------- Édition manuelle (POST /api/routes/edit) ----------
+
+@pytest.fixture
+def edit_graph(monkeypatch):
+    """Vrai petit graphe routier (grille synthétique) à la place du téléchargement Overpass."""
+    from runtodraw.road_graph import RoadGraph
+    from tests.test_road_graph import random_road_graph
+
+    graph = RoadGraph(random_road_graph(3, n_side=40, step=70.0, oneway_ratio=0.0))
+    monkeypatch.setattr(api, "get_road_graph", lambda lat, lon, radius: graph)
+    api.edit_rate_limiter._hits.clear()
+    monkeypatch.setattr(api.edit_rate_limiter, "limit", 10_000)
+    return graph
+
+
+def _edit_body(graph, **override):
+    from runtodraw import route_editing as ed
+    path, anchors = ed.connect(graph, [100, 500, 900, 1300])
+    body = {
+        **BODY,
+        "segments": [{"label": "Cœur", "kind": "shape", "anchors": anchors,
+                      "node_path": [graph.node_ids[i] for i in path]}],
+        "segment_index": 0,
+        "operation": {"type": "delete", "anchor": 1},
+    }
+    body.update(override)
+    return body
+
+
+def test_edit_delete_returns_recomputed_segment(edit_graph):
+    resp = client.post("/api/routes/edit", json=_edit_body(edit_graph))
+    assert resp.status_code == 200
+    data = resp.json()
+    seg = data["segments"][0]
+    assert len(seg["anchors"]) == 3 and len(seg["points"]) == len(seg["node_path"])
+    assert data["total_distance_m"] == pytest.approx(seg["distance_m"])
+
+
+def test_edit_move_snaps_to_the_dropped_position(edit_graph):
+    from runtodraw.geometry import xy_to_latlon_m
+    x, y = edit_graph.node_array[600]
+    lat, lon = xy_to_latlon_m(float(x), float(y), edit_graph.center_lat, edit_graph.center_lon)
+    body = _edit_body(edit_graph, operation={"type": "move", "anchor": 1, "lat": lat, "lon": lon})
+    seg = client.post("/api/routes/edit", json=body).json()["segments"][0]
+    assert seg["node_path"][seg["anchors"][1]] == edit_graph.node_ids[600]
+
+
+@pytest.mark.parametrize("patch", [
+    {"operation": {"type": "move", "anchor": 1}},                       # position manquante
+    {"operation": {"type": "explode", "anchor": 1}},                    # opération inconnue
+    {"segments": []},
+    {"segment_index": 5},
+])
+def test_edit_invalid_requests_are_rejected(edit_graph, patch):
+    assert client.post("/api/routes/edit", json=_edit_body(edit_graph, **patch)).status_code == 422
+
+
+def test_edit_rejects_inconsistent_anchors(edit_graph):
+    body = _edit_body(edit_graph)
+    body["segments"][0]["anchors"] = [0, 99999]
+    assert client.post("/api/routes/edit", json=body).status_code == 422
+
+
+def test_edit_rejects_nodes_unknown_to_the_loaded_map(edit_graph):
+    body = _edit_body(edit_graph)
+    body["segments"][0]["node_path"][2] = -42
+    assert client.post("/api/routes/edit", json=body).status_code == 422
+
+
+def test_edit_far_from_roads_gives_a_clear_error(edit_graph):
+    body = _edit_body(edit_graph, operation={"type": "move", "anchor": 1, "lat": 10.0, "lon": 10.0})
+    resp = client.post("/api/routes/edit", json=body)
+    assert resp.status_code == 422 and "éloigné" in resp.json()["detail"]
+
+
+def test_edit_has_its_own_rate_limit(edit_graph, monkeypatch):
+    monkeypatch.setattr(api.edit_rate_limiter, "limit", 1)
+    api.edit_rate_limiter._hits.clear()
+    assert client.post("/api/routes/edit", json=_edit_body(edit_graph)).status_code == 200
+    assert client.post("/api/routes/edit", json=_edit_body(edit_graph)).status_code == 429
