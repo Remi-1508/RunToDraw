@@ -1,43 +1,19 @@
 import { useState } from "react";
 
-/*
-============================================================
-EN:
-This small helper converts a distance in meters into a readable
-string in kilometers.
-
-FR:
-Cette petite fonction transforme une distance en mètres
-en une chaîne lisible en kilomètres.
-============================================================
-*/
+// Cette petite fonction transforme une distance en mètres
+// en une chaîne lisible en kilomètres.
 function formatKm(meters) {
   return `${(meters / 1000).toFixed(2)} km`;
 }
 
-/*
-============================================================
-EN:
-RouteResultsPanel displays the route proposals returned by the backend.
-
-It has two main roles:
-1) let the user compare and choose one generated route
-2) let the user export the selected route to a GPS-friendly format
-
-This component does not compute routes itself.
-It only displays the results in a clear and usable way.
-
-FR:
-RouteResultsPanel affiche les propositions d’itinéraires renvoyées par le backend.
-
-Il a deux rôles principaux :
-1) permettre à l’utilisateur de comparer et choisir un itinéraire généré
-2) permettre à l’utilisateur d’exporter l’itinéraire sélectionné dans un format utilisable
-
-Ce composant ne calcule pas lui-même les trajets.
-Il se contente d’afficher les résultats de manière claire et exploitable.
-============================================================
-*/
+// RouteResultsPanel affiche les propositions d’itinéraires renvoyées par le backend.
+//
+// Il a deux rôles principaux :
+// 1) permettre à l’utilisateur de comparer et choisir un itinéraire généré
+// 2) permettre à l’utilisateur d’exporter l’itinéraire sélectionné dans un format utilisable
+//
+// Ce composant ne calcule pas lui-même les trajets.
+// Il se contente d’afficher les résultats de manière claire et exploitable.
 export default function RouteResultsPanel({
   routePlan,
   selectedRouteId,
@@ -49,15 +25,8 @@ export default function RouteResultsPanel({
   const letterSegments = selectedRoute?.separate ? selectedRoute.segments : null;
   // Propositions secondaires (ex. « mot entier » en mode texte) : repliées par défaut.
   const [showOthers, setShowOthers] = useState(false);
-  /*
-  EN:
-  If no route generation has been launched yet,
-  we display a muted placeholder card.
-
-  FR:
-  Si aucune génération d’itinéraire n’a encore été lancée,
-  on affiche une carte d’attente plus discrète.
-  */
+  // Si aucune génération d’itinéraire n’a encore été lancée,
+  // on affiche une carte d’attente plus discrète.
   if (!routePlan) {
     return (
       <section style={styles.cardMuted}>
@@ -86,41 +55,25 @@ export default function RouteResultsPanel({
       >
         <div style={styles.routeHeader}>
           <div>
-            {/* 
-            EN: Main label of the route, for example a shape or a text mode.
-            FR: Libellé principal du trajet, par exemple une forme ou un mode texte.
-            */}
+            {/* Libellé principal du trajet, par exemple une forme ou un mode texte. */}
             <div style={styles.routeLabel}>{route.label}</div>
             {route.includes_start ? (
               <div style={styles.startBadge}>Part et revient à ton point de départ</div>
             ) : null}
 
-            {/* 
-            EN: Secondary information describing the route variant.
-            FR: Information secondaire décrivant la variante de l’itinéraire.
-            */}
+            {/* Information secondaire décrivant la variante de l’itinéraire. */}
             <div style={styles.routeMeta}>{route.variant}</div>
           </div>
 
-          {/* 
-          EN: Main distance badge shown on the right.
-          FR: Badge principal de distance affiché à droite.
-          */}
+          {/* Badge principal de distance affiché à droite. */}
           <div style={styles.distanceBadge}>{formatKm(route.total_distance_m)}</div>
         </div>
 
-        {/* 
-        EN:
-        These quick metrics help compare routes without opening anything else.
-        We keep them simple:
-        - distance gap
-        - shape error
-
-        FR:
-        Ces métriques rapides aident à comparer les trajets sans ouvrir autre chose.
-        On reste sur des infos simples :
-        - écart à la cible
-        - erreur de forme
+        {/*
+           Ces métriques rapides aident à comparer les trajets sans ouvrir autre chose.
+           On reste sur des infos simples :
+           - écart à la cible
+           - erreur de forme
         */}
         <div style={styles.routeStatsRow}>
           <span>Écart cible : {Math.round(route.length_gap_m)} m</span>
@@ -128,13 +81,8 @@ export default function RouteResultsPanel({
         </div>
 
         {/*
-        EN:
-        In text mode, a route may contain one result per letter.
-        These small pills make the letter-by-letter distances easier to read.
-
-        FR:
-        En mode texte, un itinéraire peut contenir un résultat par lettre.
-        Ces petites pastilles rendent la lecture des distances lettre par lettre plus simple.
+           En mode texte, un itinéraire peut contenir un résultat par lettre.
+           Ces petites pastilles rendent la lecture des distances lettre par lettre plus simple.
         */}
         {route.letters?.length ? (
           <div style={styles.lettersWrap}>
@@ -151,22 +99,14 @@ export default function RouteResultsPanel({
 
   return (
     <section style={styles.card}>
-      {/* 
-      EN: General introduction for the route selection step.
-      FR: Présentation générale de l’étape de sélection d’itinéraire.
-      */}
+      {/* Présentation générale de l’étape de sélection d’itinéraire. */}
       <div style={styles.cardLabel}>Étape 5</div>
       <div style={styles.cardTitle}>Choisir un itinéraire</div>
       <div style={styles.helperText}>{routePlan.summary}</div>
 
       {/*
-      EN:
-      Each route is displayed as a clickable card.
-      The currently selected route is visually highlighted.
-
-      FR:
-      Chaque itinéraire est affiché sous forme de carte cliquable.
-      L’itinéraire actuellement sélectionné est visuellement mis en avant.
+         Chaque itinéraire est affiché sous forme de carte cliquable.
+         L’itinéraire actuellement sélectionné est visuellement mis en avant.
       */}
       <div style={styles.routesColumn}>{primaryRoutes.map(renderRouteCard)}</div>
 
@@ -197,15 +137,9 @@ export default function RouteResultsPanel({
 
 
       {/*
-      EN:
-      Export section.
-      The selected route can be downloaded in different formats
-      depending on the target application.
-
-      FR:
-      Zone d’export.
-      L’itinéraire sélectionné peut être téléchargé dans différents formats
-      selon l’application cible.
+         Zone d’export.
+         L’itinéraire sélectionné peut être téléchargé dans différents formats
+         selon l’application cible.
       */}
       <div style={styles.exportZone}>
         <div style={styles.cardLabel}>Étape 6</div>
@@ -252,24 +186,12 @@ export default function RouteResultsPanel({
   );
 }
 
-/*
-============================================================
-EN:
-These styles define the card layout, route cards,
-small metric pills, and export buttons.
-
-The goal is to make comparison quick and readable,
-without overloading the sidebar.
-
-FR:
-Ces styles définissent la mise en forme de la carte,
-des cartes d’itinéraires, des petites pastilles de métriques,
-et des boutons d’export.
-
-L’objectif est de rendre la comparaison rapide et lisible,
-sans surcharger la sidebar.
-============================================================
-*/
+// Ces styles définissent la mise en forme de la carte,
+// des cartes d’itinéraires, des petites pastilles de métriques,
+// et des boutons d’export.
+//
+// L’objectif est de rendre la comparaison rapide et lisible,
+// sans surcharger la sidebar.
 const styles = {
   card: {
     background: "var(--card)",
@@ -317,13 +239,7 @@ const styles = {
     marginTop: 14,
   },
 
-  /*
-  EN:
-  Default style for one route proposal card.
-
-  FR:
-  Style par défaut d’une carte de proposition d’itinéraire.
-  */
+  // Style par défaut d’une carte de proposition d’itinéraire.
   routeCard: {
     width: "100%",
     border: "1px solid var(--border-subtle)",
@@ -335,13 +251,7 @@ const styles = {
     textAlign: "left",
   },
 
-  /*
-  EN:
-  Highlighted style for the currently selected route.
-
-  FR:
-  Style mis en avant pour l’itinéraire actuellement sélectionné.
-  */
+  // Style mis en avant pour l’itinéraire actuellement sélectionné.
   routeCardActive: {
     width: "100%",
     border: "1px solid transparent",

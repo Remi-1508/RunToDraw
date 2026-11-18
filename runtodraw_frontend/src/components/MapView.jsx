@@ -2,17 +2,8 @@ import { Circle, MapContainer, Polyline, TileLayer, useMap } from "react-leaflet
 import { useEffect, useMemo } from "react";
 import { boundsFromCenterRadiusKm } from "../utils/geo";
 
-/*
-============================================================
-EN:
-FitToRadius automatically adjusts the map view to the selected
-running area when the center or radius changes.
-
-FR:
-FitToRadius ajuste automatiquement la vue de la carte
-à la zone de course choisie quand le centre ou le rayon change.
-============================================================
-*/
+// FitToRadius ajuste automatiquement la vue de la carte
+// à la zone de course choisie quand le centre ou le rayon change.
 function FitToRadius({ center, radiusKm }) {
   const map = useMap();
 
@@ -26,17 +17,8 @@ function FitToRadius({ center, radiusKm }) {
   return null;
 }
 
-/*
-============================================================
-EN:
-FitToRoute recenters the map on the currently selected route.
-This is useful once the user chooses one itinerary from the results.
-
-FR:
-FitToRoute recentre la carte sur l’itinéraire actuellement sélectionné.
-C’est utile une fois que l’utilisateur choisit un trajet parmi les résultats.
-============================================================
-*/
+// FitToRoute recentre la carte sur l’itinéraire actuellement sélectionné.
+// C’est utile une fois que l’utilisateur choisit un trajet parmi les résultats.
 function FitToRoute({ selectedRoute }) {
   const map = useMap();
 
@@ -50,17 +32,8 @@ function FitToRoute({ selectedRoute }) {
   return null;
 }
 
-/*
-============================================================
-EN:
-ThemeControl is the small button displayed on the map
-to switch between light mode and dark mode.
-
-FR:
-ThemeControl est le petit bouton affiché sur la carte
-pour passer du mode clair au mode sombre.
-============================================================
-*/
+// ThemeControl est le petit bouton affiché sur la carte
+// pour passer du mode clair au mode sombre.
 function ThemeControl({ theme, onToggleTheme }) {
   const isDark = theme === "dark";
 
@@ -78,23 +51,11 @@ function ThemeControl({ theme, onToggleTheme }) {
   );
 }
 
-/*
-============================================================
-EN:
-PlannedRouteOverlay draws the selected route on the map.
-
-The route can contain several segments, especially in text mode,
-so we draw each segment one after another.
-Two colors are alternated to make the segments easier to distinguish.
-
-FR:
-PlannedRouteOverlay dessine l’itinéraire sélectionné sur la carte.
-
-Le trajet peut contenir plusieurs segments, surtout en mode texte,
-donc on dessine chaque segment séparément.
-Deux couleurs sont alternées pour mieux distinguer les segments.
-============================================================
-*/
+// PlannedRouteOverlay dessine l’itinéraire sélectionné sur la carte.
+//
+// Le trajet peut contenir plusieurs segments, surtout en mode texte,
+// donc on dessine chaque segment séparément.
+// Deux couleurs sont alternées pour mieux distinguer les segments.
 function PlannedRouteOverlay({ selectedRoute }) {
   if (!selectedRoute?.segments?.length) return null;
 
@@ -123,33 +84,16 @@ function PlannedRouteOverlay({ selectedRoute }) {
   );
 }
 
-/*
-============================================================
-EN:
-MapView is the main map component of the application.
-
-It is responsible for:
-- displaying the base map
-- showing the selected running zone
-- showing the selected generated route
-- keeping a few visual indicators on top of the map
-
-This component is mostly about display and map behavior.
-It does not generate routes itself.
-
-FR:
-MapView est le composant principal de carte de l’application.
-
-Il s’occupe de :
-- afficher le fond de carte
-- montrer la zone de course sélectionnée
-- afficher l’itinéraire généré sélectionné
-- garder quelques informations visuelles au-dessus de la carte
-
-Ce composant gère surtout l’affichage et le comportement de la carte.
-Il ne génère pas lui-même les itinéraires.
-============================================================
-*/
+// MapView est le composant principal de carte de l’application.
+//
+// Il s’occupe de :
+// - afficher le fond de carte
+// - montrer la zone de course sélectionnée
+// - afficher l’itinéraire généré sélectionné
+// - garder quelques informations visuelles au-dessus de la carte
+//
+// Ce composant gère surtout l’affichage et le comportement de la carte.
+// Il ne génère pas lui-même les itinéraires.
 export default function MapView({
   theme,
   onToggleTheme,
@@ -159,31 +103,17 @@ export default function MapView({
   routePlan,
   selectedRoute,
 }) {
-  /*
-  EN:
-  A default center is used before the user chooses a real location.
-  Here we use Bordeaux as a fallback.
-
-  FR:
-  Un centre par défaut est utilisé avant que l’utilisateur choisisse
-  une vraie localisation.
-  Ici on utilise Bordeaux comme valeur de secours.
-  */
+  // Un centre par défaut est utilisé avant que l’utilisateur choisisse
+  // une vraie localisation.
+  // Ici on utilise Bordeaux comme valeur de secours.
   const safeCenter = center ?? [44.8378, -0.5792];
 
   const vertexCount = graphData?.nodeCount ?? graphData?.nodesById?.size ?? 0;
   const edgeCount = graphData?.edgeCount ?? 0;
 
 
-  /*
-  EN:
-  The tile provider depends on the current theme.
-  We memoize the configuration so it is only recalculated when the theme changes.
-
-  FR:
-  Le fond de carte dépend du thème actuel.
-  On mémorise cette configuration pour ne la recalculer que lorsque le thème change.
-  */
+  // Le fond de carte dépend du thème actuel.
+  // On mémorise cette configuration pour ne la recalculer que lorsque le thème change.
   // Tuiles OpenStreetMap standard : gratuites, sans clé d'API.
   // Le mode nuit assombrit ces mêmes tuiles via un filtre CSS (classe "tiles-dark" dans index.css).
   const tileConfig = useMemo(
@@ -209,12 +139,8 @@ export default function MapView({
         />
 
         {/*
-        EN:
-        The circle shows the selected area used to extract the graph.
-
-        FR:
-        Le cercle représente la zone sélectionnée utilisée
-        pour extraire le graphe.
+           Le cercle représente la zone sélectionnée utilisée
+           pour extraire le graphe.
         */}
         {center && (
           <Circle
@@ -234,25 +160,14 @@ export default function MapView({
         <FitToRoute selectedRoute={selectedRoute} />
       </MapContainer>
 
-      {/*
-      EN:
-      Theme switch button placed directly on the map.
-
-      FR:
-      Bouton de changement de thème placé directement sur la carte.
-      */}
+      {/* Bouton de changement de thème placé directement sur la carte. */}
       <div style={styles.themeControlWrap}>
         <ThemeControl theme={theme} onToggleTheme={onToggleTheme}  />
       </div>
 
       {/*
-      EN:
-      This small top-right panel gives quick feedback about the graph
-      and the selected route.
-
-      FR:
-      Ce petit panneau en haut à droite donne un retour rapide
-      sur le graphe et l’itinéraire sélectionné.
+         Ce petit panneau en haut à droite donne un retour rapide
+         sur le graphe et l’itinéraire sélectionné.
       */}
       {(graphData || routePlan) && (
         <div style={styles.topRight}>
@@ -289,23 +204,11 @@ export default function MapView({
   );
 }
 
-/*
-============================================================
-EN:
-The styles below define the general map layout,
-floating controls and summary card.
-
-The idea is to keep important map information visible
-without hiding too much of the map itself.
-
-FR:
-Les styles ci-dessous définissent la mise en page générale de la carte,
-les contrôles flottants, la carte de résumé, et le message d’avertissement.
-
-L’idée est de garder les informations importantes visibles
-sans masquer trop de surface de carte.
-============================================================
-*/
+// Les styles ci-dessous définissent la mise en page générale de la carte,
+// les contrôles flottants, la carte de résumé, et le message d’avertissement.
+//
+// L’idée est de garder les informations importantes visibles
+// sans masquer trop de surface de carte.
 const styles = {
   shell: {
     height: "100%",

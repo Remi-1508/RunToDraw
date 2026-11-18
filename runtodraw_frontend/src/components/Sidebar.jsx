@@ -4,27 +4,13 @@ import logoRunToDrawNight from "../assets/logo_runtodraw_night.png";
 import RouteResultsPanel from "./RouteResultsPanel";
 import { searchPlaces } from "../services/geocoding";
 
-/*
-============================================================
-EN:
-This list defines the available predefined shapes shown
-in the interface.
-
-Each shape has:
-- an internal id used in the code
-- a readable label for the user
-- an emoji to make the UI more visual
-
-FR:
-Cette liste définit les formes prédéfinies disponibles
-dans l’interface.
-
-Chaque forme possède :
-- un identifiant interne utilisé dans le code
-- un label lisible pour l’utilisateur
-- un emoji pour rendre l’interface plus visuelle
-============================================================
-*/
+// Cette liste définit les formes prédéfinies disponibles
+// dans l’interface.
+//
+// Chaque forme possède :
+// - un identifiant interne utilisé dans le code
+// - un label lisible pour l’utilisateur
+// - un emoji pour rendre l’interface plus visuelle
 const SHAPES = [
   { id: "square", label: "Carré", emoji: "⬜" },
   { id: "circle", label: "Rond", emoji: "⚪" },
@@ -59,37 +45,18 @@ function CountryFlag({ code, country }) {
   );
 }
 
-/*
-============================================================
-EN:
-Sidebar is the main control panel of the application.
-
-It guides the full user flow:
-1) choose a starting location
-2) choose a running distance
-3) choose a shape or a text
-4) generate the routes
-5) review the route results
-6) export a selected route
-
-This component is mostly responsible for interface logic,
-form state, and address search.
-
-FR:
-Sidebar est le panneau principal de contrôle de l’application.
-
-Il guide tout le parcours utilisateur :
-1) choisir un point de départ
-2) choisir une distance
-3) choisir une forme ou un texte
-4) générer les itinéraires
-5) consulter les résultats
-6) exporter un itinéraire sélectionné
-
-Ce composant gère surtout la logique d’interface,
-l’état du formulaire et la recherche d’adresse.
-============================================================
-*/
+// Sidebar est le panneau principal de contrôle de l’application.
+//
+// Il guide tout le parcours utilisateur :
+// 1) choisir un point de départ
+// 2) choisir une distance
+// 3) choisir une forme ou un texte
+// 4) générer les itinéraires
+// 5) consulter les résultats
+// 6) exporter un itinéraire sélectionné
+//
+// Ce composant gère surtout la logique d’interface,
+// l’état du formulaire et la recherche d’adresse.
 export default function Sidebar({
   theme,
   center,
@@ -115,17 +82,9 @@ export default function Sidebar({
   const [worldSearchStart, setWorldSearchStart] = useState(null);
   const [worldElapsed, setWorldElapsed] = useState(0);
 
-  /*
-  EN:
-  These refs are used to control address search behavior:
-  - debounceRef delays requests while the user is typing
-  - abortRef cancels the previous request if a new one starts
-
-  FR:
-  Ces refs servent à contrôler le comportement de la recherche d’adresse :
-  - debounceRef retarde les requêtes pendant la saisie
-  - abortRef annule la requête précédente si une nouvelle démarre
-  */
+  // Ces refs servent à contrôler le comportement de la recherche d’adresse :
+  // - debounceRef retarde les requêtes pendant la saisie
+  // - abortRef annule la requête précédente si une nouvelle démarre
   const debounceRef = useRef(null);
   const abortRef = useRef(null);
   // Texte de la dernière suggestion choisie : on ne relance pas de recherche dessus.
@@ -134,15 +93,8 @@ export default function Sidebar({
   const radiusKm = distanceKm / 2;
   const currentLogo = theme === "dark" ? logoRunToDrawNight : logoRunToDrawDay;
 
-  /*
-  EN:
-  This helper text explains whether the typed word length is reasonable.
-  We keep it dynamic so the user gets feedback while typing.
-
-  FR:
-  Ce texte d’aide explique si la longueur du mot saisi est raisonnable.
-  On le garde dynamique pour que l’utilisateur ait un retour pendant la saisie.
-  */
+  // Ce texte d’aide explique si la longueur du mot saisi est raisonnable.
+  // On le garde dynamique pour que l’utilisateur ait un retour pendant la saisie.
   const textHelper = useMemo(() => {
     const clean = (drawing.text || "").trim();
     const letterCount = clean.replace(/\s+/g, "").length;
@@ -277,14 +229,9 @@ export default function Sidebar({
 
   return (
     <div style={styles.sidebar}>
-      {/* 
-      EN:
-      Sticky logo area so the project branding stays visible
-      even when the sidebar is scrolled.
-
-      FR:
-      Zone de logo sticky pour que l’identité visuelle du projet
-      reste visible même quand la sidebar défile.
+      {/*
+         Zone de logo sticky pour que l’identité visuelle du projet
+         reste visible même quand la sidebar défile.
       */}
       <div style={styles.logoStickyWrap}>
         <div style={styles.logoZone}>
@@ -292,13 +239,7 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* 
-      EN:
-      Intro card explaining the overall feature flow.
-
-      FR:
-      Carte d’introduction expliquant le fonctionnement global.
-      */}
+      {/* Carte d’introduction expliquant le fonctionnement global. */}
       <section style={styles.heroCard}>
         <div style={styles.heroEyebrow}>Run planner</div>
         <h1 style={styles.heroTitle}>Prépare ton dessin de course</h1>
@@ -309,10 +250,7 @@ export default function Sidebar({
         </p>
       </section>
 
-      {/* ============================================================
-          EN: Step 1 — starting point
-          FR: Étape 1 — point de départ
-          ============================================================ */}
+      {/* Étape 1 — point de départ */}
       <section style={styles.card}>
         <div style={styles.cardHeader}>
           <div>
@@ -403,10 +341,7 @@ export default function Sidebar({
         </div>
       </section>
 
-      {/* ============================================================
-          EN: Step 2 — running distance
-          FR: Étape 2 — distance à parcourir
-          ============================================================ */}
+      {/* Étape 2 — distance à parcourir */}
       <section style={styles.card}>
         <div style={styles.cardHeader}>
           <div>
@@ -440,10 +375,7 @@ export default function Sidebar({
         </div>
       </section>
 
-      {/* ============================================================
-          EN: Step 3 — shape or text choice
-          FR: Étape 3 — choix de la forme ou du texte
-          ============================================================ */}
+      {/* Étape 3 — choix de la forme ou du texte */}
       <section style={styles.card}>
         <div style={styles.cardHeaderSimple}>
           <div style={styles.cardLabel}>Étape 3</div>
@@ -517,10 +449,7 @@ export default function Sidebar({
         )}
       </section>
 
-      {/* ============================================================
-          EN: Step 4 — generation actions
-          FR: Étape 4 — actions de génération
-          ============================================================ */}
+      {/* Étape 4 — actions de génération */}
       <section style={styles.card}>
         <div style={styles.cardLabel}>Étape 4</div>
 
@@ -546,13 +475,7 @@ export default function Sidebar({
         </div>
       </section>
 
-      {/* 
-      EN:
-      Final result and export block.
-
-      FR:
-      Bloc final des résultats et des exports.
-      */}
+      {/* Bloc final des résultats et des exports. */}
       <RouteResultsPanel
         routePlan={routePlan}
         selectedRouteId={selectedRouteId}
@@ -563,30 +486,15 @@ export default function Sidebar({
   );
 }
 
-/*
-============================================================
-EN:
-These styles define the full visual structure of the sidebar:
-- cards
-- buttons
-- tabs
-- suggestion list
-- text hints
-
-The goal is to keep the flow very guided and easy to follow.
-
-FR:
-Ces styles définissent toute la structure visuelle de la sidebar :
-- cartes
-- boutons
-- onglets
-- liste de suggestions
-- aides textuelles
-- interrupteurs
-
-L’objectif est de garder un parcours très guidé et simple à suivre.
-============================================================
-*/
+// Ces styles définissent toute la structure visuelle de la sidebar :
+// - cartes
+// - boutons
+// - onglets
+// - liste de suggestions
+// - aides textuelles
+// - interrupteurs
+//
+// L’objectif est de garder un parcours très guidé et simple à suivre.
 const styles = {
   sidebar: {
     minHeight: "100%",
