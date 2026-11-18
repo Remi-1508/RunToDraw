@@ -1,6 +1,7 @@
 import { Circle, MapContainer, Polyline, TileLayer, useMap } from "react-leaflet";
 import { useEffect, useMemo } from "react";
-import { boundsFromCenterRadiusKm } from "../utils/geo";
+import { DEFAULT_CENTER } from "../../config";
+import { boundsFromCenterRadiusKm } from "../../utils/geo";
 
 // FitToRadius ajuste automatiquement la vue de la carte
 // à la zone de course choisie quand le centre ou le rayon change.
@@ -106,9 +107,9 @@ export default function MapView({
   // Un centre par défaut est utilisé avant que l’utilisateur choisisse
   // une vraie localisation.
   // Ici on utilise Bordeaux comme valeur de secours.
-  const safeCenter = center ?? [44.8378, -0.5792];
+  const safeCenter = center ?? DEFAULT_CENTER;
 
-  const vertexCount = graphData?.nodeCount ?? graphData?.nodesById?.size ?? 0;
+  const vertexCount = graphData?.nodeCount ?? 0;
   const edgeCount = graphData?.edgeCount ?? 0;
 
 

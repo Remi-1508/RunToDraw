@@ -2,7 +2,7 @@
 // dans un coin de l’écran.
 //
 // Elle sert à donner un retour rapide à l’utilisateur, par exemple :
-// - succès d’un export
+// - succès d’une action (propositions prêtes, export généré)
 // - message d’erreur
 // - information générale
 //
@@ -19,7 +19,7 @@ export default function Toast({ open, message, type = "success", onClose }) {
 
   // Un titre court est aussi choisi selon le type de notification.
   const title =
-    type === "success" ? "Export réussi" : type === "error" ? "Erreur" : "Information";
+    type === "success" ? "C’est fait" : type === "error" ? "Erreur" : "Information";
 
   return (
     <div style={{ ...styles.wrap, borderColor: accent }}>

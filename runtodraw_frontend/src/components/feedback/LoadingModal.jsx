@@ -18,6 +18,7 @@ export default function LoadingModal({
   kicker = "OpenStreetMap",
   description = "Extraction des données puis construction du graphe…",
   indeterminate = false,
+  onCancel,
 }) {
   // Si la modal n’est pas ouverte, rien n’est affiché.
   if (!open) return null;
@@ -54,6 +55,13 @@ export default function LoadingModal({
 
         {/* Explication complémentaire affichée sous la barre de progression. */}
         <div style={styles.small}>{description}</div>
+
+        {/* Bouton facultatif pour interrompre l'opération en cours. */}
+        {onCancel ? (
+          <button type="button" style={styles.cancelButton} onClick={onCancel}>
+            Annuler
+          </button>
+        ) : null}
       </div>
     </div>
   );
@@ -68,6 +76,17 @@ export default function LoadingModal({
 // L’objectif est de rendre l’état de chargement visible et lisible,
 // sans rendre l’interface trop agressive.
 const styles = {
+  cancelButton: {
+    marginTop: 14,
+    padding: "8px 16px",
+    border: "1px solid var(--border)",
+    borderRadius: 999,
+    background: "var(--chip)",
+    color: "var(--text)",
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+
   backdrop: {
     position: "fixed",
     inset: 0,
