@@ -195,7 +195,7 @@ def test_required_radius_covers_every_candidate(drawing, distance_m):
         for angle in (0.0, 37.0, 90.0):
             d = np.array([math.cos(math.radians(angle)), math.sin(math.radians(angle))])
             n = np.array([-d[1], d[0]])
-            groups += [(b, c, s) for _, b, c, s in split_letter_layout(split_letters(text), distance_m, d, n)]
+            groups += [(b, c, s) for _, b, c, s, _t in split_letter_layout(split_letters(text), distance_m, d, n)]
     for b, cs, ss in groups:
         for c in cs:
             for size in ss:

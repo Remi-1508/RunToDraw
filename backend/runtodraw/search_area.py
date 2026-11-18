@@ -41,7 +41,7 @@ def required_radius_m(drawing, distance_m):
         # Lettres séparées : les distances au centre ne dépendent pas de l'orientation,
         # on peut donc prendre le sens de lecture (1, 0).
         direction, normal = np.array([1.0, 0.0]), np.array([0.0, 1.0])
-        for _, letter_base, letter_centers, letter_sizes in split_letter_layout(
+        for _, letter_base, letter_centers, letter_sizes, _target in split_letter_layout(
             split_letters(text), distance_m, direction, normal
         ):
             extent = max(extent, _shape_extent_m(letter_base, letter_centers, letter_sizes))

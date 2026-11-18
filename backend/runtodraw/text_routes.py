@@ -15,10 +15,27 @@ def split_letters(text):
     return letters or ["P"]
 
 
-# Mise en page de chaque lettre en mode séparé : polyligne de base, centres et tailles testés.
-# `direction` est le sens de lecture (vecteur unitaire), `normal` lui est perpendiculaire.
+# Distance visée pour chaque lettre. Toutes les lettres ne demandent pas le même effort pour la même
+# hauteur : un F (trait vertical, deux barres) est plus long à tracer qu'un C. Si chaque lettre visait
+# exactement la même distance, un C serait dessiné beaucoup plus grand qu'un F. On vise donc une distance
+# proportionnelle à la longueur du tracé de la lettre, ce qui donne des lettres de même hauteur.
+# La moyenne reste la distance demandée (la distance totale du mot ne change pas) ; le rapport est borné
+# pour qu'une lettre très courte ou très longue ne s'éloigne pas trop de la distance demandée.
+LETTER_DISTANCE_RATIO_RANGE = (0.7, 1.4)
+
+
+def letter_target_distances(letters, per_letter_distance_m):
+    lengths = [max(polyline_length(single_letter_polyline(ch)), 1e-9) for ch in letters]
+    mean_length = sum(lengths) / len(lengths)
+    low, high = LETTER_DISTANCE_RATIO_RANGE
+    return [per_letter_distance_m * min(max(length / mean_length, low), high) for length in lengths]
+
+
+# Mise en page de chaque lettre en mode séparé : polyligne de base, centres, tailles testés
+# et distance visée. `direction` est le sens de lecture (vecteur unitaire), `normal` lui est perpendiculaire.
 def split_letter_layout(letters, per_letter_distance_m, direction, normal):
     n = len(letters)
+    targets = letter_target_distances(letters, per_letter_distance_m)
     center, span = search_frame(per_letter_distance_m)
 
     spacing = 0.18 * span
@@ -43,7 +60,7 @@ def split_letter_layout(letters, per_letter_distance_m, direction, normal):
         ]
 
         base_len = max(polyline_length(base), 1e-9)
-        nominal_size = per_letter_distance_m / base_len
+        nominal_size = targets[i] / base_len
 
         if ch in {"I", "1"}:
             size_factors = [0.70, 0.85, 1.00, 1.15, 1.30]
@@ -51,7 +68,7 @@ def split_letter_layout(letters, per_letter_distance_m, direction, normal):
             size_factors = [0.60, 0.75, 0.90, 1.05, 1.20]
 
         sizes = [max(120.0, nominal_size * f) for f in size_factors]
-        layout.append((ch, base, local_centers, sizes))
+        layout.append((ch, base, local_centers, sizes, targets[i]))
     return layout
 
 
@@ -64,13 +81,17 @@ def split_text_itineraries_full_distance(graph, text, per_letter_distance_m, tol
 
     # 1) Chaque lettre est évaluée pour tous les angles.
     per_letter = []
-    for ch, base, local_centers, sizes in split_letter_layout(letters, per_letter_distance_m, direction, normal):
+    targets = {}
+    for i, (ch, base, local_centers, sizes, target_m) in enumerate(
+        split_letter_layout(letters, per_letter_distance_m, direction, normal)
+    ):
         evaluated = calibrated_search(
             graph, base, local_centers, angles,
-            per_letter_distance_m, per_letter_distance_m * (1.0 + tolerance_ratio),
+            target_m, target_m * (1.0 + tolerance_ratio),
             sample_count=64, min_size=min(sizes), max_size=max(sizes),
         )
         per_letter.append((ch, evaluated))
+        targets[i] = target_m
 
     # 2) Une seule orientation pour tout le mot : des lettres inclinées différemment sont illisibles.
     # Pour chaque angle, on prend le meilleur candidat de chaque lettre à cet angle et on additionne
@@ -92,10 +113,10 @@ def split_text_itineraries_full_distance(graph, text, per_letter_distance_m, tol
             best_angle, best_total = angle, total
 
     results = []
-    for ch, evaluated in per_letter:
+    for i, (ch, evaluated) in enumerate(per_letter):
         best = best_at(evaluated, best_angle) if best_angle is not None else pick_best(evaluated)[0]
         best["letter"] = ch
-        best["target_distance"] = per_letter_distance_m
+        best["target_distance"] = targets[i]
         results.append(best)
 
     return results

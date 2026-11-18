@@ -112,15 +112,15 @@ function NeutralBackground({ neutral }) {
   return null;
 }
 
-// Marqueur de départ en forme de dossard. L'icône est créée une seule fois (voir RouteEditLayer :
-// en recréer une à chaque rendu ferait reconstruire l'élément du marqueur par Leaflet).
-const BIB_ICON = L.divIcon({
+// Marqueur de départ : un simple point cerclé de blanc. Il ne porte volontairement aucune étiquette,
+// car une pastille de texte posée sur la carte masquait une partie du dessin (le nom s'affiche au survol).
+// L'icône est créée une seule fois (voir RouteEditLayer : en recréer une à chaque rendu ferait
+// reconstruire l'élément du marqueur par Leaflet).
+const START_ICON = L.divIcon({
   className: "",
-  iconSize: [0, 0],
-  iconAnchor: [0, 0],
-  html:
-    '<div class="rtd-bib" style="position:absolute;left:0;top:0;transform:translate(-50%,-100%)">' +
-    '<div class="rtd-bib-plate">Départ</div><div class="rtd-bib-pin"></div><div class="rtd-bib-dot"></div></div>',
+  iconSize: [18, 18],
+  iconAnchor: [9, 9],
+  html: '<div class="rtd-start-dot"></div>',
 });
 
 // PlannedRouteOverlay dessine l’itinéraire sélectionné sur la carte.
@@ -160,7 +160,7 @@ function PlannedRouteOverlay({ selectedRoute }) {
           </Fragment>
         );
       })}
-      {first ? <Marker position={first} icon={BIB_ICON} interactive={false} keyboard={false} /> : null}
+      {first ? <Marker position={first} icon={START_ICON} title="Départ" keyboard={false} /> : null}
     </>
   );
 }
@@ -274,6 +274,7 @@ export default function MapView({
       )}
 
       {/* Réglages d'affichage de la carte : thème et fond neutre. */}
+      <div style={styles.topBar}>
       <div style={styles.controls}>
         <MapControl
           icon={theme === "dark" ? ICON_SUN : ICON_MOON}
@@ -311,6 +312,7 @@ export default function MapView({
           )}
         </div>
       ) : null}
+      </div>
     </div>
   );
 }
@@ -336,13 +338,26 @@ const styles = {
     width: "100%",
   },
 
-  controls: {
+  // Rangée du haut : réglages à gauche, résultats à droite ; elle passe à la ligne sur écran étroit
+  // au lieu de laisser les deux blocs se chevaucher. Les clics traversent les espaces vides vers la carte.
+  topBar: {
     position: "absolute",
     top: 12,
     left: 68,
+    right: 12,
     zIndex: 1000,
     display: "flex",
+    flexWrap: "wrap",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
     gap: 8,
+    pointerEvents: "none",
+  },
+
+  controls: {
+    display: "flex",
+    gap: 8,
+    pointerEvents: "auto",
   },
 
   controlWrap: {
@@ -397,10 +412,8 @@ const styles = {
   },
 
   statsBar: {
-    position: "absolute",
-    top: 12,
-    right: 12,
-    zIndex: 1000,
+    pointerEvents: "auto",
+    marginLeft: "auto",
     display: "flex",
     overflow: "hidden",
     borderRadius: "var(--radius)",
