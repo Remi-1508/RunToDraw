@@ -1,6 +1,6 @@
 import L from "leaflet";
 import { Circle, MapContainer, Marker, Polyline, TileLayer, useMap } from "react-leaflet";
-import { Fragment, useEffect, useMemo, useRef } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import { DEFAULT_CENTER } from "../../config";
 import { boundsFromCenterRadiusKm } from "../../utils/geo";
 import RouteEditLayer from "./RouteEditLayer";
@@ -46,19 +46,45 @@ function FitToRoute({ selectedRoute }) {
 }
 
 // Petit bouton flottant de la carte (icône + libellé). `pressed` sert aux boutons à bascule.
-function MapControl({ icon, label, onClick, pressed }) {
+// `disabledReason` : quand il est renseigné, le bouton est grisé et ce texte explique pourquoi.
+// On utilise aria-disabled plutôt que disabled pour que le bouton reste atteignable au clavier
+// et que son message soit lu / affiché au survol, au focus et au clic.
+function MapControl({ icon, label, onClick, pressed, disabledReason }) {
+  const [hintOpen, setHintOpen] = useState(false);
+  const disabled = Boolean(disabledReason);
+  const hintId = useId();
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{ ...styles.control, ...(pressed ? styles.controlPressed : null) }}
-      aria-pressed={pressed}
+    <div
+      style={styles.controlWrap}
+      onMouseEnter={() => setHintOpen(true)}
+      onMouseLeave={() => setHintOpen(false)}
+      onFocus={() => setHintOpen(true)}
+      onBlur={() => setHintOpen(false)}
     >
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        {icon}
-      </svg>
-      <span style={styles.controlText}>{label}</span>
-    </button>
+      <button
+        type="button"
+        onClick={disabled ? () => setHintOpen(true) : onClick}
+        style={{
+          ...styles.control,
+          ...(pressed ? styles.controlPressed : null),
+          ...(disabled ? styles.controlDisabled : null),
+        }}
+        aria-pressed={disabled ? undefined : pressed}
+        aria-disabled={disabled}
+        aria-describedby={disabled ? hintId : undefined}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          {icon}
+        </svg>
+        <span style={styles.controlText}>{label}</span>
+      </button>
+      {disabled && hintOpen ? (
+        <div id={hintId} role="status" style={styles.controlHint}>
+          {disabledReason}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -164,6 +190,12 @@ export default function MapView({
   // Ici on utilise Bordeaux comme valeur de secours.
   const safeCenter = center ?? DEFAULT_CENTER;
 
+  // Le fond neutre n'a de sens que pour faire ressortir un tracé : sans itinéraire affiché, la carte
+  // resterait un aplat vide. Le réglage choisi par l'utilisateur est conservé, mais il ne s'applique
+  // que lorsqu'un tracé est dessiné.
+  const canUseNeutral = Boolean(selectedRoute);
+  const neutral = neutralBackground && canUseNeutral;
+
 
   // Le fond de carte dépend du thème actuel.
   // On mémorise cette configuration pour ne la recalculer que lorsque le thème change.
@@ -182,11 +214,11 @@ export default function MapView({
   return (
     <div style={styles.shell}>
       <MapContainer center={safeCenter} zoom={13} style={styles.map}>
-        <NeutralBackground neutral={neutralBackground} />
+        <NeutralBackground neutral={neutral} />
 
         {/* key={theme} force Leaflet à recréer la couche quand le thème change (className n'est pas mis à jour sinon).
             En fond neutre, aucune tuile n'est chargée. */}
-        {neutralBackground ? null : (
+        {neutral ? null : (
           <TileLayer
             key={theme}
             attribution={tileConfig.attribution}
@@ -200,15 +232,11 @@ export default function MapView({
            Le cercle représente la zone sélectionnée utilisée
            pour extraire le graphe.
         */}
-        {center && (
+        {center && !neutral && (
           <Circle
             center={center}
             radius={radiusKm * 1000}
-            pathOptions={{
-              color: "var(--accent-text)",
-              fillColor: "var(--accent)",
-              fillOpacity: 0.08,
-            }}
+            pathOptions={{ className: "rtd-zone", weight: 2, fillOpacity: 0.06, interactive: false }}
           />
         )}
 
@@ -256,7 +284,8 @@ export default function MapView({
           icon={ICON_LAYERS}
           label="Fond neutre"
           onClick={onToggleNeutralBackground}
-          pressed={neutralBackground}
+          pressed={neutral}
+          disabledReason={canUseNeutral ? undefined : "Génère d’abord un parcours : le fond neutre sert à faire ressortir ton tracé."}
         />
       </div>
 
@@ -314,6 +343,31 @@ const styles = {
     zIndex: 1000,
     display: "flex",
     gap: 8,
+  },
+
+  controlWrap: {
+    position: "relative",
+  },
+
+  controlDisabled: {
+    opacity: 0.55,
+    cursor: "not-allowed",
+    boxShadow: "none",
+  },
+
+  controlHint: {
+    position: "absolute",
+    top: "calc(100% + 8px)",
+    left: 0,
+    width: 240,
+    padding: "10px 12px",
+    borderRadius: "var(--radius-sm)",
+    background: "var(--text)",
+    color: "var(--bg-elevated)",
+    fontSize: 13,
+    fontWeight: 600,
+    lineHeight: 1.4,
+    boxShadow: "var(--shadow-strong)",
   },
 
   control: {
