@@ -1,5 +1,6 @@
 """API FastAPI : point d'entrée HTTP de RunToDraw (lancement : uvicorn runtodraw.api:app)."""
 import logging
+import os
 from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -13,6 +14,8 @@ from runtodraw.planner import plan_from_graph
 from runtodraw.protection import ComputeSlots, RateLimiter, RateLimitExceeded, ServerBusy, client_ip
 from runtodraw.validation import SHAPES, normalize_text
 
+# Les messages des modules RunToDraw (téléchargements Overpass, cache…) apparaissent dans les journaux de l'hébergeur.
+logging.basicConfig(level=os.environ.get("RUNTODRAW_LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(name)s : %(message)s")
 logger = logging.getLogger(__name__)
 settings = get_settings()
 

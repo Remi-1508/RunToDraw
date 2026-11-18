@@ -38,6 +38,9 @@ class Settings:
     max_concurrent_plans: int
     # Temps d'attente maximal pour obtenir une place de calcul avant de répondre « serveur occupé ».
     queue_timeout_s: float
+    # Nombre de graphes routiers gardés en mémoire (chacun pèse plusieurs dizaines de Mo : à réduire si la
+    # mémoire de l'hébergeur est limitée, par exemple 2 sur l'offre gratuite de Render).
+    graph_cache_size: int
     # Nombre de proxys de confiance devant l'API (Render : 1) pour retrouver l'adresse IP réelle.
     trusted_proxy_hops: int
 
@@ -53,5 +56,6 @@ def get_settings() -> Settings:
         rate_limit_per_minute=_env_number("RUNTODRAW_RATE_LIMIT_PER_MINUTE", 30, int),
         max_concurrent_plans=_env_number("RUNTODRAW_MAX_CONCURRENT_PLANS", 2, int),
         queue_timeout_s=_env_number("RUNTODRAW_QUEUE_TIMEOUT_S", 60.0),
+        graph_cache_size=_env_number("RUNTODRAW_GRAPH_CACHE_SIZE", 3, int),
         trusted_proxy_hops=_env_number("RUNTODRAW_TRUSTED_PROXY_HOPS", 1, int),
     )

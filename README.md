@@ -107,6 +107,8 @@ python -m pip install -r requirements.txt
 
 python -m uvicorn runtodraw.api:app --reload --port 8000
 
+Pour mettre le projet en ligne (Vercel + Render), voir [docs/deploiement.md](docs/deploiement.md).
+
 ### Configuration et protections de l'API
 
 Le backend lit ses réglages dans des variables d'environnement (liste commentée dans `backend/.env.example`).

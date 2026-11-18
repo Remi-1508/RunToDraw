@@ -5,6 +5,7 @@ import time
 from collections import OrderedDict
 from threading import Lock
 
+from runtodraw.config import get_settings
 from runtodraw.osm import build_graph_from_overpass, build_overpass_query_bbox, fetch_overpass_with_fallback
 from runtodraw.road_graph import RoadGraph
 from runtodraw.search_area import required_radius_m
@@ -22,7 +23,7 @@ class NoRoadsFoundError(Exception):
 # ensuite (plusieurs dizaines de Mo de JSON dans chaque sens). Un petit cache LRU garde les derniers
 # graphes, indexés par (centre, rayon) : une deuxième génération dans la même zone évite Overpass.
 # Seul le RoadGraph compact est conservé (les dicts JSON bruts sont libérés) pour limiter la mémoire.
-GRAPH_CACHE_SIZE = 3
+GRAPH_CACHE_SIZE = get_settings().graph_cache_size
 _graph_cache: "OrderedDict[tuple, RoadGraph]" = OrderedDict()
 _graph_cache_lock = Lock()
 

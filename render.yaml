@@ -1,0 +1,25 @@
+# Déploiement du backend sur Render (« Blueprint ») : New + > Blueprint, puis choisir ce dépôt.
+services:
+  - type: web
+    name: runtodraw-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # Adresse du site Vercel (sans « / » final), à renseigner dans Render après le premier déploiement
+      # du frontend. Plusieurs adresses possibles, séparées par des virgules.
+      - key: RUNTODRAW_ALLOWED_ORIGINS
+        sync: false
+      # Render place un proxy devant l'application : l'adresse IP réelle est lue dans X-Forwarded-For.
+      - key: RUNTODRAW_TRUSTED_PROXY_HOPS
+        value: "1"
+      # 512 Mo de mémoire sur l'offre gratuite : on garde moins de graphes en cache.
+      - key: RUNTODRAW_GRAPH_CACHE_SIZE
+        value: "2"
+      # Au-delà d'environ 25 km, le réseau routier à charger dépasse la mémoire de l'offre gratuite.
+      # À relever (jusqu'à 50) avec une offre payante.
+      - key: RUNTODRAW_MAX_DISTANCE_KM
+        value: "25"
