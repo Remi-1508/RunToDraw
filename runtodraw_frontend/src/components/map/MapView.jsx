@@ -28,7 +28,10 @@ function FitToRoute({ selectedRoute }) {
   const map = useMap();
   const routeId = selectedRoute?.id;
   const routeRef = useRef(selectedRoute);
-  routeRef.current = selectedRoute;
+  // Mise à jour dans un effet (déclaré avant celui du recadrage, donc exécuté avant lui).
+  useEffect(() => {
+    routeRef.current = selectedRoute;
+  });
 
   useEffect(() => {
     const route = routeRef.current;

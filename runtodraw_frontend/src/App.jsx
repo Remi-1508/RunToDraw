@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { DEFAULT_DISTANCE_KM, INITIAL_DRAWING, LONG_DISTANCE_CONFIRM_KM } from "./config";
 import LoadingModal from "./components/feedback/LoadingModal";
 import Toast from "./components/feedback/Toast";
@@ -23,7 +23,7 @@ export default function App() {
 
   // Choix de l'utilisateur : point de départ, distance, dessin (forme ou texte).
   const [center, setCenter] = useState(null);
-  const [distanceKm, setDistanceKm] = useState(DEFAULT_DISTANCE_KM);
+  const [requestedDistanceKm, setDistanceKm] = useState(DEFAULT_DISTANCE_KM);
   const [drawing, setDrawing] = useState(INITIAL_DRAWING);
 
   const planning = useRoutePlanning({ showToast });
@@ -45,20 +45,19 @@ export default function App() {
   }, [routePlan, editor.route]);
 
   // Changer de point de départ efface les résultats précédents.
+  const resetPlanning = planning.reset;
   const chooseCenter = useCallback(
     (latlng) => {
       setCenter(latlng);
-      planning.reset();
+      resetPlanning();
     },
-    [planning.reset] // eslint-disable-line react-hooks/exhaustive-deps
+    [resetPlanning]
   );
   const showError = useCallback((message) => showToast(message, "error"), [showToast]);
   const { locating, locate } = useGeolocation({ onPosition: chooseCenter, onError: showError });
 
   // Si le serveur annonce un maximum inférieur à la distance choisie, on la ramène à ce maximum.
-  useEffect(() => {
-    setDistanceKm((current) => Math.min(current, maxDistanceKm));
-  }, [maxDistanceKm]);
+  const distanceKm = Math.min(requestedDistanceKm, maxDistanceKm);
 
   function handleGenerate() {
     if (!center) return;
