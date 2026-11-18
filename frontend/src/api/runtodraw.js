@@ -43,6 +43,28 @@ export function planRoutes({ lat, lon, distanceKm, drawing }, { signal } = {}) {
   });
 }
 
+// Relie des lettres (éventuellement modifiées à la main) en un seul parcours : le serveur choisit le sens de
+// chaque lettre et les plus courts chemins entre elles, puis renvoie les segments « lettre » / « liaison ».
+export function linkLetters({ lat, lon, distanceKm, drawing }, letters, { signal } = {}) {
+  return request("/api/routes/link", {
+    method: "POST",
+    body: {
+      lat,
+      lon,
+      distance_km: distanceKm,
+      drawing,
+      letters: letters.map(({ label, kind, node_path, anchors }) => ({
+        label: String(label ?? "").slice(0, 60),
+        kind: kind ?? "",
+        node_path,
+        anchors,
+      })),
+    },
+    signal,
+    fallback: "Jonction des lettres impossible",
+  });
+}
+
 // Modifie un point du tracé (déplacer, insérer ou supprimer) : le serveur ne recalcule que les tronçons
 // voisins et renvoie les segments à jour. `context` est celui de la génération (point de départ, distance,
 // dessin), qui permet au serveur de retrouver le même réseau routier dans son cache.

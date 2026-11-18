@@ -12,6 +12,7 @@ from runtodraw.config import get_settings
 from runtodraw.graph_cache import NoRoadsFoundError, cache_key, extraction_radius_m, get_road_graph
 from runtodraw.planner import plan_from_graph, route_points_xy_to_latlon
 from runtodraw.route_editing import EditError, edit_route, path_length_m
+from runtodraw.text_routes import link_letter_routes
 from runtodraw.protection import ComputeSlots, RateLimiter, RateLimitExceeded, ServerBusy, client_ip
 from runtodraw.custom_shape import MAX_RAW_POINTS, prepare_custom_shape
 from runtodraw.validation import SHAPES, normalize_text
@@ -217,8 +218,36 @@ def edit_route_endpoint(request: RouteEditRequest):
     except EditError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
+    return _serialize_segments(graph, edited)
+
+
+# Lettres (éventuellement modifiées à la main) à relier en un seul parcours.
+class LinkLettersRequest(GraphFetchRequest):
+    letters: List[EditSegment] = Field(min_length=1, max_length=MAX_EDIT_SEGMENTS)
+
+
+# « Lettres reliées » à partir des lettres actuelles : relance la jonction (sens de chaque lettre et plus courts
+# chemins entre elles) sur les lettres telles que l'utilisateur les a modifiées. Sans cela, le parcours relié
+# resterait celui calculé à la génération et ignorerait les modifications faites sur les lettres séparées.
+@app.post("/api/routes/link", dependencies=[Depends(limit_edit_rate)])
+def link_letters_endpoint(request: LinkLettersRequest):
+    graph, _ = _load_graph(request)
+    letter_results = [{"letter": s.label, "node_path": s.node_path, "anchor_idx": s.anchors} for s in request.letters]
+    try:
+        pieces, _ = link_letter_routes(graph, letter_results)
+    except KeyError:
+        raise HTTPException(status_code=422, detail="Ce tracé ne correspond plus à la carte chargée : relance la génération.")
+    if not pieces:
+        raise HTTPException(status_code=422, detail="Impossible de relier ces lettres : elles ne sont pas toutes accessibles entre elles.")
+    segments = [{"label": p["letter"] or "liaison", "kind": p["kind"], "node_path": p["node_path"], "anchors": p["anchors"]}
+                for p in pieces]
+    return _serialize_segments(graph, segments)
+
+
+# Segments en indices de nœuds -> réponse JSON (points GPS, distance, identifiants OSM, ancrages).
+def _serialize_segments(graph, segments):
     out = []
-    for seg in edited:
+    for seg in segments:
         path = seg["node_path"]
         out.append({
             "label": seg["label"],

@@ -182,3 +182,43 @@ def test_points_are_ignored_outside_custom_mode(fake_graph):
     body = {**BODY, "drawing": {"mode": "shape", "shape": "heart", "points": [[1, 2]]}}
     assert api.GraphFetchRequest(**body).drawing.points is None
     assert client.post("/api/routes/plan", json=body).status_code == 200
+
+
+# ---------- Relier des lettres modifiées (POST /api/routes/link) ----------
+
+def _letters_body(graph, paths, **override):
+    from runtodraw import route_editing as ed
+    letters = []
+    for label, nodes in zip("ABC", paths):
+        path, anchors = ed.connect(graph, nodes)
+        letters.append({"label": label, "kind": "", "anchors": anchors,
+                        "node_path": [graph.node_ids[i] for i in path]})
+    return {**BODY, "letters": letters, **override}
+
+
+def test_link_joins_letters_with_links_in_between(edit_graph):
+    body = _letters_body(edit_graph, [[100, 130, 200], [600, 640, 700], [1100, 1140, 1200]])
+    data = client.post("/api/routes/link", json=body).json()
+    kinds = [s["kind"] for s in data["segments"]]
+    assert kinds == ["letter", "link", "letter", "link", "letter"]
+    assert [s["label"] for s in data["segments"] if s["kind"] == "letter"] == ["A", "B", "C"]
+    assert data["total_distance_m"] == pytest.approx(sum(s["distance_m"] for s in data["segments"]))
+    # le trajet est continu : chaque morceau commence où le précédent finit
+    for a, b in zip(data["segments"][:-1], data["segments"][1:]):
+        assert a["node_path"][-1] == b["node_path"][0]
+
+
+def test_link_uses_the_modified_letters(edit_graph):
+    """Les lettres envoyées (par exemple modifiées à la main) sont reprises telles quelles dans le parcours relié."""
+    body = _letters_body(edit_graph, [[100, 130, 200], [600, 640, 700]])
+    edited_b = body["letters"][1]["node_path"]
+    data = client.post("/api/routes/link", json=body).json()
+    letter_b = [s for s in data["segments"] if s["label"] == "B"][0]["node_path"]
+    assert letter_b == edited_b or letter_b == edited_b[::-1]    # parcourue dans un sens ou dans l'autre
+
+
+def test_link_rejects_unknown_nodes_and_empty_input(edit_graph):
+    body = _letters_body(edit_graph, [[100, 130, 200], [600, 640, 700]])
+    body["letters"][0]["node_path"][0] = 10**12
+    assert client.post("/api/routes/link", json=body).status_code == 422
+    assert client.post("/api/routes/link", json={**BODY, "letters": []}).status_code == 422

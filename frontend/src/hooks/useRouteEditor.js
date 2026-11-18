@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { editRoute } from "../api/runtodraw";
+import { editRoute, linkLetters } from "../api/runtodraw";
 
 // Nombre maximal d'étapes gardées pour annuler / rétablir (par itinéraire).
 const MAX_HISTORY = 60;
@@ -74,7 +74,8 @@ export function useRouteEditor({ routePlan, selectedRoute, planContext, showToas
         });
         const base = history ?? { stack: [selectedRoute.segments], index: 0 };
         const stack = [...base.stack.slice(0, base.index + 1), result.segments].slice(-MAX_HISTORY);
-        writeHistory(selectedRoute.id, { stack, index: stack.length - 1 });
+        // `source` (lettres reliées) est conservé : une retouche du parcours relié n'est pas écrasée.
+        writeHistory(selectedRoute.id, { ...base, stack, index: stack.length - 1 });
         setSelection(null);
         return true;
       } catch (error) {
@@ -126,6 +127,42 @@ export function useRouteEditor({ routePlan, selectedRoute, planContext, showToas
     setEditMode((on) => !on);
     setSelection(null);
   }, []);
+
+  // Lettres reliées : quand les lettres séparées ont été modifiées, le parcours relié est recalculé à partir
+  // de ces lettres (sens de chaque lettre et liaisons réoptimisés). `history.source` mémorise les lettres
+  // utilisées pour ce calcul : tant qu'elles ne changent pas, une retouche manuelle du parcours relié reste.
+  const separateRoute = routePlan?.routes?.find((r) => r.kind === "letters_separate");
+  const linkedRoute = routePlan?.routes?.find((r) => r.kind === "letters_linked");
+  const separateHistory = separateRoute ? histories[separateRoute.id] : undefined;
+  const letterSegments = separateRoute
+    ? separateHistory
+      ? separateHistory.stack[separateHistory.index]
+      : separateRoute.segments
+    : null;
+  const linkedId = linkedRoute?.id;
+  const linkedSource = linkedId ? histories[linkedId]?.source : undefined;
+  useEffect(() => {
+    if (!linkedRoute || !separateRoute || !planContext) return undefined;
+    if (linkedSource === letterSegments) return undefined;
+    if (letterSegments === separateRoute.segments) {
+      // Lettres revenues à l'original : le parcours relié l'est aussi.
+      if (linkedSource) writeHistory(linkedRoute.id, null);
+      return undefined;
+    }
+    const controller = new AbortController();
+    linkLetters(planContext, letterSegments, { signal: controller.signal })
+      .then((result) => {
+        writeHistory(linkedRoute.id, {
+          stack: [linkedRoute.segments, result.segments],
+          index: 1,
+          source: letterSegments,
+        });
+      })
+      .catch((error) => {
+        if (error.name !== "AbortError") showToast(error.message || "Jonction des lettres impossible.", "error");
+      });
+    return () => controller.abort();
+  }, [letterSegments, linkedSource, linkedRoute, separateRoute, planContext, writeHistory, showToast]);
 
   // Un calcul en cours est abandonné si le composant est démonté.
   useEffect(() => () => abortRef.current?.abort(), []);
