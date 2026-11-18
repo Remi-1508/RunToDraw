@@ -29,11 +29,11 @@ export default function RouteEditToolbar({
 
         {editMode && (
           <>
-            <button type="button" onClick={onUndo} disabled={!canUndo || pending} style={styles.button} title="Annuler (Ctrl+Z)">
-              ↶ Annuler
+            <button type="button" onClick={onUndo} disabled={!canUndo || pending} style={styles.button} title="Annuler (Ctrl+Z)" aria-label="Annuler">
+              ↶
             </button>
-            <button type="button" onClick={onRedo} disabled={!canRedo || pending} style={styles.button} title="Rétablir (Ctrl+Y)">
-              ↷ Rétablir
+            <button type="button" onClick={onRedo} disabled={!canRedo || pending} style={styles.button} title="Rétablir (Ctrl+Y)" aria-label="Rétablir">
+              ↷
             </button>
             <button
               type="button"
@@ -41,11 +41,12 @@ export default function RouteEditToolbar({
               disabled={!hasSelection || pending}
               style={styles.button}
               title="Supprimer le point sélectionné (Suppr)"
+              aria-label="Supprimer le point sélectionné"
             >
-              🗑 Supprimer le point
+              🗑
             </button>
             <button type="button" onClick={onReset} disabled={!canReset || pending} style={styles.button} title="Revenir au tracé généré">
-              ⟲ Tracé d’origine
+              ⟲ Origine
             </button>
           </>
         )}
@@ -68,22 +69,23 @@ const styles = {
   wrap: {
     position: "absolute",
     left: "50%",
-    bottom: 28,
+    bottom: 24,
     transform: "translateX(-50%)",
     zIndex: 1000,
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     gap: 8,
+    width: "max-content",
     maxWidth: "calc(100% - 32px)",
   },
 
   bar: {
     display: "flex",
-    flexWrap: "wrap",
+    flexWrap: "nowrap",
     justifyContent: "center",
-    gap: 6,
-    padding: 6,
+    gap: 4,
+    padding: 4,
     border: "1px solid var(--border)",
     borderRadius: 18,
     background: "var(--overlay-strong)",
@@ -96,7 +98,7 @@ const styles = {
     borderRadius: 12,
     background: "var(--card)",
     color: "var(--text)",
-    padding: "8px 12px",
+    padding: "7px 10px",
     fontSize: 13,
     fontWeight: 700,
     whiteSpace: "nowrap",

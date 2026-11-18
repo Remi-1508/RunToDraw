@@ -1,24 +1,26 @@
 """Téléchargement du réseau routier depuis OpenStreetMap (Overpass) et conversion en graphe JSON."""
 import logging
 import math
-import time
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
 import requests
 
 logger = logging.getLogger(__name__)
 
 
-# On garde plusieurs serveurs Overpass ici car un serveur peut être lent,
-# indisponible, ou refuser une requête. On les teste donc les uns après les autres si besoin.
-# Liste issue de https://wiki.openstreetmap.org/wiki/Overpass_API (instances publiques gratuites).
-# overpass-api.de est souvent saturé ; overpass.openstreetmap.ru n'est plus listé.
-# private.coffee en premier : 10 s mesurées à Bordeaux contre ~45 s pour overpass-api.de.
+# Serveurs Overpass publics gratuits (https://wiki.openstreetmap.org/wiki/Overpass_API), par ordre de préférence.
+# Leur rapidité varie beaucoup d'un jour à l'autre (de 10 s à plus de 2 minutes, parfois une erreur 504) :
+# on ne s'appuie donc sur aucun en particulier, voir fetch_overpass_with_fallback.
 OVERPASS_ENDPOINTS = [
-    "https://overpass.private.coffee/api/interpreter",
     "https://overpass-api.de/api/interpreter",
-    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
 ]
+
+# Si un serveur n'a pas répondu après ce délai, on interroge le suivant EN PARALLÈLE (sans abandonner le
+# premier) : la première réponse valide l'emporte. Un serveur lent ou bloqué ne retarde plus le résultat.
+HEDGE_DELAY_S = 12.0
 
 
 # Cette fonction calcule la distance en mètres entre deux points GPS.
@@ -39,21 +41,28 @@ def haversine_meters(lat1, lon1, lat2, lon2):
 # On demande le carré (bbox) qui contient le cercle utile : sur Overpass, un filtre bbox est environ
 # deux fois plus rapide qu'un filtre "around" (cercle), même s'il renvoie ~20 % de routes en plus
 # (mesuré à Bordeaux, rayon 6 km : 46 s au lieu de 93 s).
-# On filtre aussi certaines routes peu utiles ici, comme les autoroutes ou les routes privées.
+#
+# On allège aussi la réponse (mesuré à Bordeaux, rayon 7,5 km : 26 Mo en 32 s au lieu de 38 Mo en 42 s) :
+# - on écarte les voies inutiles pour courir : autoroutes, routes privées ou interdites d'accès,
+#   allées de parking et accès de garage, voies en projet ou en construction ;
+# - les étiquettes (« tags ») des voies ne sont renvoyées que pour celles à sens unique piéton
+#   (« oneway:foot »), la seule information qu'on lit ensuite ; les autres voies sont envoyées « nues » (`skel`).
 def build_overpass_query_bbox(lat, lon, radius_meters):
     dlat = radius_meters / 111320.0
     dlon = radius_meters / (111320.0 * math.cos(math.radians(lat)))
     south, west, north, east = lat - dlat, lon - dlon, lat + dlat, lon + dlon
     return f"""
 [out:json][timeout:180][bbox:{south:.6f},{west:.6f},{north:.6f},{east:.6f}];
-(
-  way["highway"]
-    ["highway"!~"motorway|motorway_link|trunk|trunk_link"]
-    ["area"!="yes"]
-    ["access"!="private"];
-);
-out body;
->;
+way["highway"]
+  ["highway"!~"motorway|motorway_link|trunk|trunk_link|proposed|construction|raceway|bus_guideway|elevator|corridor"]
+  ["area"!="yes"]
+  ["access"!~"private|no"]
+  ["service"!~"parking_aisle|driveway|drive-through"]->.all;
+way.all["oneway:foot"~"^(yes|1|true)$"]->.oneway;
+(.all; - .oneway;)->.rest;
+.oneway out body qt;
+.rest out skel qt;
+node(w.all);
 out skel qt;
 """.strip()
 
@@ -65,7 +74,7 @@ def post_overpass(endpoint, query):
     res = requests.get(
         endpoint,
         params={"data": query},
-        timeout=200,
+        timeout=(10, 170),  # (connexion, lecture)
         headers={
             "User-Agent": "RunToDraw/1.0",
             "Accept": "application/json,text/plain,*/*",
@@ -79,23 +88,43 @@ def post_overpass(endpoint, query):
     return res.json()
 
 
-# Cette fonction réessaie la requête Overpass sur plusieurs miroirs.
-# Cela rend l’extraction plus robuste, car les serveurs Overpass peuvent être instables.
-# On conserve la dernière erreur pour renvoyer un message utile si toutes les tentatives échouent.
-def fetch_overpass_with_fallback(query, max_tries=len(OVERPASS_ENDPOINTS)):
+# Interroge les miroirs Overpass en « requêtes de secours échelonnées » :
+# - le premier serveur part tout de suite ;
+# - s'il échoue, on passe immédiatement au suivant ;
+# - s'il est seulement lent (plus de `hedge_delay_s`), le suivant est lancé en parallèle ;
+# - la première réponse valide est renvoyée, les autres sont ignorées.
+# Si tous les serveurs échouent, la dernière erreur est renvoyée.
+def fetch_overpass_with_fallback(query, endpoints=None, hedge_delay_s=None):
+    endpoints = list(endpoints or OVERPASS_ENDPOINTS)
+    hedge_delay_s = HEDGE_DELAY_S if hedge_delay_s is None else hedge_delay_s
+    pool = ThreadPoolExecutor(max_workers=len(endpoints))
+    running = {}
     last_err = None
-
-    for attempt in range(max_tries):
-        endpoint = OVERPASS_ENDPOINTS[attempt % len(OVERPASS_ENDPOINTS)]
-        try:
-            logger.info("Overpass : tentative %d/%d sur %s", attempt + 1, max_tries, endpoint)
-            return post_overpass(endpoint, query)
-        except Exception as e:
-            logger.warning("Overpass : échec sur %s : %s", endpoint, e)
-            last_err = e
-            time.sleep(2.0)
-
-    raise last_err or RuntimeError("Overpass failed")
+    next_index = 0
+    try:
+        while next_index < len(endpoints) or running:
+            if next_index < len(endpoints):
+                endpoint = endpoints[next_index]
+                logger.info("Overpass : tentative %d/%d sur %s", next_index + 1, len(endpoints), endpoint)
+                running[pool.submit(post_overpass, endpoint, query)] = endpoint
+                next_index += 1
+            # Tant qu'il reste des serveurs à essayer, on n'attend qu'un temps limité avant d'en lancer un autre.
+            timeout = hedge_delay_s if next_index < len(endpoints) else None
+            done, _ = wait(list(running), timeout=timeout, return_when=FIRST_COMPLETED)
+            for future in done:
+                endpoint = running.pop(future)
+                try:
+                    result = future.result()
+                except Exception as e:
+                    logger.warning("Overpass : échec sur %s : %s", endpoint, e)
+                    last_err = e
+                    continue
+                logger.info("Overpass : réponse de %s", endpoint)
+                return result
+        raise last_err or RuntimeError("Overpass failed")
+    finally:
+        # Les requêtes encore en cours se terminent d'elles-mêmes (leur résultat est simplement ignoré).
+        pool.shutdown(wait=False, cancel_futures=True)
 
 
 # Cette fonction transforme la réponse brute d’Overpass en un format de graphe

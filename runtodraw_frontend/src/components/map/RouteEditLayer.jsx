@@ -44,20 +44,26 @@ function legAtPoint(segment, latlng) {
 }
 
 // Icône d'un point d'ancrage (un rond ; plus grand et rouge quand il est sélectionné).
+// Les icônes sont créées une seule fois et réutilisées : si le composant en fabriquait une nouvelle à chaque
+// rendu, Leaflet reconstruirait l'élément du marqueur en plein glissement et le déplacement s'interromprait.
+const ICONS = {};
 function anchorIcon(selected, isEnd) {
-  const size = selected ? 20 : isEnd ? 16 : 14;
-  const border = selected ? "#ff3b30" : "#ffffff";
-  const fill = selected ? "#ff3b30" : isEnd ? "#007aff" : "#ffffff";
-  const ring = selected ? "#ffffff" : "#007aff";
-  return L.divIcon({
-    className: "",
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-    html:
-      `<div style="width:${size}px;height:${size}px;box-sizing:border-box;border-radius:50%;` +
-      `background:${fill};border:3px solid ${selected ? border : ring};` +
-      `box-shadow:0 1px 4px rgba(0,0,0,.45);cursor:grab"></div>`,
-  });
+  const key = selected ? "selected" : isEnd ? "end" : "normal";
+  if (!ICONS[key]) {
+    const size = selected ? 20 : isEnd ? 16 : 14;
+    const fill = selected ? "#ff3b30" : isEnd ? "#007aff" : "#ffffff";
+    const border = selected ? "#ffffff" : isEnd ? "#ffffff" : "#007aff";
+    ICONS[key] = L.divIcon({
+      className: "",
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+      html:
+        `<div style="width:${size}px;height:${size}px;box-sizing:border-box;border-radius:50%;` +
+        `background:${fill};border:3px solid ${border};` +
+        `box-shadow:0 1px 4px rgba(0,0,0,.45);cursor:grab"></div>`,
+    });
+  }
+  return ICONS[key];
 }
 
 // Position (lat, lon) du point d'ancrage k d'un segment.
