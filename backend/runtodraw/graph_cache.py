@@ -6,7 +6,7 @@ from collections import OrderedDict
 from threading import Lock
 
 from runtodraw.config import get_settings
-from runtodraw.prebuilt import load_prebuilt
+from runtodraw.prebuilt import load_prebuilt_arrays
 from runtodraw.osm import build_graph_from_overpass, build_overpass_query_bbox, fetch_overpass_with_fallback
 from runtodraw.road_graph import RoadGraph
 from runtodraw.search_area import required_radius_m
@@ -63,21 +63,28 @@ def _download_lock(key) -> Lock:
 
 def _build_graph(lat, lon, radius_m):
     t0 = time.perf_counter()
+    meta = {"center": [lat, lon], "radius_km": radius_m / 1000.0}
     # Ville préchargée : réponse immédiate, sans dépendre des serveurs Overpass publics.
-    raw = load_prebuilt(lat, lon, radius_m)
-    if raw is None:
+    # Le graphe est construit directement depuis des tableaux NumPy (pas de dicts : mémoire contenue).
+    arrays = load_prebuilt_arrays(lat, lon, radius_m)
+    if arrays is not None:
+        if not len(arrays["ids"]):
+            raise NoRoadsFoundError("Aucune route trouvée autour de ce point.")
+        t1 = t0
+        graph = RoadGraph.from_arrays(meta, **arrays)
+        graph.segment_count = len(arrays["src"])
+        del arrays
+    else:
         osm = fetch_overpass_with_fallback(build_overpass_query_bbox(lat, lon, radius_m))
         t1 = time.perf_counter()
         raw = build_graph_from_overpass(osm)
         del osm
-    else:
-        t1 = t0
-    if not raw["nodes"]:
-        raise NoRoadsFoundError("Aucune route trouvée autour de ce point.")
-    graph = RoadGraph({"meta": {"center": [lat, lon], "radius_km": radius_m / 1000.0}, **raw})
-    graph.segment_count = len(raw["edges"])
-    graph.nodes = graph.edges = None  # libère les dicts JSON bruts
-    del raw
+        if not raw["nodes"]:
+            raise NoRoadsFoundError("Aucune route trouvée autour de ce point.")
+        graph = RoadGraph({"meta": meta, **raw})
+        graph.segment_count = len(raw["edges"])
+        graph.nodes = graph.edges = None  # libère les dicts JSON bruts
+        del raw
     t2 = time.perf_counter()
     logger.info(
         "Graphe : %d nœuds, rayon %d m | Overpass %.1f s, construction %.1f s",
@@ -98,6 +105,11 @@ def get_road_graph(lat, lon, radius_m):
         try:
             graph = _cached_graph(key)  # une autre requête l'a peut-être téléchargé pendant l'attente
             if graph is None:
+                # Fait de la place AVANT de construire : sinon l'ancien et le nouveau graphe coexistent en mémoire,
+                # et le pic dépasse la limite du serveur gratuit pour les très grandes villes.
+                with _graph_cache_lock:
+                    while len(_graph_cache) >= GRAPH_CACHE_SIZE:
+                        _graph_cache.popitem(last=False)
                 graph = _build_graph(lat, lon, key[2])
                 with _graph_cache_lock:
                     _graph_cache[key] = graph
