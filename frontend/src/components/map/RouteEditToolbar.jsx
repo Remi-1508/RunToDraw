@@ -36,7 +36,7 @@ export default function RouteEditToolbar({
         <button
           type="button"
           onClick={onToggleEditMode}
-          style={editMode ? styles.mainButtonDone : styles.mainButton}
+          style={editMode ? { ...styles.main, ...styles.mainActive } : styles.main}
           aria-pressed={editMode}
           title="Déplacer, ajouter ou supprimer des points du tracé"
         >
@@ -45,28 +45,28 @@ export default function RouteEditToolbar({
         </button>
 
         {editMode && (
-          <>
-            <button type="button" onClick={onUndo} disabled={!canUndo || pending} style={styles.button} title="Annuler (Ctrl+Z)" aria-label="Annuler">
+          <div style={styles.group} role="group" aria-label="Outils de modification">
+            <button type="button" onClick={onUndo} disabled={!canUndo || pending} style={styles.tool} title="Annuler (Ctrl+Z)" aria-label="Annuler">
               <Icon>{UNDO}</Icon>
             </button>
-            <button type="button" onClick={onRedo} disabled={!canRedo || pending} style={styles.button} title="Rétablir (Ctrl+Y)" aria-label="Rétablir">
+            <button type="button" onClick={onRedo} disabled={!canRedo || pending} style={{ ...styles.tool, ...styles.toolSeparated }} title="Rétablir (Ctrl+Y)" aria-label="Rétablir">
               <Icon>{REDO}</Icon>
             </button>
             <button
               type="button"
               onClick={onDeleteSelected}
               disabled={!hasSelection || pending}
-              style={styles.button}
+              style={{ ...styles.tool, ...styles.toolSeparated }}
               title="Supprimer le point sélectionné (Suppr)"
               aria-label="Supprimer le point sélectionné"
             >
               <Icon>{TRASH}</Icon>
             </button>
-            <button type="button" onClick={onReset} disabled={!canReset || pending} style={styles.button} title="Revenir au tracé généré">
+            <button type="button" onClick={onReset} disabled={!canReset || pending} style={{ ...styles.tool, ...styles.toolSeparated }} title="Revenir au tracé généré">
               <Icon>{RESET}</Icon>
               Origine
             </button>
-          </>
+          </div>
         )}
       </div>
 
@@ -82,6 +82,20 @@ export default function RouteEditToolbar({
     </div>
   );
 }
+
+// Même famille visuelle que les boutons posés sur la carte (MapView) : bordure de 2 px, ombre forte,
+// hauteur de 44 px, texte en gras. Le bouton principal passe à l'orange quand le mode édition est actif.
+const controlBase = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+  minHeight: 44,
+  fontSize: 14,
+  fontWeight: 700,
+  whiteSpace: "nowrap",
+  color: "var(--text)",
+};
 
 const styles = {
   wrap: {
@@ -101,41 +115,62 @@ const styles = {
   bar: {
     display: "flex",
     flexWrap: "wrap",
+    alignItems: "center",
     justifyContent: "center",
-    gap: 4,
-    padding: 4,
-    border: "1px solid var(--border)",
+    gap: 8,
+  },
+
+  main: {
+    ...controlBase,
+    padding: "0 16px",
+    border: "2px solid var(--border)",
     borderRadius: "var(--radius-sm)",
     background: "var(--overlay-strong)",
-    boxShadow: "var(--shadow-soft)",
+    boxShadow: "var(--shadow-strong)",
+    cursor: "pointer",
   },
 
-  button: {
-    border: "1px solid var(--border)",
-    borderRadius: "var(--radius-sm)",
-    background: "var(--card)",
-    color: "var(--text)",
-    minHeight: 40,
-    minWidth: 40,
-    padding: "7px 10px",
-    fontSize: 13,
-    fontWeight: 700,
-    whiteSpace: "nowrap",
-  },
-
-  buttonActive: {
+  mainActive: {
     background: "var(--accent)",
-    color: "var(--on-accent)",
     borderColor: "var(--accent)",
+    color: "var(--on-accent)",
+  },
+
+  // Les outils sont regroupés dans une seule capsule : ils se lisent comme un ensemble.
+  group: {
+    display: "inline-flex",
+    overflow: "hidden",
+    border: "2px solid var(--border)",
+    borderRadius: "var(--radius-sm)",
+    background: "var(--overlay-strong)",
+    boxShadow: "var(--shadow-strong)",
+  },
+
+  tool: {
+    ...controlBase,
+    minWidth: 44,
+    padding: "0 12px",
+    border: "none",
+    borderRadius: 0,
+    background: "transparent",
+    cursor: "pointer",
+  },
+
+  toolSeparated: {
+    borderLeft: "1px solid var(--border)",
   },
 
   hint: {
-    padding: "6px 12px",
+    maxWidth: 420,
+    padding: "8px 14px",
     borderRadius: "var(--radius-sm)",
     background: "var(--overlay-strong)",
-    border: "1px solid var(--border)",
+    border: "2px solid var(--border)",
+    boxShadow: "var(--shadow-strong)",
     color: "var(--text-soft)",
-    fontSize: 12,
+    fontSize: 13,
+    fontWeight: 600,
+    lineHeight: 1.4,
     textAlign: "center",
   },
 };

@@ -56,7 +56,7 @@ def build_overpass_query_bbox(lat, lon, radius_meters):
     return build_overpass_query(lat - dlat, lon - dlon, lat + dlat, lon + dlon)
 
 
-# Même requête pour une boîte (sud, ouest, nord, est) : utilisée aussi par l'outil de préchargement des villes.
+# Même requête pour une boîte (sud, ouest, nord, est).
 def build_overpass_query(south, west, north, east):
     return f"""
 [out:json][timeout:180][bbox:{south:.6f},{west:.6f},{north:.6f},{east:.6f}];
