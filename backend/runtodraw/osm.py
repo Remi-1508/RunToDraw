@@ -46,8 +46,8 @@ def haversine_meters(lat1, lon1, lat2, lon2):
 # On allège aussi la réponse (mesuré à Bordeaux, rayon 7,5 km : 26 Mo en 32 s au lieu de 38 Mo en 42 s) :
 # - on écarte les voies inutiles pour courir : autoroutes, routes privées ou interdites d'accès,
 #   allées de parking et accès de garage, voies en projet ou en construction, voies interdites aux piétons ou
-#   intérieures, et trottoirs / passages piétons dessinés à part (en ville ils doublent presque le nombre de voies,
-#   alors qu'un piéton peut de toute façon suivre la chaussée : le tracé reste continu) ;
+#   intérieures. Les trottoirs et passages piétons dessinés à part sont conservés : les retirer allégerait la
+#   réponse, mais risquerait de supprimer des cheminements réels (par exemple le long d'une voie rapide exclue) ;
 # - les étiquettes (« tags ») des voies ne sont renvoyées que pour celles à sens unique piéton
 #   (« oneway:foot »), la seule information qu'on lit ensuite ; les autres voies sont envoyées « nues » (`skel`).
 def build_overpass_query_bbox(lat, lon, radius_meters):
@@ -66,7 +66,6 @@ way["highway"]
   ["access"!~"private|no"]
   ["foot"!="no"]
   ["indoor"!="yes"]
-  ["footway"!~"sidewalk|crossing"]
   ["service"!~"parking_aisle|driveway|drive-through"]->.all;
 way.all["oneway:foot"~"^(yes|1|true)$"]->.oneway;
 (.all; - .oneway;)->.rest;

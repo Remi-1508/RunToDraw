@@ -60,3 +60,15 @@ def test_graph_cache_uses_prebuilt_before_overpass(data_dir, monkeypatch):
     graph = graph_cache.get_road_graph(*CENTER, 400)
     assert len(graph.node_ids) > 10
     graph_cache._graph_cache.clear()
+
+
+def test_loaded_cities_are_bounded_in_memory(tmp_path, monkeypatch):
+    """Beaucoup de villes préchargées ne doivent pas faire grossir la mémoire : seules les dernières restent chargées."""
+    prebuilt._loaded.clear()
+    monkeypatch.setattr(prebuilt, "MAX_LOADED", 2)
+    for i in range(4):
+        prebuilt.save_city(f"ville{i}", CENTER[0] + i, CENTER[1], 1500, grid_graph(5), data_dir=tmp_path)
+    for city in prebuilt._read_index(tmp_path):
+        prebuilt._load_arrays(city, tmp_path)
+    assert len(prebuilt._loaded) == 2
+    prebuilt._loaded.clear()

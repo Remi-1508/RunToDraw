@@ -124,7 +124,7 @@ export default function App() {
     }
 
     const [lat, lon] = center;
-    planning.generate({ lat, lon, distanceKm, drawing }, { onShorterDistance: setDistanceKm });
+    planning.generate({ lat, lon, distanceKm, drawing });
   }
 
   // Après une extraction, on affiche le rayon réellement téléchargé (calculé par le backend selon la

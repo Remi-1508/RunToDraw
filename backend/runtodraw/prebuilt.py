@@ -13,6 +13,7 @@ Les longueurs sont recalculées au chargement. `index.json` liste les villes (ce
 import json
 import logging
 import math
+from collections import OrderedDict
 from pathlib import Path
 from threading import Lock
 
@@ -24,7 +25,10 @@ DATA_DIR = Path(__file__).resolve().parent / "data" / "graphs"
 INDEX_NAME = "index.json"
 
 _lock = Lock()
-_loaded: "dict[str, dict]" = {}  # nom de fichier -> tableaux numpy (une ville reste en mémoire une fois lue)
+# Villes gardées en mémoire (tableaux numpy, quelques Mo chacune) : au plus MAX_LOADED, les plus anciennes sont
+# libérées. La liste des villes préchargées peut donc grandir sans augmenter la mémoire du serveur.
+MAX_LOADED = 3
+_loaded: "OrderedDict[str, dict]" = OrderedDict()
 
 
 def _read_index(data_dir):
@@ -63,7 +67,9 @@ def _haversine_array(lat1, lon1, lat2, lon2):
 def _load_arrays(city, data_dir):
     with _lock:
         arrays = _loaded.get(city["file"])
-        if arrays is None:
+        if arrays is not None:
+            _loaded.move_to_end(city["file"])
+        else:
             with np.load(Path(data_dir) / city["file"]) as npz:
                 arrays = {name: npz[name] for name in ("ids", "lat", "lon", "src", "dst", "oneway")}
             arrays["length"] = _haversine_array(
@@ -71,6 +77,8 @@ def _load_arrays(city, data_dir):
                 arrays["lat"][arrays["dst"]], arrays["lon"][arrays["dst"]],
             )
             _loaded[city["file"]] = arrays
+            while len(_loaded) > MAX_LOADED:
+                _loaded.popitem(last=False)
         return arrays
 
 
