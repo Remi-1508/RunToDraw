@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchGraph, planRoutes } from "../api/runtodraw";
 
-// Part de la distance demandée conservée quand les serveurs OpenStreetMap sont trop lents (voir generate).
-const RETRY_DISTANCE_RATIO = 0.6;
-
 // Génération des itinéraires : téléchargement du réseau routier puis calcul des propositions.
 // Le hook garde les résultats (graphe, propositions, itinéraire choisi) et l'état d'attente,
 // et permet d'annuler une génération en cours.
@@ -33,18 +30,17 @@ export function useRoutePlanning({ showToast }) {
   // Une génération en cours est annulée si le composant est démonté.
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  // Lance la génération. `onShorterDistance(km)` est appelée si un nouvel essai avec une distance plus courte
-  // est tenté automatiquement (la zone à télécharger étant plus petite, Overpass y répond plus souvent) :
-  // l'interface y met à jour la distance affichée.
+  // Lance la génération. La distance demandée n'est jamais modifiée : si les serveurs OpenStreetMap échouent
+  // (erreur 502), la même génération est retentée une fois, car leur lenteur varie d'une minute à l'autre.
   const generate = useCallback(
-    async ({ lat, lon, distanceKm, drawing }, { onShorterDistance } = {}) => {
+    async ({ lat, lon, distanceKm, drawing }) => {
       const controller = new AbortController();
       abortRef.current = controller;
       const options = { signal: controller.signal };
 
-      async function attempt(km) {
+      async function attempt() {
         setBusy({ kicker: "Étape 1/2", description: "Extraction du graphe OpenStreetMap…" });
-        const nextGraph = await fetchGraph({ lat, lon, distanceKm: km, drawing }, options);
+        const nextGraph = await fetchGraph({ lat, lon, distanceKm, drawing }, options);
         setGraphData(nextGraph);
         setRoutePlan(null);
         setSelectedRouteId(null);
@@ -53,28 +49,19 @@ export function useRoutePlanning({ showToast }) {
           kicker: "Étape 2/2",
           description: "Analyse de la forme demandée et recherche des meilleures trajectoires…",
         });
-        const nextPlan = await planRoutes({ lat, lon, distanceKm: km, drawing }, options);
+        const nextPlan = await planRoutes({ lat, lon, distanceKm, drawing }, options);
         setRoutePlan(nextPlan);
-        setPlanContext({ lat, lon, distanceKm: km, drawing });
+        setPlanContext({ lat, lon, distanceKm, drawing });
         setSelectedRouteId(nextPlan?.routes?.[0]?.id ?? null);
       }
 
       try {
-        let km = distanceKm;
-        let retried = false;
-        for (;;) {
-          try {
-            await attempt(km);
-            break;
-          } catch (error) {
-            // Erreur 502 = serveurs OpenStreetMap indisponibles ou trop lents : un seul nouvel essai, plus court.
-            const shorter = Math.max(2, Math.round(km * RETRY_DISTANCE_RATIO));
-            if (error.status !== 502 || retried || !onShorterDistance || shorter >= km) throw error;
-            retried = true;
-            km = shorter;
-            onShorterDistance(shorter);
-            showToast(`Serveurs OpenStreetMap trop lents : nouvel essai automatique avec ${shorter} km.`, "info");
-          }
+        try {
+          await attempt();
+        } catch (error) {
+          if (error.status !== 502) throw error;
+          showToast("Les serveurs OpenStreetMap n’ont pas répondu : nouvel essai automatique.", "info");
+          await attempt();
         }
         showToast("Les propositions d’itinéraires sont prêtes.", "success");
       } catch (error) {

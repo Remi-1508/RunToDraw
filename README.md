@@ -61,7 +61,7 @@ docs/                guide de déploiement
 
 ## Les algorithmes
 
-**Du réseau routier au graphe.** Les routes OpenStreetMap sont converties en graphe pondéré (sommets : carrefours, arêtes : tronçons avec leur longueur). Les trottoirs dessinés à part, autoroutes, accès privés et parkings sont écartés, ce qui allège beaucoup les requêtes. Le graphe est stocké au format CSR (SciPy) avec un index spatial (arbre k-d) pour retrouver instantanément le carrefour le plus proche d'un point.
+**Du réseau routier au graphe.** Les routes OpenStreetMap sont converties en graphe pondéré (sommets : carrefours, arêtes : tronçons avec leur longueur). Les autoroutes, accès privés, parkings et voies interdites aux piétons sont écartés ; les trottoirs et passages piétons sont conservés pour ne perdre aucun cheminement. Le graphe est stocké au format CSR (SciPy) avec un index spatial (arbre k-d) pour retrouver instantanément le carrefour le plus proche d'un point.
 
 **Transformer un dessin en parcours.** Une forme est une courbe normalisée. On génère des candidats (taille, rotation, position), puis chaque point du dessin est accroché au graphe et les points sont reliés par des plus courts chemins (A*). Deux méthodes servent de base de comparaison :
 
@@ -81,7 +81,7 @@ docs/                guide de déploiement
 ## Choix d'ingénierie
 
 - **Cache côté serveur** du graphe routier (par zone), avec un verrou par zone : deux demandes simultanées ne téléchargent qu'une fois. Le graphe ne transite plus par le navigateur.
-- **Résilience face à Overpass** : quatre à cinq miroirs publics sont interrogés en cascade avec départ échelonné (le premier qui répond l'emporte), un nouvel essai automatique avec une zone plus courte en cas d'échec, et des réseaux de grandes villes préchargés dans le dépôt.
+- **Résilience face à Overpass** : quatre à cinq miroirs publics sont interrogés en cascade avec départ échelonné (le premier qui répond l'emporte), un nouvel essai automatique à distance inchangée en cas d'échec, et des réseaux de grandes villes préchargés dans le dépôt.
 - **Protections de l'API** : limites de requêtes par IP, calculs simultanés plafonnés, validation stricte des entrées (Pydantic), erreurs lisibles sans détail interne, CORS configurable.
 - **Sans dépendance inutile** : export ZIP des lettres écrit à la main, mini-moteur de dessin en SVG, état géré par des hooks React.
 - **Accessibilité** : navigation au clavier, focus visible, cibles tactiles d'au moins 44 px, mouvements réduits respectés.
@@ -159,7 +159,7 @@ Frontend sur Vercel, backend sur Render (image Docker), déploiement automatique
 
 ## Limites connues et pistes
 
-- Les serveurs Overpass publics sont gratuits mais variables : d'où le préchargement des villes et le nouvel essai automatique.
+- Les serveurs Overpass publics sont gratuits mais variables : d'où le préchargement des villes et un nouvel essai automatique (la distance demandée n'est jamais modifiée).
 - L'offre gratuite de Render limite la distance à 25 km (mémoire de 512 Mo) et endort le serveur sans trafic.
 - À venir : comptes utilisateurs (adresses et parcours favoris, historique, statistiques).
 

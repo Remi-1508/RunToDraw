@@ -46,7 +46,7 @@ def test_all_servers_failing_raises_the_last_error(monkeypatch):
 def test_query_keeps_foot_oneway_tags_only_and_builds_a_graph():
     query = osm.build_overpass_query_bbox(44.84, -0.58, 2000)
     assert "[bbox:" in query and "oneway:foot" in query and "parking_aisle" in query
-    assert "sidewalk|crossing" in query  # trottoirs et passages piétons dessinés à part exclus
+    assert "sidewalk" not in query  # les trottoirs dessinés à part restent dans le réseau
     # Réponse au format produit par la requête : voie à sens unique piéton avec tags, autre voie « nue ».
     answer = {"elements": [
         {"type": "way", "id": 1, "nodes": [10, 11], "tags": {"oneway:foot": "yes"}},
