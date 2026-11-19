@@ -16,9 +16,9 @@ services:
       # Render place un proxy devant l'application : l'adresse IP réelle est lue dans X-Forwarded-For.
       - key: RUNTODRAW_TRUSTED_PROXY_HOPS
         value: "1"
-      # 512 Mo de mémoire sur l'offre gratuite : un seul graphe gardé en cache (Paris pèse déjà plusieurs centaines de Mo).
+      # 512 Mo de mémoire sur l'offre gratuite : on garde moins de graphes en cache.
       - key: RUNTODRAW_GRAPH_CACHE_SIZE
-        value: "1"
+        value: "2"
       # Au-delà d'environ 25 km, le réseau routier à charger dépasse la mémoire de l'offre gratuite.
       # À relever (jusqu'à 50) avec une offre payante.
       - key: RUNTODRAW_MAX_DISTANCE_KM

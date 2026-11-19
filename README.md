@@ -31,7 +31,6 @@ flowchart LR
     U[Navigateur<br/>React + Leaflet] -->|HTTPS, JSON| A[API FastAPI<br/>Render]
     A --> C{Réseau routier<br/>en cache ?}
     C -->|oui| G[Graphe NumPy / SciPy]
-    C -->|ville préchargée| G
     C -->|non| O[Overpass API<br/>OpenStreetMap]
     O --> G
     G --> M[Moteur d'itinéraires<br/>recherche + scoring]
@@ -52,7 +51,7 @@ flowchart LR
 ```
 backend/runtodraw/   moteur et API (graphe, formes, recherche, scoring, texte, édition, cache)
 backend/tests/       tests automatisés
-backend/tools/       outils de mesure et de préchargement des villes
+backend/tools/       outils de mesure (Overpass, export du graphe)
 frontend/src/        interface (composants, hooks, API cliente, styles)
 docs/                guide de déploiement
 ```
@@ -81,7 +80,7 @@ docs/                guide de déploiement
 ## Choix d'ingénierie
 
 - **Cache côté serveur** du graphe routier (par zone), avec un verrou par zone : deux demandes simultanées ne téléchargent qu'une fois. Le graphe ne transite plus par le navigateur.
-- **Résilience face à Overpass** : quatre à cinq miroirs publics sont interrogés en cascade avec départ échelonné (le premier qui répond l'emporte), un nouvel essai automatique à distance inchangée en cas d'échec, et des réseaux de grandes villes préchargés dans le dépôt.
+- **Résilience face à Overpass** : quatre à cinq miroirs publics sont interrogés en cascade avec départ échelonné (le premier qui répond l'emporte), et un nouvel essai automatique à distance inchangée en cas d'échec.
 - **Protections de l'API** : limites de requêtes par IP, calculs simultanés plafonnés, validation stricte des entrées (Pydantic), erreurs lisibles sans détail interne, CORS configurable.
 - **Sans dépendance inutile** : export ZIP des lettres écrit à la main, mini-moteur de dessin en SVG, état géré par des hooks React.
 - **Accessibilité** : navigation au clavier, focus visible, cibles tactiles d'au moins 44 px, mouvements réduits respectés.
@@ -125,18 +124,6 @@ python -m pytest
 
 Le backend lit ses réglages dans des variables d'environnement (liste commentée dans `backend/.env.example`) ; aucune n'est nécessaire en local. En production, il faut au minimum `RUNTODRAW_ALLOWED_ORIGINS` (adresse du site). Le frontend utilise `VITE_ROUTE_API_URL` (adresse de l'API) et, facultativement, `VITE_GEOAPIFY_KEY` pour la recherche d'adresses hors de France (voir `frontend/.env.example`).
 
-### Précharger des villes (facultatif)
-
-Les serveurs Overpass publics sont parfois lents ou saturés. Pour les villes les plus demandées, le réseau routier peut être téléchargé une fois puis versionné, ce qui rend la génération immédiate :
-
-```bash
-cd backend
-python tools/build_city_graphs.py --list
-python tools/build_city_graphs.py bordeaux paris lyon
-```
-
-Les fichiers sont créés dans `backend/runtodraw/data/graphs/` ; il suffit de les ajouter au dépôt (`git add backend/runtodraw/data`). Le serveur les utilise tout seul pour les parcours situés dans la zone de la ville.
-
 ## Déploiement
 
 Frontend sur Vercel, backend sur Render (image Docker), déploiement automatique à chaque push sur `main`. Le guide pas à pas est dans [docs/deploiement.md](docs/deploiement.md). Un workflow GitHub Actions (`.github/workflows/keep-alive.yml`) appelle `/health` toutes les 10 minutes pour éviter l'endormissement du serveur gratuit.
@@ -159,7 +146,7 @@ Frontend sur Vercel, backend sur Render (image Docker), déploiement automatique
 
 ## Limites connues et pistes
 
-- Les serveurs Overpass publics sont gratuits mais variables : d'où le préchargement des villes et un nouvel essai automatique (la distance demandée n'est jamais modifiée).
+- Les serveurs Overpass publics sont gratuits mais variables : d'où les miroirs en cascade et un nouvel essai automatique (la distance demandée n'est jamais modifiée).
 - L'offre gratuite de Render limite la distance à 25 km (mémoire de 512 Mo) et endort le serveur sans trafic.
 - À venir : comptes utilisateurs (adresses et parcours favoris, historique, statistiques).
 
