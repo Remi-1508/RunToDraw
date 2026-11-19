@@ -1,0 +1,19 @@
+# Garde le backend Render (offre gratuite) éveillé : sans visite pendant ~15 minutes, Render l'endort et la
+# première requête suivante attend 50 secondes ou plus. Un appel à /health toutes les 10 minutes l'évite.
+# GitHub peut retarder ou sauter une exécution planifiée : c'est un confort, pas une garantie.
+name: Réveil du backend
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Appeler /health
+        run: curl --silent --show-error --fail --max-time 90 --retry 2 --retry-delay 10 "https://runtodraw-api.onrender.com/health"

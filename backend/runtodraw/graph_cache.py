@@ -6,6 +6,7 @@ from collections import OrderedDict
 from threading import Lock
 
 from runtodraw.config import get_settings
+from runtodraw.prebuilt import load_prebuilt
 from runtodraw.osm import build_graph_from_overpass, build_overpass_query_bbox, fetch_overpass_with_fallback
 from runtodraw.road_graph import RoadGraph
 from runtodraw.search_area import required_radius_m
@@ -62,10 +63,15 @@ def _download_lock(key) -> Lock:
 
 def _build_graph(lat, lon, radius_m):
     t0 = time.perf_counter()
-    osm = fetch_overpass_with_fallback(build_overpass_query_bbox(lat, lon, radius_m))
-    t1 = time.perf_counter()
-    raw = build_graph_from_overpass(osm)
-    del osm
+    # Ville préchargée : réponse immédiate, sans dépendre des serveurs Overpass publics.
+    raw = load_prebuilt(lat, lon, radius_m)
+    if raw is None:
+        osm = fetch_overpass_with_fallback(build_overpass_query_bbox(lat, lon, radius_m))
+        t1 = time.perf_counter()
+        raw = build_graph_from_overpass(osm)
+        del osm
+    else:
+        t1 = t0
     if not raw["nodes"]:
         raise NoRoadsFoundError("Aucune route trouvée autour de ce point.")
     graph = RoadGraph({"meta": {"center": [lat, lon], "radius_km": radius_m / 1000.0}, **raw})

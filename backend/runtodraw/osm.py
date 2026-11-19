@@ -45,19 +45,28 @@ def haversine_meters(lat1, lon1, lat2, lon2):
 #
 # On allège aussi la réponse (mesuré à Bordeaux, rayon 7,5 km : 26 Mo en 32 s au lieu de 38 Mo en 42 s) :
 # - on écarte les voies inutiles pour courir : autoroutes, routes privées ou interdites d'accès,
-#   allées de parking et accès de garage, voies en projet ou en construction ;
+#   allées de parking et accès de garage, voies en projet ou en construction, voies interdites aux piétons ou
+#   intérieures, et trottoirs / passages piétons dessinés à part (en ville ils doublent presque le nombre de voies,
+#   alors qu'un piéton peut de toute façon suivre la chaussée : le tracé reste continu) ;
 # - les étiquettes (« tags ») des voies ne sont renvoyées que pour celles à sens unique piéton
 #   (« oneway:foot »), la seule information qu'on lit ensuite ; les autres voies sont envoyées « nues » (`skel`).
 def build_overpass_query_bbox(lat, lon, radius_meters):
     dlat = radius_meters / 111320.0
     dlon = radius_meters / (111320.0 * math.cos(math.radians(lat)))
-    south, west, north, east = lat - dlat, lon - dlon, lat + dlat, lon + dlon
+    return build_overpass_query(lat - dlat, lon - dlon, lat + dlat, lon + dlon)
+
+
+# Même requête pour une boîte (sud, ouest, nord, est) : utilisée aussi par l'outil de préchargement des villes.
+def build_overpass_query(south, west, north, east):
     return f"""
 [out:json][timeout:180][bbox:{south:.6f},{west:.6f},{north:.6f},{east:.6f}];
 way["highway"]
   ["highway"!~"motorway|motorway_link|trunk|trunk_link|proposed|construction|raceway|bus_guideway|elevator|corridor"]
   ["area"!="yes"]
   ["access"!~"private|no"]
+  ["foot"!="no"]
+  ["indoor"!="yes"]
+  ["footway"!~"sidewalk|crossing"]
   ["service"!~"parking_aisle|driveway|drive-through"]->.all;
 way.all["oneway:foot"~"^(yes|1|true)$"]->.oneway;
 (.all; - .oneway;)->.rest;
