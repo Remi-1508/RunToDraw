@@ -25,6 +25,8 @@ def fake_network(monkeypatch):
     monkeypatch.setattr(graph_cache, "fetch_overpass_with_fallback", fake_fetch)
     monkeypatch.setattr(graph_cache, "build_graph_from_overpass", lambda osm: {"nodes": [1, 2, 3], "edges": [1, 2]})
     monkeypatch.setattr(graph_cache, "RoadGraph", FakeGraph)
+    # Isole le test des villes préchargées réellement présentes dans le dépôt
+    monkeypatch.setattr(graph_cache, "load_prebuilt_arrays", lambda *args: None)
     graph_cache._graph_cache.clear()
     graph_cache._download_locks.clear()
     yield calls
@@ -53,6 +55,7 @@ def test_second_call_uses_cache(fake_network):
 
 
 def test_empty_area_raises_no_roads(monkeypatch):
+    monkeypatch.setattr(graph_cache, "load_prebuilt_arrays", lambda *args: None)
     monkeypatch.setattr(graph_cache, "fetch_overpass_with_fallback", lambda q: {})
     monkeypatch.setattr(graph_cache, "build_graph_from_overpass", lambda osm: {"nodes": [], "edges": []})
     graph_cache._graph_cache.clear()

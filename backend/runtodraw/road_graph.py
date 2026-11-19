@@ -20,16 +20,51 @@ import numpy as np
 # Les méthodes publiques continuent de travailler avec les identifiants OSM, comme avant.
 class RoadGraph:
     def __init__(self, data):
-        self.meta = data["meta"]
-        self.nodes = data["nodes"]
-        self.edges = data["edges"]
-        self.center_lat, self.center_lon = self.meta["center"]
+        """Construit le graphe depuis le format JSON (listes de dicts « nodes » et « edges »)."""
+        nodes, edges = data["nodes"], data["edges"]
+        idx_of = {n["id"]: i for i, n in enumerate(nodes)}
+        src, dst, length, oneway = [], [], [], []
+        for e in edges:
+            u = idx_of.get(e["from"])
+            v = idx_of.get(e["to"])
+            if u is None or v is None:
+                continue  # arête vers un nœud inconnu : inutilisable
+            src.append(u); dst.append(v)
+            length.append(float(e.get("length_m", 0.0)))
+            oneway.append(bool(e.get("oneway", False)))
+        self._init_from_arrays(
+            data["meta"],
+            np.fromiter((n["id"] for n in nodes), dtype=np.int64, count=len(nodes)),
+            np.fromiter((n["lat"] for n in nodes), dtype=float, count=len(nodes)),
+            np.fromiter((n["lon"] for n in nodes), dtype=float, count=len(nodes)),
+            np.asarray(src, dtype=np.int64), np.asarray(dst, dtype=np.int64),
+            np.asarray(length, dtype=float), np.asarray(oneway, dtype=bool),
+        )
+        self.nodes, self.edges = nodes, edges
+
+    @classmethod
+    def from_arrays(cls, meta, ids, lat, lon, src, dst, length, oneway):
+        """Construit le graphe directement depuis des tableaux NumPy (indices src/dst dans `ids`).
+
+        Évite de créer des millions de petits dicts Python : indispensable pour les très grandes villes,
+        sinon le pic de mémoire dépasse les 512 Mo du serveur gratuit.
+        """
+        graph = cls.__new__(cls)
+        graph._init_from_arrays(
+            meta, ids, lat, lon,
+            np.asarray(src, dtype=np.int64), np.asarray(dst, dtype=np.int64),
+            np.asarray(length, dtype=float), np.asarray(oneway, dtype=bool),
+        )
+        graph.nodes = graph.edges = None
+        return graph
+
+    def _init_from_arrays(self, meta, ids, lat, lon, src_e, dst_e, length_e, oneway_e):
+        self.meta = meta
+        self.center_lat, self.center_lon = meta["center"]
 
         # --- Nœuds : identifiants OSM -> indices 0..N-1, coordonnées x/y vectorisées ---
-        self.node_ids = [n["id"] for n in self.nodes]
+        self.node_ids = ids.tolist()
         self._idx_of = {nid: i for i, nid in enumerate(self.node_ids)}
-        lat = np.fromiter((n["lat"] for n in self.nodes), dtype=float, count=len(self.nodes))
-        lon = np.fromiter((n["lon"] for n in self.nodes), dtype=float, count=len(self.nodes))
         r = 6371000.0
         xs = np.radians(lon - self.center_lon) * r * math.cos(math.radians(self.center_lat))
         ys = np.radians(lat - self.center_lat) * r
@@ -37,21 +72,15 @@ class RoadGraph:
         self._node_xy_dict = None
 
         # --- Arcs orientés, dans le même ordre que l'ancienne liste d'adjacence ---
-        # (une arête à double sens donne deux arcs : u->v puis v->u)
-        src, dst, w = [], [], []
-        idx_of = self._idx_of
-        for e in self.edges:
-            u = idx_of.get(e["from"])
-            v = idx_of.get(e["to"])
-            if u is None or v is None:
-                continue  # arête vers un nœud inconnu : inutilisable
-            length = float(e.get("length_m", 0.0))
-            src.append(u); dst.append(v); w.append(length)
-            if not e.get("oneway", False):
-                src.append(v); dst.append(u); w.append(length)
-        src = np.asarray(src, dtype=np.int64)
-        dst = np.asarray(dst, dtype=np.int64)
-        w = np.asarray(w, dtype=float)
+        # (une arête à double sens donne deux arcs : u->v puis v->u, l'un juste après l'autre)
+        copies = np.where(oneway_e, 1, 2)
+        first = np.repeat(np.arange(len(src_e)), copies)
+        is_reverse = np.zeros(len(first), dtype=bool)
+        second = np.cumsum(copies)[~oneway_e] - 1  # position de l'arc retour de chaque arête à double sens
+        is_reverse[second] = True
+        src = np.where(is_reverse, dst_e[first], src_e[first])
+        dst = np.where(is_reverse, src_e[first], dst_e[first])
+        w = length_e[first]
         n = len(self.node_ids)
 
         # Format CSR. Un tri stable par source conserve l'ordre d'insertion des voisins de chaque nœud,

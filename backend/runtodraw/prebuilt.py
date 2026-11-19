@@ -25,9 +25,9 @@ DATA_DIR = Path(__file__).resolve().parent / "data" / "graphs"
 INDEX_NAME = "index.json"
 
 _lock = Lock()
-# Villes gardées en mémoire (tableaux numpy, quelques Mo chacune) : au plus MAX_LOADED, les plus anciennes sont
+# Villes gardées en mémoire (tableaux numpy, quelques dizaines de Mo pour Paris) : au plus MAX_LOADED, les plus anciennes sont
 # libérées. La liste des villes préchargées peut donc grandir sans augmenter la mémoire du serveur.
-MAX_LOADED = 3
+MAX_LOADED = 1
 _loaded: "OrderedDict[str, dict]" = OrderedDict()
 
 
@@ -82,8 +82,11 @@ def _load_arrays(city, data_dir):
         return arrays
 
 
-def crop_city_graph(city, lat, lon, radius_m, data_dir=None):
-    """Nœuds et arêtes de la boîte demandée, au même format que `build_graph_from_overpass`."""
+def crop_city_arrays(city, lat, lon, radius_m, data_dir=None):
+    """Tableaux NumPy (ids, lat, lon, src, dst, length, oneway) de la boîte demandée, indices réindexés.
+
+    Aucun dict Python n'est créé : c'est ce qui garde la mémoire raisonnable pour les très grandes villes.
+    """
     a = _load_arrays(city, data_dir or DATA_DIR)
     dlat = radius_m / 111320.0
     dlon = radius_m / (111320.0 * math.cos(math.radians(lat)))
@@ -94,25 +97,43 @@ def crop_city_graph(city, lat, lon, radius_m, data_dir=None):
     used = np.zeros(len(a["ids"]), dtype=bool)
     used[a["src"][keep]] = True
     used[a["dst"][keep]] = True
-    ids = a["ids"]
+    new_index = np.cumsum(used) - 1  # ancien indice -> nouvel indice (valable pour les nœuds utilisés)
+    return {
+        "ids": a["ids"][used], "lat": a["lat"][used], "lon": a["lon"][used],
+        "src": new_index[a["src"][keep]], "dst": new_index[a["dst"][keep]],
+        "length": a["length"][keep], "oneway": a["oneway"][keep],
+    }
+
+
+def crop_city_graph(city, lat, lon, radius_m, data_dir=None):
+    """Nœuds et arêtes de la boîte demandée, au même format que `build_graph_from_overpass` (liste de dicts)."""
+    c = crop_city_arrays(city, lat, lon, radius_m, data_dir)
     nodes = [
-        {"id": int(ids[i]), "lat": float(a["lat"][i]), "lon": float(a["lon"][i])} for i in np.flatnonzero(used)
+        {"id": int(i), "lat": float(y), "lon": float(x)} for i, y, x in zip(c["ids"], c["lat"], c["lon"])
     ]
     edges = [
-        {"from": int(ids[s]), "to": int(ids[d]), "length_m": float(w), "oneway": bool(o)}
-        for s, d, w, o in zip(a["src"][keep], a["dst"][keep], a["length"][keep], a["oneway"][keep])
+        {"from": int(c["ids"][s]), "to": int(c["ids"][d]), "length_m": float(w), "oneway": bool(o)}
+        for s, d, w, o in zip(c["src"], c["dst"], c["length"], c["oneway"])
     ]
     return {"nodes": nodes, "edges": edges}
 
 
-def load_prebuilt(lat, lon, radius_m, data_dir=None):
-    """Graphe brut de la zone si une ville préchargée la couvre, sinon None."""
+def load_prebuilt_arrays(lat, lon, radius_m, data_dir=None):
+    """Tableaux de la zone si une ville préchargée la couvre, sinon None."""
     city = find_city(lat, lon, radius_m, data_dir)
     if city is None:
         return None
-    raw = crop_city_graph(city, lat, lon, radius_m, data_dir)
-    logger.info("Réseau routier préchargé (%s) : %d nœuds", city["name"], len(raw["nodes"]))
-    return raw
+    arrays = crop_city_arrays(city, lat, lon, radius_m, data_dir)
+    logger.info("Réseau routier préchargé (%s) : %d nœuds", city["name"], len(arrays["ids"]))
+    return arrays
+
+
+def load_prebuilt(lat, lon, radius_m, data_dir=None):
+    """Graphe brut (listes de dicts) de la zone si une ville préchargée la couvre, sinon None."""
+    city = find_city(lat, lon, radius_m, data_dir)
+    if city is None:
+        return None
+    return crop_city_graph(city, lat, lon, radius_m, data_dir)
 
 
 def save_city(name, lat, lon, radius_m, raw, data_dir=None):

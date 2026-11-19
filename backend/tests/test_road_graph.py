@@ -320,3 +320,26 @@ def test_segments_expose_node_path_and_anchors(drawing):
             assert all(0 <= a < len(seg["node_path"]) for a in seg["anchors"])
             if seg.get("kind") != "link":
                 assert len(seg["anchors"]) >= 2
+
+
+def test_from_arrays_equivalent_to_dict_constructor():
+    """La construction depuis des tableaux donne exactement le même graphe que depuis les dicts."""
+    nodes = [{"id": 10 + i, "lat": 44.84 + 0.001 * (i // 3), "lon": -0.57 + 0.001 * (i % 3)} for i in range(9)]
+    edges = []
+    for i in range(9):
+        if i % 3 < 2:
+            edges.append({"from": 10 + i, "to": 11 + i, "length_m": 80.0 + i, "oneway": i == 4})
+        if i < 6:
+            edges.append({"from": 10 + i, "to": 13 + i, "length_m": 110.0 + i, "oneway": False})
+    meta = {"center": [44.842, -0.569], "radius_km": 1}
+    a = RoadGraph({"meta": meta, "nodes": nodes, "edges": edges})
+    index = {n["id"]: i for i, n in enumerate(nodes)}
+    b = RoadGraph.from_arrays(
+        meta,
+        np.array([n["id"] for n in nodes]), np.array([n["lat"] for n in nodes]), np.array([n["lon"] for n in nodes]),
+        np.array([index[e["from"]] for e in edges]), np.array([index[e["to"]] for e in edges]),
+        np.array([e["length_m"] for e in edges]), np.array([e["oneway"] for e in edges]),
+    )
+    assert a.node_ids == b.node_ids
+    assert a._indptr == b._indptr and a._indices == b._indices and a._weights == b._weights
+    assert a.shortest_path(10, 18) == b.shortest_path(10, 18)
