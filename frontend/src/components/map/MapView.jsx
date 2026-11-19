@@ -50,7 +50,7 @@ function FitToRoute({ selectedRoute }) {
 // `disabledReason` : quand il est renseigné, le bouton est grisé et ce texte explique pourquoi.
 // On utilise aria-disabled plutôt que disabled pour que le bouton reste atteignable au clavier
 // et que son message soit lu / affiché au survol, au focus et au clic.
-function MapControl({ icon, label, onClick, pressed, disabledReason }) {
+function MapControl({ icon, label, onClick, pressed, disabledReason, keepLabel }) {
   const [hintOpen, setHintOpen] = useState(false);
   const disabled = Boolean(disabledReason);
   const hintId = useId();
@@ -79,7 +79,7 @@ function MapControl({ icon, label, onClick, pressed, disabledReason }) {
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           {icon}
         </svg>
-        <span className="rtd-control-label" style={styles.controlText}>{label}</span>
+        <span className={`rtd-control-label${keepLabel ? " rtd-control-label--keep" : ""}`} style={styles.controlText}>{label}</span>
       </button>
       {disabled && hintOpen ? (
         <div id={hintId} role="status" style={styles.controlHint}>
@@ -94,6 +94,13 @@ const ICON_PANEL = (
   <>
     <rect x="3" y="4" width="18" height="16" rx="2" />
     <path d="M9 4v16" />
+  </>
+);
+// Smartphone : le panneau est un tiroir en bas de l'écran, pas une colonne à gauche.
+const ICON_SHEET = (
+  <>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M3 14h18" />
   </>
 );
 const ICON_SUN = (
@@ -322,8 +329,9 @@ export default function MapView({
       <div style={{ ...styles.topBar, ...(isMobile ? styles.topBarMobile : null) }}>
       <div style={styles.controls}>
         <MapControl
-          icon={ICON_PANEL}
-          label={panelOpen ? "Masquer le panneau" : "Afficher le panneau"}
+          icon={isMobile ? ICON_SHEET : ICON_PANEL}
+          label={panelOpen ? "Masquer le panneau" : isMobile ? "Paramètres" : "Afficher le panneau"}
+          keepLabel={isMobile && !panelOpen}
           onClick={onTogglePanel}
           pressed={panelOpen}
         />

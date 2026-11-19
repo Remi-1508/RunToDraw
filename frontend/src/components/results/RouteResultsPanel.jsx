@@ -156,6 +156,16 @@ export default function RouteResultsPanel({
         ) : null}
 
         <div style={styles.exportButtons}>
+          {letterSegments && letterSegments.length > 1 ? (
+            <button
+              type="button"
+              style={{ ...styles.exportButton, ...styles.exportButtonWide }}
+              onClick={() => onExportRoute("zip")}
+            >
+              Toutes les lettres (ZIP)
+            </button>
+          ) : null}
+
           {letterSegments ? (
             letterSegments.map((segment, index) => (
               <button
@@ -378,5 +388,11 @@ const styles = {
     padding: "14px 16px",
     fontWeight: 800,
     cursor: "pointer",
+  },
+
+  // « Toutes les lettres » : l'action principale de l'export d'un mot, mise en avant.
+  exportButtonWide: {
+    minHeight: "var(--control-h)",
+    fontSize: 16,
   },
 };

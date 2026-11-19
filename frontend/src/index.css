@@ -388,8 +388,13 @@ a:focus-visible {
   }
 
   /* Les commandes de la carte ne gardent que leur icône (le nom reste lu par les lecteurs d'écran). */
-  .rtd-control-label {
+  .rtd-control-label:not(.rtd-control-label--keep) {
     display: none;
+  }
+
+  /* L'en-tête du tiroir sert de poignée : le doigt le fait glisser au lieu de faire défiler la page. */
+  .rtd-sheet-handle {
+    touch-action: none;
   }
 
   .leaflet-control-zoom {
@@ -407,4 +412,34 @@ a:focus-visible {
   .rtd-sidebar.is-closed {
     transition: none;
   }
+}
+
+/* Smartphone : bandeau affiché pendant « Sur la carte ». */
+.rtd-pick-banner {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  z-index: 1060;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 10px 10px 16px;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 800;
+  box-shadow: var(--shadow-strong);
+}
+
+.rtd-pick-banner button {
+  min-height: 40px;
+  padding: 0 16px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--on-accent);
+  color: var(--accent-text, var(--accent));
+  font-weight: 800;
+  cursor: pointer;
 }

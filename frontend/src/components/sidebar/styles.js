@@ -125,6 +125,37 @@ export const styles = {
     cursor: "pointer",
   },
 
+  // Cadre récapitulatif du point de départ choisi (quelle que soit la méthode utilisée).
+  startBox: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+    marginTop: 12,
+    padding: "10px 14px",
+    borderRadius: "var(--radius-sm)",
+    border: "2px solid var(--accent)",
+    background: "var(--chip)",
+    overflowWrap: "anywhere",
+  },
+
+  startBoxEmpty: {
+    border: "2px dashed var(--border-strong)",
+    background: "transparent",
+  },
+
+  startBoxLabel: {
+    fontSize: 12,
+    fontWeight: 800,
+    color: "var(--text-soft)",
+  },
+
+  startBoxText: {
+    fontSize: 15,
+    fontWeight: 700,
+    color: "var(--text)",
+    lineHeight: 1.35,
+  },
+
   locationButtonActive: {
     borderColor: "var(--accent)",
     background: "var(--accent)",
@@ -426,6 +457,61 @@ export const styles = {
     cursor: "crosshair",
     touchAction: "none", // sans cela, le doigt fait défiler la page au lieu de dessiner
     userSelect: "none",
+    WebkitUserSelect: "none",
+    WebkitTouchCallout: "none", // pas de menu « copier / enregistrer » à l'appui long
+  },
+
+  drawFullscreen: {
+    width: "100%",
+    minHeight: "var(--control-h)",
+    marginTop: 10,
+    border: "2px solid var(--text)",
+    borderRadius: "var(--radius-sm)",
+    background: "transparent",
+    color: "var(--text)",
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+
+  drawModal: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 1200, // au-dessus du tiroir (1100) et de la carte
+    display: "flex",
+    flexDirection: "column",
+    background: "var(--bg)",
+    padding: "12px 12px calc(12px + env(safe-area-inset-bottom))",
+    gap: 12,
+  },
+
+  drawModalHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+
+  drawModalTitle: {
+    fontSize: 20,
+    fontWeight: 900,
+  },
+
+  drawModalDone: {
+    minHeight: "var(--control-h)",
+    padding: "0 22px",
+    border: "none",
+    borderRadius: "var(--radius-sm)",
+    background: "var(--accent)",
+    color: "var(--on-accent)",
+    fontWeight: 800,
+    fontSize: 16,
+    cursor: "pointer",
+  },
+
+  // La zone de dessin reste carrée : sa taille est limitée par la plus petite dimension de l'écran.
+  drawModalBody: {
+    width: "min(100%, calc(100dvh - 150px))",
+    margin: "0 auto",
   },
 
   drawFooter: {
