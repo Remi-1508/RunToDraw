@@ -1,6 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { MAX_TEXT_LENGTH, SHAPES } from "../../config";
+import { useIsMobile } from "../../hooks/useIsMobile";
 import DrawingCanvas from "./DrawingCanvas";
+import DrawingModal from "./DrawingModal";
 import ShapeIcon from "./ShapeIcon";
 import StepHeader from "./StepHeader";
 import { styles } from "./styles";
@@ -12,6 +14,10 @@ function toDrawableText(value) {
 
 // Étape 3 : choix d'une forme prédéfinie ou d'un texte à dessiner.
 export default function DrawingStep({ drawing, setDrawing }) {
+  const isMobile = useIsMobile();
+  const [fullscreen, setFullscreen] = useState(false);
+  const setPoints = (points) => setDrawing((current) => ({ ...current, mode: "custom", points }));
+
   // Aide dynamique : indique si la longueur du mot saisi est raisonnable pour le calcul.
   const textHelper = useMemo(() => {
     const clean = (drawing.text || "").trim();
@@ -73,10 +79,17 @@ export default function DrawingStep({ drawing, setDrawing }) {
           })}
         </div>
       ) : drawing.mode === "custom" ? (
-        <DrawingCanvas
-          points={drawing.points}
-          onChange={(points) => setDrawing((current) => ({ ...current, mode: "custom", points }))}
-        />
+        <>
+          <DrawingCanvas points={drawing.points} onChange={setPoints} />
+          {isMobile ? (
+            <button type="button" style={styles.drawFullscreen} onClick={() => setFullscreen(true)}>
+              Dessiner en plein écran
+            </button>
+          ) : null}
+          {fullscreen ? (
+            <DrawingModal points={drawing.points} onChange={setPoints} onClose={() => setFullscreen(false)} />
+          ) : null}
+        </>
       ) : (
         <div style={styles.textBlock}>
           <input

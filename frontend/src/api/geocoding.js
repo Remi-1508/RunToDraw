@@ -380,3 +380,32 @@ export function searchPlaces(query, { bias, signal, onUpdate, onPhase } = {}) {
       .finally(settle);
   });
 }
+
+// Adresse d'un point (géocodage inverse), pour afficher le point de départ choisi sur la carte ou par
+// géolocalisation. En France, la Géoplateforme de l'IGN répond vite ; ailleurs on utilise Geoapify si une clé
+// est configurée. À défaut, ou en cas d'échec, on renvoie les coordonnées : le départ reste lisible.
+export async function reverseGeocode(lat, lon, { signal } = {}) {
+  const coordinates = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+  try {
+    const ign = await fetch(`https://data.geopf.fr/geocodage/reverse?lon=${lon}&lat=${lat}&limit=1`, { signal });
+    if (ign.ok) {
+      const feature = (await ign.json()).features?.[0];
+      const label = feature?.properties?.label;
+      // L'IGN ne couvre que la France : un point lointain renvoie vide ou une adresse à plusieurs km.
+      if (label && (feature.properties.distance ?? 0) < 300) return label;
+    }
+    if (GEOAPIFY_KEY) {
+      const world = await fetch(
+        `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lon}&lang=fr&apiKey=${GEOAPIFY_KEY}`,
+        { signal }
+      );
+      if (world.ok) {
+        const label = (await world.json()).features?.[0]?.properties?.formatted;
+        if (label) return label;
+      }
+    }
+  } catch (error) {
+    if (error.name === "AbortError") throw error;
+  }
+  return coordinates;
+}

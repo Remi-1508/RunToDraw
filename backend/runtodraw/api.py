@@ -154,7 +154,11 @@ def _load_graph(request: GraphFetchRequest):
         logger.exception("Échec de la récupération du graphe routier")
         raise HTTPException(
             status_code=502,
-            detail="Le service OpenStreetMap (Overpass) est indisponible ou trop lent. Réessaie dans un instant.",
+            detail=(
+                "Les serveurs publics d'OpenStreetMap (Overpass) sont indisponibles ou trop lents en ce moment. "
+                "Réessaie dans une ou deux minutes. Une distance plus courte (3 à 5 km) se télécharge bien plus "
+                "vite et passe plus souvent."
+            ),
         )
 
 

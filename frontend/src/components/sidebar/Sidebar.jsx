@@ -21,6 +21,7 @@ export default function Sidebar({
   setDrawing,
   onUseMyLocation,
   onPickSuggestion,
+  startLabel,
   pickingOnMap,
   onTogglePickOnMap,
   onClosePanel,
@@ -36,7 +37,7 @@ export default function Sidebar({
   return (
     <div style={styles.sidebar}>
       {/* Logo collant : l'identité du projet reste visible quand la barre défile. */}
-      <div style={styles.logoStickyWrap}>
+      <div className="rtd-sheet-handle" style={styles.logoStickyWrap}>
         <div className="rtd-sheet-grip" aria-hidden="true" />
         <div style={styles.logoZone}>
           <img src={currentLogo} alt="RunToDraw" style={styles.logoImage} />
@@ -53,6 +54,7 @@ export default function Sidebar({
         center={center}
         onUseMyLocation={onUseMyLocation}
         onPickSuggestion={onPickSuggestion}
+        startLabel={startLabel}
         pickingOnMap={pickingOnMap}
         onTogglePickOnMap={onTogglePickOnMap}
       />

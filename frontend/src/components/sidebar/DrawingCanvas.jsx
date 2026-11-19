@@ -67,6 +67,7 @@ export default function DrawingCanvas({ points, onChange }) {
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
+        onContextMenu={(event) => event.preventDefault()}
         role="img"
         aria-label="Zone de dessin : trace ta forme d'un seul trait avec la souris ou le doigt."
       >

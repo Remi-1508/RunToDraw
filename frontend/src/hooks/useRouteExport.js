@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { downloadKML, downloadRouteGPX } from "../utils/routeExport";
+import { downloadKML, downloadLettersZip, downloadRouteGPX } from "../utils/routeExport";
 
 // Nom de fichier sûr (sans accents ni caractères spéciaux) construit à partir du libellé de l'itinéraire.
 function safeFileName(label) {
@@ -30,6 +30,9 @@ export function useRouteExport({ selectedRoute, showToast }) {
               : "Export GPX généré. C’est le plus simple pour Strava et beaucoup d’applis GPS.",
             "success"
           );
+        } else if (exportType === "zip") {
+          downloadLettersZip(selectedRoute, `runtodraw_${baseName}_lettres.zip`, `runtodraw_${baseName}`);
+          showToast("Archive ZIP générée : un fichier GPX par lettre.", "success");
         } else if (exportType === "kml") {
           downloadKML(selectedRoute, `runtodraw_${baseName}.kml`);
           showToast("Export KML généré pour Google My Maps.", "success");

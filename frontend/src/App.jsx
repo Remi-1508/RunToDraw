@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { reverseGeocode } from "./api/geocoding";
 import { DEFAULT_DISTANCE_KM, INITIAL_DRAWING, LONG_DISTANCE_CONFIRM_KM, MIN_DRAW_POINTS } from "./config";
 import LoadingModal from "./components/feedback/LoadingModal";
 import Toast from "./components/feedback/Toast";
@@ -7,6 +8,7 @@ import Sidebar from "./components/sidebar/Sidebar";
 import { useMapBackground } from "./hooks/useMapBackground";
 import { useGeolocation } from "./hooks/useGeolocation";
 import { useIsMobile } from "./hooks/useIsMobile";
+import { useSheetSwipe } from "./hooks/useSheetSwipe";
 import { useRouteEditor } from "./hooks/useRouteEditor";
 import { useRouteExport } from "./hooks/useRouteExport";
 import { useRoutePlanning } from "./hooks/useRoutePlanning";
@@ -34,6 +36,8 @@ export default function App() {
   // quand on a besoin de voir la carte (choix d'un point, tracé généré).
   const isMobile = useIsMobile();
   const [panelOpen, setPanelOpen] = useState(true);
+  // Sur smartphone, glisser l'en-tête du tiroir vers le bas le referme.
+  const swipe = useSheetSwipe({ enabled: isMobile && panelOpen, onClose: () => setPanelOpen(false) });
 
   const planning = useRoutePlanning({ showToast });
   // Édition manuelle du tracé sur la carte : `editor.route` est l'itinéraire choisi, avec ses modifications.
@@ -54,11 +58,26 @@ export default function App() {
   }, [routePlan, editor.route]);
 
   // Changer de point de départ efface les résultats précédents.
+  // `startLabel` : adresse affichée du départ ("" = aucun départ, null = adresse en cours de recherche).
   const resetPlanning = planning.reset;
+  const [startLabel, setStartLabel] = useState("");
+  const reverseRef = useRef(null);
   const chooseCenter = useCallback(
-    (latlng) => {
+    (latlng, label) => {
       setCenter(latlng);
       resetPlanning();
+      reverseRef.current?.abort();
+      if (label) {
+        setStartLabel(label);
+        return;
+      }
+      // Position actuelle ou clic sur la carte : on cherche l'adresse correspondante.
+      setStartLabel(null);
+      const controller = new AbortController();
+      reverseRef.current = controller;
+      reverseGeocode(latlng[0], latlng[1], { signal: controller.signal })
+        .then(setStartLabel)
+        .catch(() => {});
     },
     [resetPlanning]
   );
@@ -141,6 +160,8 @@ export default function App() {
       <aside
         className={`rtd-sidebar${panelOpen ? "" : " is-closed"}`}
         style={{ "--sidebar-w": `${sidebarWidth}px` }}
+        ref={swipe.ref}
+        {...swipe.handlers}
         inert={!panelOpen}
         aria-label="Paramètres de l’itinéraire"
       >
@@ -154,6 +175,7 @@ export default function App() {
           setDrawing={setDrawing}
           onUseMyLocation={locate}
           onPickSuggestion={chooseCenter}
+          startLabel={startLabel}
           pickingOnMap={pickingOnMap}
           onTogglePickOnMap={togglePickOnMap}
           onClosePanel={() => setPanelOpen(false)}
@@ -165,6 +187,22 @@ export default function App() {
           onExportRoute={exportRoute}
         />
       </aside>
+
+      {/* Smartphone : pendant le choix du départ, le tiroir est replié ; ce bandeau explique quoi faire. */}
+      {isMobile && pickingOnMap ? (
+        <div className="rtd-pick-banner" role="status">
+          <span>Touche la carte pour choisir le départ</span>
+          <button
+            type="button"
+            onClick={() => {
+              setPickingOnMap(false);
+              setPanelOpen(true);
+            }}
+          >
+            Annuler
+          </button>
+        </div>
+      ) : null}
 
       {/* Poignée de redimensionnement entre la barre latérale et la carte. */}
       <div

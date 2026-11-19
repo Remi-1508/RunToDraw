@@ -16,8 +16,13 @@ passage et recalcule son propre itinéraire entre eux, ce qui ne respecte pas le
 ============================================================
 */
 
+import { createZip } from "./zip";
+
 function downloadTextFile(content, filename, mimeType) {
-  const blob = new Blob([content], { type: mimeType });
+  downloadBlob(new Blob([content], { type: mimeType }), filename);
+}
+
+function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
 
   const a = document.createElement("a");
@@ -143,12 +148,11 @@ function routeDescription(route) {
 }
 
 /**
- * Télécharge un fichier GPX.
+ * Construit le texte d'un fichier GPX.
  * @param route itinéraire renvoyé par le backend
- * @param filename nom du fichier
  * @param segmentIndex si fourni, n'exporte que ce morceau (une lettre d'un mot en lettres séparées)
  */
-export function downloadRouteGPX(route, filename = "runtodraw_route.gpx", segmentIndex = null) {
+function buildRouteGPX(route, segmentIndex = null) {
   const segment = segmentIndex === null ? null : route?.segments?.[segmentIndex];
   const rawPoints = segment ? dedupeConsecutivePoints(segmentPoints(segment)) : flattenRoutePoints(route);
   const points = simplifyRoutePoints(rawPoints, { toleranceMeters: 8, minStepMeters: 6 });
@@ -164,7 +168,7 @@ export function downloadRouteGPX(route, filename = "runtodraw_route.gpx", segmen
   );
   const trkpts = points.map(([lat, lon]) => `      <trkpt lat="${lat}" lon="${lon}"></trkpt>`).join("\n");
 
-  const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+  return `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="RunToDraw" xmlns="http://www.topografix.com/GPX/1/1">
   <metadata>
     <name>${name}</name>
@@ -179,8 +183,24 @@ ${trkpts}
     </trkseg>
   </trk>
 </gpx>`;
+}
 
-  downloadTextFile(gpx, filename, "application/gpx+xml");
+// Télécharge un fichier GPX (voir buildRouteGPX).
+export function downloadRouteGPX(route, filename = "runtodraw_route.gpx", segmentIndex = null) {
+  downloadTextFile(buildRouteGPX(route, segmentIndex), filename, "application/gpx+xml");
+}
+
+/**
+ * Télécharge, en une seule archive ZIP, un GPX par lettre d'un mot en lettres séparées.
+ * Les fichiers sont nommés « <préfixe>_lettre-b-1.gpx », dans l'ordre d'écriture du mot.
+ */
+export function downloadLettersZip(route, zipName, filePrefix) {
+  const files = (route?.segments ?? []).map((segment, index) => ({
+    name: `${filePrefix}_lettre-${String(segment.label).toLowerCase()}-${index + 1}.gpx`,
+    content: buildRouteGPX(route, index),
+  }));
+  if (!files.length) throw new Error("Aucune lettre à exporter.");
+  downloadBlob(createZip(files), zipName);
 }
 
 /**

@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 # on ne s'appuie donc sur aucun en particulier, voir fetch_overpass_with_fallback.
 OVERPASS_ENDPOINTS = [
     "https://overpass-api.de/api/interpreter",
+    "https://overpass.openstreetmap.fr/api/interpreter",  # miroir français : bien placé pour les zones en France
     "https://overpass.private.coffee/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
     "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
