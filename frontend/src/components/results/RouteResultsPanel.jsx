@@ -1,5 +1,6 @@
 import { useState } from "react";
 import StepHeader from "../sidebar/StepHeader";
+import ElevationStat from "./ElevationStat";
 import RouteThumbnail from "./RouteThumbnail";
 
 // Cette petite fonction transforme une distance en mètres
@@ -21,6 +22,7 @@ export default function RouteResultsPanel({
   selectedRouteId,
   onSelectRoute,
   onExportRoute,
+  onClearRoute,
 }) {
   const selectedRoute = routePlan?.routes?.find((route) => route.id === selectedRouteId) ?? null;
   // Lettres séparées : un fichier GPX par lettre (chaque lettre est un itinéraire distinct).
@@ -72,19 +74,10 @@ export default function RouteResultsPanel({
           <div style={styles.distanceBadge}>{formatKm(route.total_distance_m)}</div>
         </div>
 
-        {/*
-           Ces métriques rapides aident à comparer les trajets sans ouvrir autre chose.
-           On reste sur des infos simples :
-           - écart à la cible
-           - erreur de forme
-        */}
-        {/* Après une modification manuelle, ces mesures (calculées sur le tracé généré) ne sont plus valables. */}
-        {route.edited ? null : (
-          <div style={styles.routeStatsRow}>
-            <span>Écart cible : {Math.round(route.length_gap_m)} m</span>
-            <span>Erreur forme : {route.shape_error.toFixed(1)}</span>
-          </div>
-        )}
+        {/* Dénivelé positif du tracé (estimé à partir d'un modèle de terrain, voir api/elevation.js). */}
+        <div style={styles.routeStatsRow}>
+          <ElevationStat route={route} />
+        </div>
 
         {/*
            En mode texte, un itinéraire peut contenir un résultat par lettre.
@@ -108,6 +101,9 @@ export default function RouteResultsPanel({
       {/* Présentation générale de l’étape de sélection d’itinéraire. */}
       <StepHeader step={5} title="Choisir un itinéraire" />
       <div style={styles.helperText}>{routePlan.summary}</div>
+      <button type="button" style={styles.clearButton} onClick={onClearRoute}>
+        Effacer le tracé
+      </button>
 
       {/*
          Chaque itinéraire est affiché sous forme de carte cliquable.
@@ -213,6 +209,20 @@ const styles = {
     borderRadius: "var(--radius)",
     padding: 18,
     boxShadow: "var(--shadow-soft)",
+  },
+
+  // Efface les propositions et revient à l'écran de départ (le point de départ est conservé).
+  clearButton: {
+    width: "100%",
+    minHeight: "var(--control-h)",
+    marginTop: 12,
+    border: "2px solid var(--border-strong)",
+    borderRadius: "var(--radius-sm)",
+    background: "transparent",
+    color: "var(--text)",
+    fontWeight: 700,
+    fontSize: 14,
+    cursor: "pointer",
   },
 
   cardMuted: {

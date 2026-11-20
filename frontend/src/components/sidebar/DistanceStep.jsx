@@ -31,11 +31,6 @@ export default function DistanceStep({ distanceKm, setDistanceKm, maxDistanceKm 
           +
         </button>
       </div>
-
-      <div style={styles.infoPill}>
-        Rayon d’extraction maximal : <strong>{(distanceKm / 2).toFixed(1)} km</strong>
-        {" · "}distance maximale : {maxDistanceKm} km
-      </div>
     </section>
   );
 }

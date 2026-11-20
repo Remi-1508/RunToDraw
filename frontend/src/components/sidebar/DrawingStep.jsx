@@ -80,12 +80,17 @@ export default function DrawingStep({ drawing, setDrawing }) {
         </div>
       ) : drawing.mode === "custom" ? (
         <>
-          <DrawingCanvas points={drawing.points} onChange={setPoints} />
           {isMobile ? (
-            <button type="button" style={styles.drawFullscreen} onClick={() => setFullscreen(true)}>
-              Dessiner en plein écran
+            // Smartphone : petit aperçu qu'on touche pour ouvrir le plein écran (le doigt peut défiler normalement).
+            <button type="button" style={styles.drawPreviewButton} onClick={() => setFullscreen(true)}>
+              <DrawingCanvas points={drawing.points} onChange={setPoints} preview />
+              <span style={styles.drawPreviewLabel}>
+                {drawing.points?.length ? "Toucher pour modifier le dessin" : "Toucher pour dessiner en plein écran"}
+              </span>
             </button>
-          ) : null}
+          ) : (
+            <DrawingCanvas points={drawing.points} onChange={setPoints} />
+          )}
           {fullscreen ? (
             <DrawingModal points={drawing.points} onChange={setPoints} onClose={() => setFullscreen(false)} />
           ) : null}

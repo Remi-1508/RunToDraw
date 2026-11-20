@@ -62,11 +62,11 @@ function segmentPoints(segment) {
 }
 
 // Tous les morceaux d'un itinéraire, bout à bout (une seule trace continue).
-function flattenRoutePoints(route) {
+export function flattenRoutePoints(route) {
   return dedupeConsecutivePoints((route?.segments ?? []).flatMap(segmentPoints));
 }
 
-function haversineMeters(a, b) {
+export function haversineMeters(a, b) {
   const R = 6371000;
   const toRad = (d) => (d * Math.PI) / 180;
   const dLat = toRad(b[0] - a[0]);
@@ -143,8 +143,7 @@ function simplifyRoutePoints(points, { toleranceMeters, minStepMeters }) {
 
 function routeDescription(route) {
   const total = route?.total_distance_m ?? 0;
-  const gap = route?.length_gap_m ?? 0;
-  return `Distance totale : ${(total / 1000).toFixed(2)} km | Écart à la cible : ${gap.toFixed(0)} m`;
+  return `Distance totale : ${(total / 1000).toFixed(2)} km`;
 }
 
 /**
