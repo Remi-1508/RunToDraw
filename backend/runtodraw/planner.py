@@ -96,9 +96,11 @@ def method_routes(graph, base_points, distance_m, tolerance_ratio, shape_name, l
     with timed(f"{label} : projection"):
         results["projection"] = evaluate_method(graph, base_points, distance_m, tolerance_ratio, shape_name, "projection")
     with timed(f"{label} : translation"):
-        results["translation"] = evaluate_method(graph, base_points, distance_m, tolerance_ratio, shape_name, "translation")
+        results["translation"] = evaluate_method(graph, base_points, distance_m, tolerance_ratio, shape_name, "translation",
+                                                 angle_hint=results["projection"]["ranked_angles"])
     with timed(f"{label} : départ inclus"):
-        results["start"] = evaluate_start_method(graph, base_points, distance_m, tolerance_ratio, shape_name)
+        results["start"] = evaluate_start_method(graph, base_points, distance_m, tolerance_ratio, shape_name,
+                                                 angle_hint=results["projection"]["ranked_angles"])
     routes = []
     for method_name, method_label in METHODS:
         for variant_name, variant_label in VARIANTS:

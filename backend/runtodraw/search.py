@@ -223,6 +223,19 @@ def start_angles(graph, shape_name):
     return [street + k * period / count for k in range(count)]
 
 
+def _start_angles_near(angles, angle_hint):
+    """Sans indication : tous les angles. Sinon, pour chaque meilleur angle de la projection, l'angle de départ
+    le plus proche (modulo la période de la liste)."""
+    if not angle_hint or len(angles) <= 3:
+        return angles
+    chosen = []
+    for hint in angle_hint:
+        nearest = min(angles, key=lambda a: abs((a - hint + 180.0) % 360.0 - 180.0))
+        if nearest not in chosen:
+            chosen.append(nearest)
+    return chosen
+
+
 def evaluate_anchored_candidate(graph, base_points, fraction, size_m, angle_deg, start_node,
                                 desired_distance_m, max_allowed_m, sample_count):
     shape = make_candidate_points(base_points, np.zeros(2), size_m, angle_deg)
@@ -255,8 +268,9 @@ def evaluate_anchored_candidate(graph, base_points, fraction, size_m, angle_deg,
             "metrics": metrics, "start_node": graph.node_ids[start_node]}
 
 
-def evaluate_start_method(graph, base_points, desired_distance_m, tolerance_ratio, shape_name):
-    """Méthode « départ inclus » : mêmes sorties que evaluate_method."""
+def evaluate_start_method(graph, base_points, desired_distance_m, tolerance_ratio, shape_name, angle_hint=None):
+    """Méthode « départ inclus » : mêmes sorties que evaluate_method. `angle_hint` : meilleurs angles de la projection ;
+    on ne garde que les angles de départ qui en sont proches (à moins de la moitié d'un pas)."""
     max_allowed_m = desired_distance_m * (1.0 + tolerance_ratio)
     _, sizes = shape_layout(base_points, desired_distance_m, shape_name, use_translation=False)
     sample_count = 60 if shape_name == "text" else 72
@@ -269,7 +283,9 @@ def evaluate_start_method(graph, base_points, desired_distance_m, tolerance_rati
     nominal = desired_distance_m / max(polyline_length(base_points), 1e-9)
 
     evaluated, size_per_meter = [], None
-    for angle in start_angles(graph, shape_name):
+    if len(search_angles(graph, shape_name)) < COARSE_MIN_ANGLES:
+        angle_hint = None  # peu d'angles : tout est testé
+    for angle in _start_angles_near(start_angles(graph, shape_name), angle_hint):
         for fraction in fractions:
             start = nominal / EXPECTED_DETOUR if size_per_meter is None else desired_distance_m * size_per_meter
             found, ratio = _calibrate(
@@ -338,20 +354,74 @@ def pick_best(evaluated):
     return best_close, best_comp
 
 
+# Recherche d'angle en deux temps (grossier puis fin).
+# Tester tous les angles à chaque méthode multiplie le travail : un cœur compte 36 angles, et la méthode
+# « translation » les reteste tous sur 5 positions. Or le meilleur angle dépend surtout de l'alignement de la
+# forme avec les rues, pas de la méthode. On procède donc en deux temps :
+# 1) la projection teste un angle sur COARSE_STRIDE (grossier), garde les meilleurs, puis teste leurs voisins (fin) ;
+# 2) la translation et le départ inclus ne reprennent que les meilleurs angles de la projection.
+# Les formes qui n'ont que peu d'angles (étoile, texte, éclair...) sont testées en entier, comme avant.
+COARSE_STRIDE = 2        # un angle sur 2 au premier passage
+COARSE_MIN_ANGLES = 12   # en dessous, pas de passage grossier : tout est testé
+KEPT_ANGLES = 4          # nombre de meilleurs angles transmis aux autres méthodes
+
+
+def rank_angles(evaluated):
+    """Angles classés du meilleur au moins bon : pour chaque angle, son meilleur candidat (réalisable d'abord,
+    puis score combiné)."""
+    best = {}
+    for e in evaluated:
+        m = e["metrics"]
+        feasible = m["over_max"] <= 1e-6 and m.get("under_min", 0.0) <= 1e-6
+        key = (not feasible, m["combined"])
+        angle = m["angle_deg"]
+        if angle not in best or key < best[angle]:
+            best[angle] = key
+    return sorted(best, key=best.get)
+
+
+def _neighbours(angles, chosen):
+    """Angles voisins (dans la liste circulaire `angles`) de ceux déjà choisis, hors les choisis."""
+    n = len(angles)
+    index = {a: i for i, a in enumerate(angles)}
+    out = []
+    for a in chosen:
+        for k in (-1, 1):
+            b = angles[(index[a] + k) % n]
+            if b not in chosen and b not in out:
+                out.append(b)
+    return out
+
+
 # Lance une méthode de recherche (projection ou translation) avec calibrage de la taille.
-def evaluate_method(graph, base_points, desired_distance_m, tolerance_ratio, shape_name, method_name):
+# `angle_hint` : meilleurs angles trouvés par la projection (voir ci-dessus) ; la translation s'y limite.
+def evaluate_method(graph, base_points, desired_distance_m, tolerance_ratio, shape_name, method_name, angle_hint=None):
     max_allowed_m = desired_distance_m * (1.0 + tolerance_ratio)
     use_translation = (method_name == "translation")
     centers, sizes = shape_layout(base_points, desired_distance_m, shape_name, use_translation)
     angles = search_angles(graph, shape_name)
     sample_count = 60 if shape_name == "text" else 72
+    max_size = max(sizes)
 
-    evaluated = calibrated_search(graph, base_points, centers, angles, desired_distance_m, max_allowed_m,
-                                  sample_count, min_size=80.0, max_size=max(sizes))
+    def search(some_angles):
+        return calibrated_search(graph, base_points, centers, some_angles, desired_distance_m, max_allowed_m,
+                                 sample_count, min_size=80.0, max_size=max_size)
+
+    many_angles = len(angles) >= COARSE_MIN_ANGLES
+    if angle_hint is not None and many_angles:
+        evaluated = search([a for a in angles if a in angle_hint])
+    elif many_angles:
+        evaluated = search(angles[::COARSE_STRIDE])
+        top = rank_angles(evaluated)[:2]
+        evaluated += search(_neighbours(angles, top))
+    else:
+        evaluated = search(angles)
+
     best_close, best_comp = pick_best(evaluated)
 
     return {
         "closest_to_distance": best_close,
         "best_compromise": best_comp,
         "all_candidates_count": len(evaluated),
+        "ranked_angles": rank_angles(evaluated)[:KEPT_ANGLES],
     }
