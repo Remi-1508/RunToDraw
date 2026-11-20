@@ -20,7 +20,7 @@ Projet individuel (P2I) réalisé à l'ENSC (Bordeaux INP), conçu et développ�
 - **Dessin libre** : l'utilisateur trace une forme d'un seul trait (souris, doigt ou stylet, avec un mode plein écran sur smartphone).
 - **Plusieurs propositions** pour une distance cible : la plus proche de la distance demandée, et un meilleur compromis entre fidélité du dessin et distance, par deux méthodes comparables (projection directe et translation optimale).
 - **Édition du tracé** à la manière de Strava : déplacer, ajouter ou supprimer un point, annuler et rétablir, le tracé est recalculé sur les vraies routes.
-- **Dénivelé** de chaque proposition (altitudes Open-Meteo, lissées), **lien de partage** qui recalcule le même parcours, **exemples** en un clic et écran d'accueil invité.
+- **Dénivelé positif** (d+) de chaque proposition (altitudes IGN, Open-Meteo hors de France), **lien de partage** qui recalcule le même parcours et écran d'accueil invité.
 - **Attente soignée** : chronomètre en direct avec durée estimée (affinée par les mesures passées), notification de fin de calcul, état des serveurs OpenStreetMap affiché avant de lancer.
 - **Application installable** sur l'écran d'accueil du téléphone (manifeste et service worker).
 - **Interface responsive** : panneau latéral sur ordinateur, tiroir qui se glisse vers le bas sur smartphone ; thème jour et nuit (suit le réglage de l'appareil) ; fond de carte neutre pour faire ressortir le tracé.

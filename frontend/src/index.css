@@ -324,12 +324,6 @@ a:focus-visible {
   cursor: pointer;
 }
 
-/* Bouton « i » des exemples : même gabarit que le bouton de repli, de l'autre côté de l'en-tête. */
-.rtd-info {
-  right: auto;
-  left: 0;
-}
-
 .rtd-collapse-mobile,
 .rtd-sheet-grip {
   display: none;

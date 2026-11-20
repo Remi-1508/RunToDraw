@@ -138,49 +138,6 @@ export const styles = {
     overflowWrap: "anywhere",
   },
 
-  // Liste des exemples sous l'en-tête (ouverte par le bouton « i »).
-  examplesPopover: {
-    position: "absolute",
-    top: 50,
-    left: 0,
-    right: 0,
-    zIndex: 30,
-    display: "flex",
-    flexDirection: "column",
-    gap: 8,
-    padding: 10,
-    border: "1px solid var(--border)",
-    borderRadius: "var(--radius)",
-    background: "var(--bg-elevated)",
-    boxShadow: "var(--shadow-strong)",
-  },
-
-  exampleButton: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "flex-start",
-    gap: 2,
-    minHeight: "var(--control-h)",
-    padding: "8px 14px",
-    border: "2px solid var(--border-strong)",
-    borderRadius: "var(--radius-sm)",
-    background: "var(--overlay)",
-    color: "var(--text)",
-    textAlign: "left",
-    cursor: "pointer",
-  },
-
-  exampleName: {
-    fontSize: 14.5,
-    fontWeight: 800,
-  },
-
-  exampleDetail: {
-    fontSize: 12.5,
-    fontWeight: 600,
-    color: "var(--text-soft)",
-  },
-
   startBoxContent: {
     display: "flex",
     flexDirection: "column",
