@@ -6,7 +6,7 @@ from typing import List, Literal, Optional
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from runtodraw.config import get_settings
 from runtodraw.graph_cache import NoRoadsFoundError, cache_key, extraction_radius_m, get_road_graph
@@ -46,22 +46,15 @@ compute_slots = ComputeSlots(settings.max_concurrent_plans, settings.queue_timeo
 class Drawing(BaseModel):
     mode: Literal["shape", "text", "custom"] = "shape"
     shape: Literal[SHAPES] = "heart"
-    text: str = "P2I"
+    text: str = ""
     # Dessin libre (mode "custom") : points [x, y] du tracé, dans le repère d'un canvas (y vers le bas).
     # Après validation, ce champ contient la forme nettoyée (simplifiée, y vers le haut) utilisée par le moteur.
     points: Optional[List[List[float]]] = Field(default=None, max_length=MAX_RAW_POINTS)
 
-    @field_validator("text")
-    @classmethod
-    def _clean_text(cls, value: str) -> str:
-        try:
-            return normalize_text(value)
-        except ValueError as e:
-            raise ValueError(str(e))
-
-
     @model_validator(mode="after")
     def _prepare_points(self):
+        # Le texte n'est exigé (et nettoyé) qu'en mode texte : une forme ou un dessin libre peuvent l'avoir vide.
+        self.text = normalize_text(self.text) if self.mode == "text" else ""
         if self.mode == "custom":
             if not self.points:
                 raise ValueError("Le dessin est vide : trace une forme avant de générer.")
