@@ -22,9 +22,8 @@ export default function GenerateStep({ canGenerate, onGenerateRoutes, serviceSta
         </button>
 
         <div style={styles.infoPillSoft}>
-          Le réseau routier est téléchargé depuis OpenStreetMap, c’est l’étape la plus longue
-          (souvent une à deux minutes). Il reste ensuite en mémoire : une nouvelle génération
-          au même endroit avec la même distance est quasi immédiate.
+          Le réseau routier est préchargé depuis OpenStreetMap dès que tu as choisi le départ, la distance
+          et le dessin : la génération est plus rapide si tu patientes quelques secondes avant de cliquer.
         </div>
 
         <ServiceStatus status={serviceStatus} />
