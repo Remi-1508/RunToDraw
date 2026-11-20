@@ -5,6 +5,7 @@ import { DEFAULT_CENTER } from "../../config";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { boundsFromCenterRadiusKm } from "../../utils/geo";
 import RouteEditLayer from "./RouteEditLayer";
+import ElevationStat from "../results/ElevationStat";
 import RouteEditToolbar from "./RouteEditToolbar";
 
 // FitToRadius ajuste automatiquement la vue de la carte
@@ -50,7 +51,7 @@ function FitToRoute({ selectedRoute }) {
 // `disabledReason` : quand il est renseigné, le bouton est grisé et ce texte explique pourquoi.
 // On utilise aria-disabled plutôt que disabled pour que le bouton reste atteignable au clavier
 // et que son message soit lu / affiché au survol, au focus et au clic.
-function MapControl({ icon, label, onClick, pressed, disabledReason, keepLabel }) {
+function MapControl({ icon, label, onClick, pressed, disabledReason, keepLabel, mobile }) {
   const [hintOpen, setHintOpen] = useState(false);
   const disabled = Boolean(disabledReason);
   const hintId = useId();
@@ -82,7 +83,7 @@ function MapControl({ icon, label, onClick, pressed, disabledReason, keepLabel }
         <span className={`rtd-control-label${keepLabel ? " rtd-control-label--keep" : ""}`} style={styles.controlText}>{label}</span>
       </button>
       {disabled && hintOpen ? (
-        <div id={hintId} role="status" style={styles.controlHint}>
+        <div id={hintId} role="status" style={mobile ? { ...styles.controlHint, ...styles.controlHintMobile } : styles.controlHint}>
           {disabledReason}
         </div>
       ) : null}
@@ -343,13 +344,14 @@ export default function MapView({
         <MapControl
           icon={ICON_LAYERS}
           label="Fond neutre"
+          mobile={isMobile}
           onClick={onToggleNeutralBackground}
           pressed={neutral}
           disabledReason={canUseNeutral ? undefined : "Génère d’abord un parcours : le fond neutre sert à faire ressortir ton tracé."}
         />
       </div>
 
-      {/* Barre de résultats : la distance et l'écart à la cible de l'itinéraire affiché. */}
+      {/* Barre de résultats : la distance et le dénivelé de l'itinéraire affiché. */}
       {selectedRoute ? (
         <div style={{ ...styles.statsBar, ...(isMobile ? styles.statsBarMobile : null) }}>
           <div style={{ ...styles.statMain, ...(isMobile ? styles.statCellMobile : null) }}>
@@ -358,17 +360,12 @@ export default function MapView({
               {(selectedRoute.total_distance_m / 1000).toFixed(1).replace(".", ",")} km
             </span>
           </div>
-          {selectedRoute.edited ? (
-            <div style={{ ...styles.stat, ...(isMobile ? styles.statCellMobile : null) }}>
-              <span style={styles.statLabelSoft}>Tracé</span>
-              <span className="rtd-display" style={{ ...styles.statValue, ...(isMobile ? styles.statValueMobile : null) }}>Modifié</span>
-            </div>
-          ) : (
-            <div style={{ ...styles.stat, ...(isMobile ? styles.statCellMobile : null) }}>
-              <span style={styles.statLabelSoft}>Écart à la cible</span>
-              <span className="rtd-display" style={{ ...styles.statValue, ...(isMobile ? styles.statValueMobile : null) }}>{Math.round(selectedRoute.length_gap_m)} m</span>
-            </div>
-          )}
+          <div style={{ ...styles.stat, ...(isMobile ? styles.statCellMobile : null) }}>
+            <span style={styles.statLabelSoft}>Dénivelé</span>
+            <span className="rtd-display" style={{ ...styles.statValue, ...(isMobile ? styles.statValueMobile : null) }}>
+              <ElevationStat route={selectedRoute} strong />
+            </span>
+          </div>
         </div>
       ) : null}
       </div>
@@ -427,6 +424,15 @@ const styles = {
     opacity: 0.55,
     cursor: "not-allowed",
     boxShadow: "none",
+  },
+
+  // Smartphone : l'infobulle prend la largeur de l'écran (sinon elle dépasse du bord droit).
+  controlHintMobile: {
+    position: "fixed",
+    top: 64,
+    left: 12,
+    right: 12,
+    width: "auto",
   },
 
   controlHint: {

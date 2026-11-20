@@ -24,6 +24,7 @@ export default function Sidebar({
   startLabel,
   pickingOnMap,
   onTogglePickOnMap,
+  onClearStart,
   onClosePanel,
   onGenerateRoutes,
   canGenerate,
@@ -31,6 +32,7 @@ export default function Sidebar({
   selectedRouteId,
   onSelectRoute,
   onExportRoute,
+  onClearRoute,
 }) {
   const currentLogo = theme === "dark" ? logoRunToDrawNight : logoRunToDrawDay;
 
@@ -57,6 +59,7 @@ export default function Sidebar({
         startLabel={startLabel}
         pickingOnMap={pickingOnMap}
         onTogglePickOnMap={onTogglePickOnMap}
+        onClearStart={onClearStart}
       />
       <DistanceStep distanceKm={distanceKm} setDistanceKm={setDistanceKm} maxDistanceKm={maxDistanceKm} />
       <DrawingStep drawing={drawing} setDrawing={setDrawing} />
@@ -68,6 +71,7 @@ export default function Sidebar({
         selectedRouteId={selectedRouteId}
         onSelectRoute={onSelectRoute}
         onExportRoute={onExportRoute}
+        onClearRoute={onClearRoute}
       />
     </div>
   );

@@ -81,6 +81,13 @@ export default function App() {
     },
     [resetPlanning]
   );
+  // Retire le point de départ choisi (et les résultats qui en dépendaient).
+  const clearStart = useCallback(() => {
+    reverseRef.current?.abort();
+    setCenter(null);
+    setStartLabel("");
+    resetPlanning();
+  }, [resetPlanning]);
   // Le choix sur la carte se termine dès qu'un point est posé ; Échap l'annule.
   const pickOnMap = useCallback(
     (latlng) => {
@@ -178,6 +185,7 @@ export default function App() {
           startLabel={startLabel}
           pickingOnMap={pickingOnMap}
           onTogglePickOnMap={togglePickOnMap}
+          onClearStart={clearStart}
           onClosePanel={() => setPanelOpen(false)}
           onGenerateRoutes={handleGenerate}
           canGenerate={Boolean(center) && drawingIsReady && !planning.busy}
@@ -185,6 +193,7 @@ export default function App() {
           selectedRouteId={planning.selectedRouteId}
           onSelectRoute={planning.setSelectedRouteId}
           onExportRoute={exportRoute}
+          onClearRoute={planning.reset}
         />
       </aside>
 

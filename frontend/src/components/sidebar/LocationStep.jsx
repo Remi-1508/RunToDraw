@@ -12,6 +12,7 @@ export default function LocationStep({
   onPickSuggestion,
   pickingOnMap,
   onTogglePickOnMap,
+  onClearStart,
 }) {
   const search = useAddressSearch({ center, onPick: onPickSuggestion });
   // Mode de choix mis en avant : un onglet est actif tant qu'on n'en a pas choisi un autre.
@@ -133,10 +134,19 @@ export default function LocationStep({
       )}
 
       <div style={center ? styles.startBox : { ...styles.startBox, ...styles.startBoxEmpty }} role="status">
-        <span style={styles.startBoxLabel}>Adresse de départ</span>
-        <span style={styles.startBoxText}>
-          {!center ? "Aucun point choisi pour l’instant" : startLabel === null ? "Recherche de l’adresse…" : startLabel}
-        </span>
+        <div style={styles.startBoxContent}>
+          <span style={styles.startBoxLabel}>Adresse de départ</span>
+          <span style={styles.startBoxText}>
+            {!center ? "Aucun point choisi pour l’instant" : startLabel === null ? "Recherche de l’adresse…" : startLabel}
+          </span>
+        </div>
+        {center ? (
+          <button type="button" style={styles.startBoxClear} onClick={onClearStart} aria-label="Supprimer l’adresse de départ" title="Supprimer l’adresse de départ">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        ) : null}
       </div>
     </section>
   );

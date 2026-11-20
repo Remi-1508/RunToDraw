@@ -1,11 +1,27 @@
 """Planificateur : transforme les résultats du moteur en propositions d'itinéraires (lat/lon) pour l'API."""
+import logging
 import math
+import time
+from contextlib import contextmanager
 from typing import Any, Dict, List
 
 from runtodraw.geometry import xy_array_to_latlon
 from runtodraw.search import evaluate_method, evaluate_start_method
 from runtodraw.shapes import get_base_shape
 from runtodraw.text_routes import link_letter_routes, split_text_itineraries_full_distance
+
+logger = logging.getLogger(__name__)
+
+
+# Chronomètre une phase du calcul et l'écrit dans les logs (visibles sur Render) : sert à repérer ce qui prend
+# du temps avant d'optimiser. Le coût de la mesure est négligeable.
+@contextmanager
+def timed(phase):
+    start = time.perf_counter()
+    try:
+        yield
+    finally:
+        logger.info("Phase « %s » : %.1f s", phase, time.perf_counter() - start)
 
 
 # Un trajet candidat est d’abord calculé en coordonnées locales.
@@ -81,11 +97,13 @@ def route_metrics(metrics):
 # Lance les trois méthodes de recherche sur un dessin (forme ou mot entier) et met en forme
 # chaque résultat (méthode, variante) comme une proposition d'itinéraire.
 def method_routes(graph, base_points, distance_m, tolerance_ratio, shape_name, label, kind):
-    results = {
-        "projection": evaluate_method(graph, base_points, distance_m, tolerance_ratio, shape_name, "projection"),
-        "translation": evaluate_method(graph, base_points, distance_m, tolerance_ratio, shape_name, "translation"),
-        "start": evaluate_start_method(graph, base_points, distance_m, tolerance_ratio, shape_name),
-    }
+    results = {}
+    with timed(f"{label} : projection"):
+        results["projection"] = evaluate_method(graph, base_points, distance_m, tolerance_ratio, shape_name, "projection")
+    with timed(f"{label} : translation"):
+        results["translation"] = evaluate_method(graph, base_points, distance_m, tolerance_ratio, shape_name, "translation")
+    with timed(f"{label} : départ inclus"):
+        results["start"] = evaluate_start_method(graph, base_points, distance_m, tolerance_ratio, shape_name)
     routes = []
     for method_name, method_label in METHODS:
         for variant_name, variant_label in VARIANTS:
@@ -163,7 +181,8 @@ def build_text_routes(graph, drawing, distance_m, tolerance_ratio):
         route["secondary"] = True
 
     # 2) Lettres séparées
-    split_results = split_text_itineraries_full_distance(graph, text, distance_m, tolerance_ratio)
+    with timed("lettres séparées"):
+        split_results = split_text_itineraries_full_distance(graph, text, distance_m, tolerance_ratio)
     letters_summary = []
     for item in split_results:
         m = item["metrics"]
@@ -190,7 +209,8 @@ def build_text_routes(graph, drawing, distance_m, tolerance_ratio):
     })
 
     # 3) Lettres reliées
-    pieces, total_length = link_letter_routes(graph, split_results)
+    with timed("lettres reliées"):
+        pieces, total_length = link_letter_routes(graph, split_results)
     if pieces:
         segments = []
         link_length = 0.0
@@ -233,11 +253,11 @@ def plan_from_graph(graph, distance_km, drawing, tolerance_ratio=0.10) -> Dict[s
 
     mode = drawing.get("mode", "shape")
 
+    with timed(f"calcul complet ({mode}, {distance_km} km, {len(graph.node_ids)} nœuds)"):
+        routes = _build_routes(graph, drawing, distance_m, tolerance_ratio, mode)
     if mode == "text":
-        routes = dedupe_routes(build_text_routes(graph, drawing, distance_m, tolerance_ratio))
         summary = f"{len(routes)} proposition(s) pour le texte {(drawing.get('text') or 'P2I').upper()}."
     else:
-        routes = dedupe_routes(build_shape_routes(graph, drawing, distance_m, tolerance_ratio))
         shape = "custom" if mode == "custom" else drawing.get("shape", "heart")
         summary = f"{len(routes)} proposition(s) pour la forme {SHAPE_LABELS.get(shape, shape)}."
 
@@ -245,3 +265,9 @@ def plan_from_graph(graph, distance_km, drawing, tolerance_ratio=0.10) -> Dict[s
         "summary": summary,
         "routes": routes,
     }
+
+
+def _build_routes(graph, drawing, distance_m, tolerance_ratio, mode):
+    if mode == "text":
+        return dedupe_routes(build_text_routes(graph, drawing, distance_m, tolerance_ratio))
+    return dedupe_routes(build_shape_routes(graph, drawing, distance_m, tolerance_ratio))

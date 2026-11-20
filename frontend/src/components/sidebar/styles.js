@@ -128,14 +128,36 @@ export const styles = {
   // Cadre récapitulatif du point de départ choisi (quelle que soit la méthode utilisée).
   startBox: {
     display: "flex",
-    flexDirection: "column",
-    gap: 2,
+    alignItems: "center",
+    gap: 10,
     marginTop: 12,
     padding: "10px 14px",
     borderRadius: "var(--radius-sm)",
     border: "2px solid var(--accent)",
     background: "var(--chip)",
     overflowWrap: "anywhere",
+  },
+
+  startBoxContent: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+    flex: 1,
+    minWidth: 0,
+  },
+
+  startBoxClear: {
+    flexShrink: 0,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 36,
+    height: 36,
+    border: "1px solid var(--border)",
+    borderRadius: "var(--radius-sm)",
+    background: "var(--overlay)",
+    color: "var(--text)",
+    cursor: "pointer",
   },
 
   startBoxEmpty: {
@@ -343,14 +365,6 @@ export const styles = {
     outline: "none",
   },
 
-  infoPill: {
-    marginTop: 12,
-    padding: "12px 14px",
-    borderRadius: "var(--radius-sm)",
-    background: "var(--chip)",
-    color: "var(--text)",
-    fontSize: 13,
-  },
 
   infoPillSoft: {
     padding: "12px 14px",
@@ -461,22 +475,57 @@ export const styles = {
     WebkitTouchCallout: "none", // pas de menu « copier / enregistrer » à l'appui long
   },
 
-  drawFullscreen: {
+  // Aperçu du dessin sur smartphone : case basse, lecture seule, qui ouvre le plein écran au toucher.
+  drawAreaPreview: {
+    aspectRatio: "auto",
+    height: 150,
+    cursor: "pointer",
+    touchAction: "auto", // le doigt fait défiler le panneau normalement
+  },
+
+  drawPreviewButton: {
+    position: "relative",
+    display: "block",
     width: "100%",
-    minHeight: "var(--control-h)",
-    marginTop: 10,
-    border: "2px solid var(--text)",
-    borderRadius: "var(--radius-sm)",
+    padding: 0,
+    border: "none",
     background: "transparent",
+    cursor: "pointer",
+  },
+
+  drawPreviewLabel: {
+    position: "absolute",
+    left: 10,
+    right: 10,
+    bottom: 10,
+    padding: "8px 10px",
+    borderRadius: "var(--radius-sm)",
+    background: "var(--overlay)",
+    border: "1px solid var(--border)",
     color: "var(--text)",
-    fontWeight: 800,
+    fontSize: 13,
+    fontWeight: 700,
+    textAlign: "center",
+  },
+
+  drawModalClose: {
+    flexShrink: 0,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "var(--control-h)",
+    height: "var(--control-h)",
+    border: "2px solid var(--border-strong)",
+    borderRadius: "var(--radius-sm)",
+    background: "var(--overlay)",
+    color: "var(--text)",
     cursor: "pointer",
   },
 
   drawModal: {
     position: "fixed",
     inset: 0,
-    zIndex: 1200, // au-dessus du tiroir (1100) et de la carte
+    zIndex: 2000, // au-dessus du tiroir, de la carte et des fenêtres d'attente
     display: "flex",
     flexDirection: "column",
     background: "var(--bg)",
@@ -492,7 +541,9 @@ export const styles = {
   },
 
   drawModalTitle: {
-    fontSize: 20,
+    flex: 1,
+    textAlign: "center",
+    fontSize: 18,
     fontWeight: 900,
   },
 

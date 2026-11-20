@@ -15,7 +15,7 @@ function toPath(points) {
 // Commencer un nouveau trait remplace le précédent. Souris, doigt et stylet passent par les mêmes événements
 // « pointer ». Pendant le tracé les points restent locaux à ce composant ; ils ne sont transmis au reste de
 // l'application qu'à la fin du trait, pour ne pas redessiner toute l'interface à chaque mouvement.
-export default function DrawingCanvas({ points, onChange }) {
+export default function DrawingCanvas({ points, onChange, preview = false }) {
   const svgRef = useRef(null);
   const strokeRef = useRef(null); // trait en cours (tableau de points), null si on ne dessine pas
   const [live, setLive] = useState(null);
@@ -57,17 +57,24 @@ export default function DrawingCanvas({ points, onChange }) {
 
   const enough = shown.length >= MIN_DRAW_POINTS;
 
+  // Aperçu (smartphone, tiroir) : lecture seule, le doigt fait défiler le panneau au lieu de dessiner.
+  const handlers = preview
+    ? {}
+    : {
+        onPointerDown: handlePointerDown,
+        onPointerMove: handlePointerMove,
+        onPointerUp: handlePointerUp,
+        onPointerCancel: handlePointerUp,
+        onContextMenu: (event) => event.preventDefault(),
+      };
+
   return (
     <div style={styles.drawBlock}>
       <svg
         ref={svgRef}
         viewBox={`0 0 ${DRAW_AREA_SIZE} ${DRAW_AREA_SIZE}`}
-        style={styles.drawArea}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-        onContextMenu={(event) => event.preventDefault()}
+        style={preview ? { ...styles.drawArea, ...styles.drawAreaPreview } : styles.drawArea}
+        {...handlers}
         role="img"
         aria-label="Zone de dessin : trace ta forme d'un seul trait avec la souris ou le doigt."
       >
@@ -88,6 +95,7 @@ export default function DrawingCanvas({ points, onChange }) {
         {shown.length > 0 ? <circle cx={shown[0][0]} cy={shown[0][1]} r="6" fill="var(--text)" stroke="var(--route-casing)" strokeWidth="3" /> : null}
       </svg>
 
+      {preview ? null : (
       <div style={styles.drawFooter}>
         <span style={styles.textHint} role="status">
           {shown.length === 0
@@ -100,6 +108,7 @@ export default function DrawingCanvas({ points, onChange }) {
           Effacer
         </button>
       </div>
+      )}
     </div>
   );
 }
