@@ -220,8 +220,8 @@ export default function App() {
       {/* Fenêtre d'attente : génération en cours ou recherche de la position. */}
       <LoadingModal
         open={waiting}
-        title={locating ? "Localisation en cours" : "Préparation de l’itinéraire"}
-        kicker={locating ? "Position actuelle" : planning.busy?.kicker || "RunToDraw"}
+        title={locating ? "Localisation en cours" : planning.busy?.title || "Chargement en cours"}
+        kicker={locating ? "Position actuelle" : "Chargement en cours"}
         description={locating ? "On récupère ta position…" : planning.busy?.description || "Calcul en cours…"}
         startedAt={locating ? undefined : planning.busy?.startedAt}
         estimateSeconds={locating ? undefined : planning.busy?.estimateSeconds}
