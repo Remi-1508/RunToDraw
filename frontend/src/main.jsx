@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
+import ErrorBoundary from "./components/feedback/ErrorBoundary.jsx";
 import "leaflet/dist/leaflet.css";
 import "./index.css";
 
@@ -15,7 +16,9 @@ import "./index.css";
 // d’éventuels problèmes pendant le développement.
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </React.StrictMode>
 );
 // Service worker (notifications de fin de génération, installation sur l'écran d'accueil).
