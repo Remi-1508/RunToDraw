@@ -47,11 +47,6 @@ export default function GenerateStep({
           Générer le parcours
         </button>
 
-        <div style={styles.infoPillSoft}>
-          Le réseau routier est préchargé depuis OpenStreetMap dès que tu as choisi le départ, la distance
-          et le dessin : la génération est plus rapide si tu patientes quelques secondes avant de cliquer.
-        </div>
-
         <ServiceStatus status={serviceStatus} />
       </div>
     </section>

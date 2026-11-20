@@ -23,7 +23,6 @@ export default function RouteResultsPanel({
   onSelectRoute,
   onExportRoute,
   onClearRoute,
-  onShareRoute,
 }) {
   const selectedRoute = routePlan?.routes?.find((route) => route.id === selectedRouteId) ?? null;
   // Lettres séparées : un fichier GPX par lettre (chaque lettre est un itinéraire distinct).
@@ -107,11 +106,6 @@ export default function RouteResultsPanel({
         {routePlan.routes.some((route) => route.best) ? " La première est la plus fidèle au dessin." : ""}
       </div>
       <div style={styles.secondaryActions}>
-        {onShareRoute ? (
-          <button type="button" style={styles.secondaryButton} onClick={onShareRoute}>
-            Partager ce parcours
-          </button>
-        ) : null}
         <button type="button" style={styles.secondaryButton} onClick={onClearRoute}>
           Effacer le tracé
         </button>

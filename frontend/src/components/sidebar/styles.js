@@ -398,16 +398,6 @@ export const styles = {
     fontWeight: 500,
   },
 
-  infoPillSoft: {
-    padding: "12px 14px",
-    borderRadius: "var(--radius-sm)",
-    background: "var(--overlay)",
-    color: "var(--text-soft)",
-    fontSize: 13,
-    lineHeight: 1.5,
-    border: "1px solid var(--border-subtle)",
-  },
-
   // Choix du mode (Forme / Texte / Dessin) : contrôle segmenté, volontairement différent des boutons de formes
   // qui le suivent. Piste en retrait, onglet actif plein et sombre (l'orange est réservé aux choix de formes et aux actions).
   modeTabs: {

@@ -4,6 +4,34 @@ import { estimateGraphSeconds, estimatePlanSeconds, recordGraphDuration, recordP
 import { isGraphReady, markGraphReady } from "../utils/graphPrefetch";
 import { notifyRouteReady } from "../utils/notify";
 
+// Nouvelle tentative automatique : le serveur gratuit s'endort après un moment d'inactivité et met jusqu'à une
+// minute à se réveiller, et les serveurs OpenStreetMap répondent parfois en erreur. Plutôt que d'afficher une erreur
+// que la personne devrait relancer à la main, on réessaie toutes les quelques secondes, jusqu'à RETRY_MAX_MS.
+const RETRY_DELAY_MS = 4000;
+const RETRY_MAX_MS = 3 * 60 * 1000;
+const RETRY_NOTE = "Le serveur met du temps à répondre : nouvel essai automatique en cours…";
+
+// Erreur passagère : serveur injoignable (status 0), erreur de passerelle (502/503/504) ou limite momentanée (429).
+function isRetryable(error) {
+  return error.name !== "AbortError" && [0, 429, 502, 503, 504].includes(error.status ?? 0);
+}
+
+// Attente interrompue par « Annuler » (le signal lève alors une AbortError).
+function pause(ms, signal) {
+  return new Promise((resolve, reject) => {
+    const abort = () => {
+      clearTimeout(timer);
+      reject(new DOMException("Annulé", "AbortError"));
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", abort);
+      resolve();
+    }, ms);
+    if (signal.aborted) abort();
+    else signal.addEventListener("abort", abort, { once: true });
+  });
+}
+
 // Génération des itinéraires : téléchargement du réseau routier puis calcul des propositions.
 // Le hook garde les résultats (graphe, propositions, itinéraire choisi) et l'état d'attente,
 // et permet d'annuler une génération en cours.
@@ -35,8 +63,8 @@ export function useRoutePlanning({ showToast }) {
   // Une génération en cours est annulée si le composant est démonté.
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  // Lance la génération. La distance demandée n'est jamais modifiée : si les serveurs OpenStreetMap échouent
-  // (erreur 502), la même génération est retentée une fois, car leur lenteur varie d'une minute à l'autre.
+  // Lance la génération. La distance demandée n'est jamais modifiée : en cas d'erreur passagère, la même génération
+  // est retentée automatiquement (voir isRetryable), car la lenteur des serveurs varie d'une minute à l'autre.
   const generate = useCallback(
     async ({ lat, lon, distanceKm, drawing, throughStart = false }) => {
       const controller = new AbortController();
@@ -50,12 +78,13 @@ export function useRoutePlanning({ showToast }) {
       const startedAt = Date.now();
       const NODES_PER_KM2_GUESS = 1000;
 
-      async function attempt() {
+      async function attempt(note) {
         const graphRadiusKm = distanceKm / 2; // estimation : le serveur précise le rayon réel après l'extraction
         const graphStart = Date.now();
         const guessedNodes = Math.PI * graphRadiusKm * graphRadiusKm * NODES_PER_KM2_GUESS;
         setBusy({
           title: "Extraction de la zone de course",
+          note,
           startedAt,
           // Réseau déjà préchargé (ou généré récemment) : seul reste un aller-retour avec le serveur.
           estimateSeconds:
@@ -72,6 +101,7 @@ export function useRoutePlanning({ showToast }) {
         const planStart = Date.now();
         setBusy({
           title: "Calcul de l’itinéraire",
+          note,
           startedAt,
           // temps déjà écoulé + durée estimée du calcul, maintenant que la taille du graphe est connue
           estimateSeconds: (planStart - startedAt) / 1000 + estimatePlanSeconds(nextGraph.nodeCount, drawing),
@@ -84,12 +114,19 @@ export function useRoutePlanning({ showToast }) {
       }
 
       try {
-        try {
-          await attempt();
-        } catch (error) {
-          if (error.status !== 502) throw error;
-          showToast("Les serveurs OpenStreetMap n’ont pas répondu : nouvel essai automatique.", "info");
-          await attempt();
+        const deadline = Date.now() + RETRY_MAX_MS;
+        let note;
+        for (;;) {
+          try {
+            await attempt(note);
+            break;
+          } catch (error) {
+            if (!isRetryable(error) || Date.now() > deadline) throw error;
+            note = RETRY_NOTE;
+            setBusy((current) => (current ? { ...current, note } : current));
+            // Limite de débit : on respecte le délai demandé par le serveur s'il est donné.
+            await pause(Math.max(RETRY_DELAY_MS, (error.retryAfter ?? 0) * 1000), controller.signal);
+          }
         }
         showToast("Les propositions d’itinéraires sont prêtes.", "success");
         notifyRouteReady({ title: "Parcours prêt", body: "Tes propositions d’itinéraires sont prêtes, touche pour les voir." });
