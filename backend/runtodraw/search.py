@@ -180,9 +180,8 @@ def _calibrate(evaluate_at, start_size, desired_distance_m, min_size, max_size):
 
 
 def calibrated_search(graph, base_points, centers, angles, desired_distance_m, max_allowed_m,
-                      sample_count, min_size, max_size):
+                      sample_count, min_size, max_size, size_per_meter=None):
     nominal = desired_distance_m / max(polyline_length(base_points), 1e-9)
-    size_per_meter = None
     evaluated = []
 
     for center in centers:
@@ -395,7 +394,8 @@ def _neighbours(angles, chosen):
 
 # Lance une méthode de recherche (projection ou translation) avec calibrage de la taille.
 # `angle_hint` : meilleurs angles trouvés par la projection (voir ci-dessus) ; la translation s'y limite.
-def evaluate_method(graph, base_points, desired_distance_m, tolerance_ratio, shape_name, method_name, angle_hint=None):
+def evaluate_method(graph, base_points, desired_distance_m, tolerance_ratio, shape_name, method_name,
+                    angle_hint=None, reuse=None):
     max_allowed_m = desired_distance_m * (1.0 + tolerance_ratio)
     use_translation = (method_name == "translation")
     centers, sizes = shape_layout(base_points, desired_distance_m, shape_name, use_translation)
@@ -403,12 +403,23 @@ def evaluate_method(graph, base_points, desired_distance_m, tolerance_ratio, sha
     sample_count = 60 if shape_name == "text" else 72
     max_size = max(sizes)
 
-    def search(some_angles):
-        return calibrated_search(graph, base_points, centers, some_angles, desired_distance_m, max_allowed_m,
-                                 sample_count, min_size=80.0, max_size=max_size)
+    def search(some_angles, some_centers=centers, size_per_meter=None):
+        return calibrated_search(graph, base_points, some_centers, some_angles, desired_distance_m, max_allowed_m,
+                                 sample_count, min_size=80.0, max_size=max_size, size_per_meter=size_per_meter)
 
     many_angles = len(angles) >= COARSE_MIN_ANGLES
-    if angle_hint is not None and many_angles:
+    if angle_hint is not None and many_angles and reuse:
+        # Le centre non décalé a déjà été évalué par la projection pour ces angles : on reprend ces candidats
+        # au lieu de les recalculer, et seuls les centres décalés sont calculés (même recherche, moins de calculs).
+        kept = [a for a in angles if a in angle_hint]
+        center_x, center_y = float(centers[0][0]), float(centers[0][1])
+        evaluated = [c for c in reuse
+                     if c["metrics"]["angle_deg"] in kept
+                     and c["metrics"]["center_x"] == center_x and c["metrics"]["center_y"] == center_y]
+        last = evaluated[-1]["metrics"] if evaluated else None
+        ratio = last["size_m"] / last["length_route"] if last and last["length_route"] > 0 else None
+        evaluated = evaluated + search(kept, centers[1:], ratio)
+    elif angle_hint is not None and many_angles:
         evaluated = search([a for a in angles if a in angle_hint])
     elif many_angles:
         evaluated = search(angles[::COARSE_STRIDE])
@@ -424,4 +435,5 @@ def evaluate_method(graph, base_points, desired_distance_m, tolerance_ratio, sha
         "best_compromise": best_comp,
         "all_candidates_count": len(evaluated),
         "ranked_angles": rank_angles(evaluated)[:KEPT_ANGLES],
+        "evaluated": evaluated,
     }

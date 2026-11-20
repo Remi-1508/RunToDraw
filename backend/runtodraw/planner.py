@@ -16,12 +16,19 @@ logger = logging.getLogger(__name__)
 # Chronomètre une phase du calcul et l'écrit dans les logs (visibles sur Render) : sert à repérer ce qui prend
 # du temps avant d'optimiser. Le coût de la mesure est négligeable.
 @contextmanager
-def timed(phase):
+def timed(phase, graph=None):
     start = time.perf_counter()
+    before = dict(graph.stats) if graph is not None else None
     try:
         yield
     finally:
-        logger.info("Phase « %s » : %.1f s", phase, time.perf_counter() - start)
+        detail = ""
+        if before is not None:
+            now = graph.stats
+            detail = " (%d plus courts chemins, %d en cache, %d nœuds explorés)" % (
+                now["astar"] - before["astar"], now["astar_cached"] - before["astar_cached"],
+                now["astar_pops"] - before["astar_pops"])
+        logger.info("Phase « %s » : %.1f s%s", phase, time.perf_counter() - start, detail)
 
 
 # Un trajet candidat est d’abord calculé en coordonnées locales.
@@ -112,17 +119,21 @@ def method_routes(graph, base_points, distance_m, tolerance_ratio, shape_name, l
     results = {}
     hint = None
     if not only_start:
-        with timed(f"{label} : projection"):
+        with timed(f"{label} : projection", graph):
             results["projection"] = evaluate_method(graph, base_points, distance_m, tolerance_ratio, shape_name, "projection")
+            logger.info("%s : %d candidats évalués", label, results["projection"]["all_candidates_count"])
         hint = results["projection"]["ranked_angles"]
         if not only_projection:
-            with timed(f"{label} : translation"):
+            with timed(f"{label} : translation", graph):
                 results["translation"] = evaluate_method(graph, base_points, distance_m, tolerance_ratio, shape_name,
-                                                         "translation", angle_hint=hint)
+                                                         "translation", angle_hint=hint,
+                                                         reuse=results["projection"]["evaluated"])
+                logger.info("%s : %d candidats évalués", label, results["translation"]["all_candidates_count"])
     if not only_projection:
-        with timed(f"{label} : départ inclus"):
+        with timed(f"{label} : départ inclus", graph):
             results["start"] = evaluate_start_method(graph, base_points, distance_m, tolerance_ratio, shape_name,
                                                      angle_hint=hint[:2] if hint else hint)
+            logger.info("%s : %d candidats évalués", label, results["start"]["all_candidates_count"])
     routes = []
     for method_name, _method_label in METHODS:
         if method_name not in results:
@@ -200,7 +211,7 @@ def build_text_routes(graph, drawing, distance_m, tolerance_ratio):
         route["secondary"] = True
 
     # 2) Lettres séparées
-    with timed("lettres séparées"):
+    with timed("lettres séparées", graph):
         split_results = split_text_itineraries_full_distance(graph, text, distance_m, tolerance_ratio)
     letters_summary = []
     for item in split_results:
