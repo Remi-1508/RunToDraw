@@ -161,7 +161,6 @@ export default function App() {
 
   // Exemple en un clic : remplit les réglages puis lance la génération.
   function runExample(example) {
-    closeWelcome();
     setDistanceKm(example.distanceKm);
     setDrawing(example.drawing);
     chooseCenter(example.center, example.label);
@@ -221,7 +220,7 @@ export default function App() {
 
   return (
     <div className="rtd-page">
-      {welcomeOpen ? <WelcomeScreen theme={theme} onGuest={closeWelcome} onExample={runExample} /> : null}
+      {welcomeOpen ? <WelcomeScreen theme={theme} onGuest={closeWelcome} /> : null}
 
       {/* Fenêtre d'attente : génération en cours ou recherche de la position. */}
       <LoadingModal
