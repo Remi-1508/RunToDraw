@@ -42,10 +42,17 @@ def test_fetch_and_plan_accept_valid_request(fake_graph):
     {"lat": 123},
     {"drawing": {"mode": "shape", "shape": "dragon"}},
     {"drawing": {"mode": "text", "text": "!!!"}},
+    {"drawing": {"mode": "text", "text": ""}},
     {"drawing": {"mode": "text", "text": "ABCDEFGHIJKL"}},
 ])
 def test_invalid_requests_are_rejected(fake_graph, patch):
     assert client.post("/api/routes/plan", json={**BODY, **patch}).status_code == 422
+
+
+def test_shape_does_not_need_any_text(fake_graph):
+    """Régression : le champ texte est vide par défaut côté interface, ce qui bloquait la génération d'une forme."""
+    for drawing in ({"mode": "shape", "shape": "heart", "text": ""}, {"mode": "shape", "shape": "heart"}):
+        assert client.post("/api/routes/plan", json={**BODY, "drawing": drawing}).status_code == 200
 
 
 def test_text_with_accents_is_accepted(fake_graph):
