@@ -8,6 +8,7 @@ import Sidebar from "./components/sidebar/Sidebar";
 import WelcomeScreen from "./components/welcome/WelcomeScreen";
 import { useMapBackground } from "./hooks/useMapBackground";
 import { useGeolocation } from "./hooks/useGeolocation";
+import { useGraphPrefetch } from "./hooks/useGraphPrefetch";
 import { useIsMobile } from "./hooks/useIsMobile";
 import { useOverpassStatus } from "./hooks/useOverpassStatus";
 import { useSheetSwipe } from "./hooks/useSheetSwipe";
@@ -131,6 +132,8 @@ export default function App() {
 
   // Si le serveur annonce un maximum inférieur à la distance choisie, on la ramène à ce maximum.
   const distanceKm = Math.min(requestedDistanceKm, maxDistanceKm);
+  // Le réseau routier se télécharge en arrière-plan pendant que la personne règle le reste (voir graphPrefetch.js).
+  useGraphPrefetch({ center, distanceKm, drawing, enabled: !welcomeOpen && !planning.busy });
 
   // Lance la génération avec des réglages explicites (formulaire, exemple ou lien de partage).
   const generate = planning.generate;

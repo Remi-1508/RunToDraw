@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchGraph, planRoutes } from "../api/runtodraw";
 import { estimateGraphSeconds, estimatePlanSeconds, recordGraphDuration, recordPlanDuration } from "../utils/estimate";
+import { isGraphReady, markGraphReady } from "../utils/graphPrefetch";
 import { notifyRouteReady } from "../utils/notify";
 
 // Génération des itinéraires : téléchargement du réseau routier puis calcul des propositions.
@@ -56,10 +57,14 @@ export function useRoutePlanning({ showToast }) {
         setBusy({
           title: "Extraction de la zone de course",
           startedAt,
-          estimateSeconds: estimateGraphSeconds(graphRadiusKm) + estimatePlanSeconds(guessedNodes, drawing),
+          // Réseau déjà préchargé (ou généré récemment) : seul reste un aller-retour avec le serveur.
+          estimateSeconds:
+            (isGraphReady({ lat, lon, distanceKm, drawing }) ? 2 : estimateGraphSeconds(graphRadiusKm)) +
+            estimatePlanSeconds(guessedNodes, drawing),
         });
         const nextGraph = await fetchGraph({ lat, lon, distanceKm, drawing }, options);
         recordGraphDuration(nextGraph.radiusKm, (Date.now() - graphStart) / 1000);
+        markGraphReady({ lat, lon, distanceKm, drawing });
         setGraphData(nextGraph);
         setRoutePlan(null);
         setSelectedRouteId(null);
