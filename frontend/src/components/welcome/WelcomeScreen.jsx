@@ -2,7 +2,7 @@ import logoDay from "../../assets/logo_runtodraw_day.png";
 import logoNight from "../../assets/logo_runtodraw_night.png";
 
 // Écran d'accueil, affiché à la première visite : on entre en invité (la connexion arrivera plus tard).
-export default function WelcomeScreen({ theme, onGuest }) {
+export default function WelcomeScreen({ theme, onGuest, onAbout }) {
   return (
     <div style={styles.backdrop} role="dialog" aria-modal="true" aria-label="Bienvenue sur RunToDraw">
       <div style={styles.panel}>
@@ -18,6 +18,9 @@ export default function WelcomeScreen({ theme, onGuest }) {
           <button type="button" style={styles.disabled} disabled>
             Se connecter
             <span style={styles.soon}>Bientôt</span>
+          </button>
+          <button type="button" style={styles.about} onClick={onAbout}>
+            À propos de RunToDraw
           </button>
         </div>
       </div>
@@ -98,6 +101,17 @@ const styles = {
     fontSize: 15,
     cursor: "not-allowed",
     opacity: 0.8,
+  },
+
+  about: {
+    padding: "8px 0 0",
+    border: "none",
+    background: "transparent",
+    color: "var(--text-soft)",
+    fontSize: 13,
+    fontWeight: 700,
+    textDecoration: "underline",
+    cursor: "pointer",
   },
 
   soon: {
