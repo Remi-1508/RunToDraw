@@ -73,8 +73,39 @@ function anchorPoint(segment, k) {
   return segment.points[segment.anchors[k]];
 }
 
+// Ligne invisible et épaisse posée sur un tronçon. Les polylignes Leaflet ne transmettent pas les événements
+// tactiles : on écoute directement `pointerdown` sur l'élément SVG, ce qui couvre aussi la souris.
+function GrabLine({ segment, width, onGrab }) {
+  const map = useMap();
+  const lineRef = useRef(null);
+  const grabRef = useRef(onGrab);
+  grabRef.current = onGrab;
+
+  useEffect(() => {
+    const element = lineRef.current?.getElement?.();
+    if (!element) return undefined;
+    function onPointerDown(event) {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      L.DomEvent.stop(event); // empêche la carte de commencer à se déplacer avec ce même geste
+      grabRef.current(map.mouseEventToLatLng(event));
+    }
+    element.addEventListener("pointerdown", onPointerDown);
+    return () => element.removeEventListener("pointerdown", onPointerDown);
+  }, [map, segment]);
+
+  return (
+    <Polyline
+      ref={lineRef}
+      positions={segment.points}
+      pathOptions={{ color: "#000", weight: width, opacity: 0, lineCap: "round", className: "rtd-grab" }}
+    />
+  );
+}
+
 export default function RouteEditLayer({ route, pending, selectedAnchor, onSelect, onOperation }) {
   const map = useMap();
+  // Doigt : zone d'accroche plus large (un trait de 22 px est difficile à viser avec le pouce).
+  const grabWidth = window.matchMedia?.("(pointer: coarse)").matches ? 40 : 22;
   // Aperçu pointillé pendant un glissement : { points: [[lat, lon], ...] }.
   const [preview, setPreview] = useState(null);
   // Glissement d'insertion en cours : { segmentIndex, leg }. `moved` (ref : lu à chaud par les écouteurs
@@ -82,7 +113,7 @@ export default function RouteEditLayer({ route, pending, selectedAnchor, onSelec
   const [insertion, setInsertion] = useState(null);
   const movedRef = useRef(false);
 
-  // Insertion : tant que le bouton est enfoncé, on suit la souris sur toute la page (même hors de la
+  // Insertion : tant que le bouton (ou le doigt) est posé, on suit le pointeur sur toute la page (même hors de la
   // carte) ; au relâchement, on demande au serveur d'ajouter le point là où on est.
   useEffect(() => {
     if (!insertion) return undefined;
@@ -107,11 +138,14 @@ export default function RouteEditLayer({ route, pending, selectedAnchor, onSelec
         onOperation(insertion.segmentIndex, { type: "insert", anchor: insertion.leg, lat: latlng.lat, lon: latlng.lng });
       }
     }
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
+    // Événements « pointer » : souris, doigt et stylet passent par les mêmes écouteurs.
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+    document.addEventListener("pointercancel", onUp);
     return () => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      document.removeEventListener("pointercancel", onUp);
       map.dragging.enable();
     };
   }, [insertion, map, route, onOperation]);
@@ -123,19 +157,16 @@ export default function RouteEditLayer({ route, pending, selectedAnchor, onSelec
 
   return (
     <>
-      {/* Zones d'accroche invisibles et larges le long du tracé, pour y « attraper » la ligne. */}
+      {/* Zones d'accroche invisibles et larges le long du tracé, pour y « attraper » la ligne (à la souris ou au doigt). */}
       {editableSegments.map(({ segment, index }) => (
-        <Polyline
+        <GrabLine
           key={`grab-${route.id}-${index}`}
-          positions={segment.points}
-          pathOptions={{ color: "#000", weight: 22, opacity: 0, lineCap: "round" }}
-          eventHandlers={{
-            mousedown: (event) => {
-              if (pending) return;
-              L.DomEvent.stop(event.originalEvent);
-              movedRef.current = false;
-              setInsertion({ segmentIndex: index, leg: legAtPoint(segment, event.latlng) });
-            },
+          segment={segment}
+          width={grabWidth}
+          onGrab={(latlng) => {
+            if (pending) return;
+            movedRef.current = false;
+            setInsertion({ segmentIndex: index, leg: legAtPoint(segment, latlng) });
           }}
         />
       ))}

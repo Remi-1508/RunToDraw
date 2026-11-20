@@ -16,6 +16,7 @@ import { useServerLimits } from "./hooks/useServerLimits";
 import { useSidebarResize } from "./hooks/useSidebarResize";
 import { useTheme } from "./hooks/useTheme";
 import { useToast } from "./hooks/useToast";
+import { requestNotificationPermissionOnce } from "./utils/notify";
 
 // Composant racine : il assemble les hooks (thème, largeur de la barre, génération, export…)
 // et répartit l'écran en deux zones, les contrôles à gauche et la carte à droite.
@@ -130,6 +131,8 @@ export default function App() {
       return;
     }
 
+    // Geste de la personne : le bon moment pour proposer les notifications de fin de génération.
+    requestNotificationPermissionOnce();
     const [lat, lon] = center;
     planning.generate({ lat, lon, distanceKm, drawing });
   }
@@ -160,6 +163,8 @@ export default function App() {
         title={locating ? "Localisation en cours" : "Préparation de l’itinéraire"}
         kicker={locating ? "Position actuelle" : planning.busy?.kicker || "RunToDraw"}
         description={locating ? "On récupère ta position…" : planning.busy?.description || "Calcul en cours…"}
+        startedAt={locating ? undefined : planning.busy?.startedAt}
+        estimateSeconds={locating ? undefined : planning.busy?.estimateSeconds}
         indeterminate
         onCancel={planning.busy && !locating ? planning.cancel : undefined}
       />
