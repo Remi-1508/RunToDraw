@@ -83,7 +83,7 @@ docs/                guide de déploiement
 ## Choix d'ingénierie
 
 - **Cache côté serveur** du graphe routier (par zone), avec un verrou par zone : deux demandes simultanées ne téléchargent qu'une fois. Le graphe ne transite plus par le navigateur.
-- **Préchargement** : dès que le départ, la distance et le dessin sont choisis (2,5 s sans changement), l'interface demande en arrière-plan le réseau routier au serveur, qui le garde en cache ; la génération qui suit n'attend plus Overpass.
+- **Préchargement** : dès que le départ, la distance et le dessin sont choisis (2,5 s sans changement, y compris après un dessin libre), l'interface demande en arrière-plan le réseau routier au serveur, qui le garde en cache ; la génération qui suit n'attend plus Overpass.
 - **Résilience face à Overpass** : quatre à cinq miroirs publics sont interrogés en cascade avec départ échelonné (le premier qui répond l'emporte), et un nouvel essai automatique à distance inchangée en cas d'échec.
 - **Protections de l'API** : limites de requêtes par IP, calculs simultanés plafonnés, validation stricte des entrées (Pydantic), erreurs lisibles sans détail interne, CORS configurable.
 - **Sans dépendance inutile** : export ZIP des lettres écrit à la main, mini-moteur de dessin en SVG, état géré par des hooks React.

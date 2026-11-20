@@ -12,10 +12,21 @@ const READY_TTL_MS = 10 * 60 * 1000;
 const ready = new Map(); // clé de la zone -> instant où elle est devenue prête
 let current = null; // préchargement en cours : { key, controller }
 
-// Même zone côté serveur : départ au mètre près, distance, et dessin quand il change le rayon (texte).
+// Empreinte d'un dessin libre : nombre de points et somme de leurs coordonnées (deux tracés différents ont
+// pratiquement toujours des empreintes différentes ; au pire, la zone est simplement redemandée au serveur).
+function pointsSignature(points) {
+  const list = points ?? [];
+  const sum = list.reduce((total, [x, y]) => total + Math.round(x) + Math.round(y), 0);
+  return `${list.length}:${sum}`;
+}
+
+// Même zone côté serveur : départ au mètre près, distance, et dessin quand il change le rayon (texte, dessin libre).
 function keyOf({ lat, lon, distanceKm, drawing }) {
-  const text = drawing?.mode === "text" ? String(drawing.text || "").toUpperCase() : "";
-  return [lat.toFixed(5), lon.toFixed(5), distanceKm, drawing?.mode ?? "shape", text].join("|");
+  const mode = drawing?.mode ?? "shape";
+  let detail = "";
+  if (mode === "text") detail = String(drawing.text || "").toUpperCase();
+  if (mode === "custom") detail = pointsSignature(drawing.points);
+  return [lat.toFixed(5), lon.toFixed(5), distanceKm, mode, detail].join("|");
 }
 
 // Vrai si le réseau de cette zone a déjà été téléchargé par le serveur il y a peu.
