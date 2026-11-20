@@ -366,6 +366,38 @@ export const styles = {
   },
 
 
+  // Case à cocher d'une option, avec une courte explication dessous.
+  checkRow: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 12,
+    padding: "12px 14px",
+    borderRadius: "var(--radius-sm)",
+    border: "2px solid var(--border-strong)",
+    background: "var(--overlay)",
+    color: "var(--text)",
+    fontSize: 14,
+    lineHeight: 1.4,
+    cursor: "pointer",
+  },
+
+  checkBox: {
+    flexShrink: 0,
+    width: 22,
+    height: 22,
+    marginTop: 1,
+    accentColor: "var(--accent)",
+    cursor: "pointer",
+  },
+
+  checkHint: {
+    display: "block",
+    marginTop: 3,
+    color: "var(--text-soft)",
+    fontSize: 12.5,
+    fontWeight: 500,
+  },
+
   infoPillSoft: {
     padding: "12px 14px",
     borderRadius: "var(--radius-sm)",

@@ -46,6 +46,8 @@ export default function App() {
   const [center, setCenter] = useState(sharedParams?.center ?? null);
   const [requestedDistanceKm, setDistanceKm] = useState(sharedParams?.distanceKm ?? DEFAULT_DISTANCE_KM);
   const [drawing, setDrawing] = useState(sharedParams?.drawing ?? INITIAL_DRAWING);
+  // Case « Passer par mon point de départ » : le parcours part et revient du départ (formes et dessin libre).
+  const [throughStart, setThroughStart] = useState(sharedParams?.throughStart ?? false);
   // Mode « Choisir un point sur la carte » : le prochain clic sur la carte fixe le départ.
   const [pickingOnMap, setPickingOnMap] = useState(false);
   // Barre latérale ouverte ou repliée. Sur smartphone elle recouvre la carte (tiroir) : on la replie
@@ -138,10 +140,10 @@ export default function App() {
   // Lance la génération avec des réglages explicites (formulaire, exemple ou lien de partage).
   const generate = planning.generate;
   const startGeneration = useCallback(
-    ({ center: [lat, lon], distanceKm: km, drawing: nextDrawing }) => {
+    ({ center: [lat, lon], distanceKm: km, drawing: nextDrawing, throughStart: forceStart = false }) => {
       // Geste de la personne : le bon moment pour proposer les notifications de fin de génération.
       requestNotificationPermissionOnce();
-      generate({ lat, lon, distanceKm: km, drawing: nextDrawing });
+      generate({ lat, lon, distanceKm: km, drawing: nextDrawing, throughStart: forceStart });
     },
     [generate]
   );
@@ -159,7 +161,7 @@ export default function App() {
       return;
     }
 
-    startGeneration({ center, distanceKm, drawing });
+    startGeneration({ center, distanceKm, drawing, throughStart: throughStart && drawing.mode !== "text" });
   }
 
   // Lien de partage : une seule fois au chargement, on cherche l'adresse du départ puis on génère.
@@ -178,6 +180,7 @@ export default function App() {
       center: context ? [context.lat, context.lon] : center,
       distanceKm: context?.distanceKm ?? distanceKm,
       drawing: context?.drawing ?? drawing,
+      throughStart: context ? context.throughStart : throughStart,
     });
     if (!url) {
       showToast("Un dessin libre est trop long pour tenir dans un lien : exporte plutôt le fichier GPX.", "info");
@@ -256,6 +259,8 @@ export default function App() {
           onClearStart={clearStart}
           onClosePanel={() => setPanelOpen(false)}
           onGenerateRoutes={handleGenerate}
+          throughStart={throughStart}
+          onThroughStartChange={setThroughStart}
           canGenerate={Boolean(center) && drawingIsReady && !planning.busy}
           routePlan={displayedPlan}
           selectedRouteId={planning.selectedRouteId}

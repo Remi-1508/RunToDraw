@@ -34,10 +34,10 @@ export async function fetchGraph({ lat, lon, distanceKm, drawing }, { signal } =
 
 // Demande au serveur de calculer les propositions d'itinéraires (texte résumé, trajets, métriques).
 // Le serveur retrouve le graphe dans son cache à partir du point choisi.
-export function planRoutes({ lat, lon, distanceKm, drawing }, { signal } = {}) {
+export function planRoutes({ lat, lon, distanceKm, drawing, throughStart = false }, { signal } = {}) {
   return request("/api/routes/plan", {
     method: "POST",
-    body: { lat, lon, distance_km: distanceKm, drawing },
+    body: { lat, lon, distance_km: distanceKm, drawing, through_start: throughStart },
     signal,
     fallback: "Calcul des itinéraires impossible",
   });

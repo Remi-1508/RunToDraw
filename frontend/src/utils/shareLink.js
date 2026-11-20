@@ -10,7 +10,7 @@ Un dessin libre est trop long pour tenir dans une adresse : il n'est pas partage
 import { MAX_TEXT_LENGTH, SHAPES } from "../config";
 
 // Adresse partageable, ou null si le choix actuel ne peut pas l'être (dessin libre, pas de départ).
-export function buildShareUrl({ center, distanceKm, drawing }) {
+export function buildShareUrl({ center, distanceKm, drawing, throughStart }) {
   if (!center || drawing?.mode === "custom") return null;
   const params = new URLSearchParams({
     lat: center[0].toFixed(5),
@@ -19,10 +19,11 @@ export function buildShareUrl({ center, distanceKm, drawing }) {
   });
   if (drawing.mode === "text") params.set("text", drawing.text || "");
   else params.set("shape", drawing.shape);
+  if (throughStart && drawing.mode !== "text") params.set("start", "1");
   return `${window.location.origin}${window.location.pathname}?${params}`;
 }
 
-// Lit les paramètres d'un lien de partage. Renvoie { center, distanceKm, drawing } ou null s'il est absent ou invalide.
+// Lit les paramètres d'un lien de partage. Renvoie { center, distanceKm, drawing, throughStart } ou null s'il est absent ou invalide.
 export function parseShareParams(search) {
   const params = new URLSearchParams(search);
   const lat = Number(params.get("lat"));
@@ -38,5 +39,5 @@ export function parseShareParams(search) {
   else if (SHAPES.some((item) => item.id === shape)) drawing = { mode: "shape", shape, text: "", points: [] };
   else return null;
 
-  return { center: [lat, lon], distanceKm: Math.round(km), drawing };
+  return { center: [lat, lon], distanceKm: Math.round(km), drawing, throughStart: drawing.mode !== "text" && params.get("start") === "1" };
 }

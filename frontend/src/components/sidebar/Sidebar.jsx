@@ -27,6 +27,8 @@ export default function Sidebar({
   onClearStart,
   onClosePanel,
   onGenerateRoutes,
+  throughStart,
+  onThroughStartChange,
   canGenerate,
   routePlan,
   selectedRouteId,
@@ -65,7 +67,14 @@ export default function Sidebar({
       />
       <DistanceStep distanceKm={distanceKm} setDistanceKm={setDistanceKm} maxDistanceKm={maxDistanceKm} />
       <DrawingStep drawing={drawing} setDrawing={setDrawing} />
-      <GenerateStep canGenerate={canGenerate} onGenerateRoutes={onGenerateRoutes} serviceStatus={serviceStatus} />
+      <GenerateStep
+        canGenerate={canGenerate}
+        onGenerateRoutes={onGenerateRoutes}
+        serviceStatus={serviceStatus}
+        showThroughStart={drawing.mode !== "text"}
+        throughStart={throughStart}
+        onThroughStartChange={onThroughStartChange}
+      />
 
       {/* Résultats et exports. */}
       <RouteResultsPanel

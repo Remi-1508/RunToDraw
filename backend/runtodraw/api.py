@@ -75,6 +75,8 @@ class GraphFetchRequest(BaseModel):
 
 class RoutePlanRequest(GraphFetchRequest):
     tolerance_ratio: float = Field(default=0.10, ge=0.01, le=0.5)
+    # Imposer que le parcours parte et revienne du point de départ (formes et dessin libre ; ignoré pour un texte).
+    through_start: bool = False
 
 
 # Édition manuelle : un segment du tracé (chemin en identifiants de nœuds OSM + positions des ancrages).
@@ -199,7 +201,8 @@ def fetch_graph(request: GraphFetchRequest):
 def plan_routes(request: RoutePlanRequest):
     graph, _ = _load_graph(request)
     with compute_slots.acquire():
-        return plan_from_graph(graph, request.distance_km, request.drawing.model_dump(), request.tolerance_ratio)
+        return plan_from_graph(graph, request.distance_km, request.drawing.model_dump(), request.tolerance_ratio,
+                               through_start=request.through_start)
 
 
 # Édite un point du tracé (déplacer / insérer / supprimer) et renvoie les segments recalculés.
