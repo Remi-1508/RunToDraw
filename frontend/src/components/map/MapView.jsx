@@ -261,7 +261,7 @@ export default function MapView({
   );
 
   return (
-    <div style={{ ...styles.shell, ...(isMobile ? styles.shellMobile : null) }}>
+    <div className="rtd-map-shell" style={{ ...styles.shell, ...(isMobile ? styles.shellMobile : null) }}>
       <MapContainer center={safeCenter} zoom={13} style={styles.map}>
         <NeutralBackground neutral={neutral} />
         <ResizeWatcher />
@@ -328,7 +328,7 @@ export default function MapView({
 
       {/* Réglages d'affichage de la carte : thème et fond neutre. */}
       <div style={{ ...styles.topBar, ...(isMobile ? styles.topBarMobile : null) }}>
-      <div style={styles.controls}>
+      <div className="rtd-map-controls" style={styles.controls}>
         <MapControl
           icon={isMobile ? ICON_SHEET : ICON_PANEL}
           label={panelOpen ? "Masquer le panneau" : isMobile ? "Paramètres" : "Afficher le panneau"}
@@ -412,6 +412,7 @@ const styles = {
 
   controls: {
     display: "flex",
+    flexShrink: 0,
     gap: 8,
     pointerEvents: "auto",
   },
