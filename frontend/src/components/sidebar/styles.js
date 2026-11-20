@@ -343,6 +343,24 @@ export const styles = {
     alignItems: "center",
   },
 
+  // Bouton + quand le maximum est atteint : grisé, mais il répond encore au clic (message de limite).
+  stepperButtonLimit: {
+    opacity: 0.45,
+    cursor: "not-allowed",
+  },
+
+  // Message sous le sélecteur de distance quand on tente de dépasser le maximum.
+  limitNotice: {
+    marginTop: 12,
+    padding: "10px 12px",
+    borderRadius: "var(--radius-sm)",
+    background: "var(--chip)",
+    color: "var(--accent-text)",
+    fontSize: 13,
+    fontWeight: 600,
+    lineHeight: 1.4,
+  },
+
   stepperButton: {
     height: 52,
     borderRadius: "var(--radius-sm)",
