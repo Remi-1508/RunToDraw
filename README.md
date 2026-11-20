@@ -81,6 +81,29 @@ docs/                guide de déploiement
 
 ---
 
+## Pourquoi c'est difficile
+
+Dessiner un cœur dans une ville, ce n'est pas tracer une courbe : le parcours doit suivre des rues qui n'ont pas été faites pour ça.
+
+- **Un espace de recherche énorme.** Un candidat est défini par une taille, une orientation et une position. Les tester tous coûterait des heures ; sur une zone de 12 km, le réseau compte plus de 150 000 carrefours, et chaque candidat demande des dizaines de plus courts chemins.
+- **Des objectifs qui se contredisent.** Coller au dessin, tomber sur la distance demandée et éviter les demi-tours et les virages inutiles tirent dans des directions opposées. D'où un score combiné, et plusieurs propositions plutôt qu'une seule « meilleure » réponse.
+- **Un réseau irrégulier.** Une ville en damier se prête à un carré, un quartier de rues courbes à un cœur : le meilleur dessin dépend du lieu, donc la recherche s'adapte (orientation de départ alignée sur les rues dominantes, taille recalibrée pour chaque candidat).
+- **Un serveur modeste.** L'hébergement gratuit offre 512 Mo de mémoire et un processeur partagé : chaque seconde de calcul compte.
+
+### Comment la recherche reste rapide
+
+| Idée | Effet |
+|---|---|
+| **Recherche des angles du grossier au fin** : un premier passage teste un angle sur deux, puis seuls les voisins des meilleurs angles sont affinés | environ deux fois moins de candidats évalués, pour une qualité de dessin quasi identique |
+| **Réutilisation entre méthodes** : la translation reprend les angles retenus par la projection et ses candidats non décalés, et n'en recalcule que les positions décalées | environ 1 s gagnée sur un cœur de 12 km |
+| **A\* sur tableaux réutilisés** (tampon propre à chaque thread) au lieu de réallouer à chaque appel | plus courts chemins nettement plus rapides, sans verrou partagé |
+| **Mot entier en projection seule** et méthode « départ inclus » allégée | calcul des mots divisé par plus de deux |
+| **Préchargement du réseau routier** pendant que l'utilisateur règle sa course | le téléchargement (4 à 12 s) disparaît de l'attente |
+
+Mesures sur l'application en ligne (offre gratuite de Render), un cœur de 12 km à Bordeaux : calcul des itinéraires passé d'environ 22 s à environ 13 s. Une alternative a été testée et écartée : Dijkstra de SciPy était trois fois plus lent que l'A\* en Python pour ces trajets courts.
+
+---
+
 ## Choix d'ingénierie
 
 - **Cache côté serveur** du graphe routier (par zone), avec un verrou par zone : deux demandes simultanées ne téléchargent qu'une fois. Le graphe ne transite plus par le navigateur.
