@@ -48,7 +48,7 @@ flowchart LR
 | Backend | Python 3.12, FastAPI, Uvicorn, Pydantic v2, NumPy, SciPy |
 | Données | OpenStreetMap via Overpass (plusieurs miroirs interrogés en parallèle) |
 | Déploiement | Vercel (frontend), Render avec Docker (backend), GitHub Actions |
-| Tests | pytest, plus de 110 tests (géométrie, graphe, recherche, édition, API, protections) |
+| Tests | pytest, plus de 110 tests (géométrie, graphe, recherche, édition, API, protections) ; tests Node pour les fonctions du frontend ; ESLint bloquant dans la CI |
 
 ### Organisation du dépôt
 

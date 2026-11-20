@@ -10,7 +10,9 @@ import { styles } from "./styles";
 // On en sort de trois façons naturelles : « Terminer », la croix, ou le geste/bouton « retour » du téléphone.
 export default function DrawingModal({ points, onChange, onClose }) {
   const closeRef = useRef(onClose);
-  closeRef.current = onClose;
+  useEffect(() => {
+    closeRef.current = onClose;
+  });
 
   // Empêche la page située dessous de défiler pendant qu'on dessine.
   useEffect(() => {
