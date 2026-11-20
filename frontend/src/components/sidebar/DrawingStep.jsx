@@ -104,7 +104,7 @@ export default function DrawingStep({ drawing, setDrawing }) {
             onChange={(event) =>
               setDrawing((current) => ({ ...current, mode: "text", text: toDrawableText(event.target.value) }))
             }
-            placeholder="Ex : P2I"
+            placeholder="Ex : FCB"
           />
 
           <div style={styles.textHintStrong}>Conseil : privilégie des mots de 3 lettres maximum.</div>

@@ -207,8 +207,11 @@ export default function App() {
 
   const waiting = Boolean(planning.busy) || locating;
 
-  // Un dessin libre doit contenir assez de points pour être exploitable ; les autres modes sont toujours prêts.
-  const drawingIsReady = drawing.mode !== "custom" || (drawing.points?.length ?? 0) >= MIN_DRAW_POINTS;
+  // Un dessin libre doit contenir assez de points, et un texte au moins un caractère ; les formes sont toujours prêtes.
+  const drawingIsReady =
+    drawing.mode === "custom"
+      ? (drawing.points?.length ?? 0) >= MIN_DRAW_POINTS
+      : drawing.mode !== "text" || Boolean(drawing.text?.trim());
 
   return (
     <div className="rtd-page">

@@ -7,13 +7,7 @@ const PATHS = {
   star: <path d="M12 4l2.4 5 5.4.7-4 3.8 1 5.4-4.8-2.7-4.8 2.7 1-5.4-4-3.8 5.4-.7z" />,
   triangle: <path d="M12 5l8 14H4z" />,
   diamond: <path d="M12 3l6 9-6 9-6-9z" />,
-  cross: <path d="M9.5 4h5v5.5H20v5h-5.5V20h-5v-5.5H4v-5h5.5z" />,
-  arrow: <path d="M12 4l7 8h-4v8H9v-8H5z" />,
-  house: <path d="M5 19V11l7-6 7 6v8z" />,
   lightning: <path d="M13 3L6 13.5h5L10 21l8-11.5h-5.2z" />,
-  crescent: <path d="M16.5 4.5A8 8 0 1 0 19 16 6.5 6.5 0 0 1 16.5 4.5z" />,
-  drop: <path d="M12 3.5s6 6.2 6 10.5a6 6 0 0 1-12 0C6 9.7 12 3.5 12 3.5z" />,
-  eiffel: <path d="M5 20l3.2-.1M16 20h3M8 20l3-8M16 20l-3-8M10 15h4M11 12l.6-6h.8l.6 6M12 4v2M9.5 20c.5-2 4.5-2 5 0" />,
   pencil: <path d="M4 20l1-4L16.5 4.5a2 2 0 0 1 3 3L8 19zM14.5 6.5l3 3" />,
   infinity: <path d="M12 12c-1.6-2.4-3.2-3.5-5-3.5a3.5 3.5 0 0 0 0 7c1.8 0 3.4-1.1 5-3.5zm0 0c1.6 2.4 3.2 3.5 5 3.5a3.5 3.5 0 0 0 0-7c-1.8 0-3.4 1.1-5 3.5z" />,
 };

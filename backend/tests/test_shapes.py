@@ -7,7 +7,7 @@ from runtodraw.search import MAX_TILT_DEG, ORIENTATION_RULES, search_angles
 from runtodraw.shapes import get_base_shape
 from runtodraw.validation import SHAPES
 
-NEW_SHAPES = ["triangle", "diamond", "cross", "arrow", "house", "lightning", "crescent", "drop", "eiffel"]
+NEW_SHAPES = ["triangle", "diamond", "lightning"]
 
 
 @pytest.mark.parametrize("name", list(SHAPES))
@@ -30,8 +30,8 @@ def test_upright_shapes_are_tilted_only_a_little():
         angles = search_angles(FakeGraph, name)
         assert max(abs(a) for a in angles) == pytest.approx(limit)
         assert 0.0 in [round(a, 6) for a in angles] or len(angles) % 2 == 0
-    # une flèche peut pointer n'importe où
-    assert len(search_angles(FakeGraph, "arrow")) == 36
+    # un cœur peut pointer n'importe où
+    assert len(search_angles(FakeGraph, "heart")) == 36
     assert "custom" in ORIENTATION_RULES
 
 
