@@ -13,8 +13,9 @@ export function useRoutePlanning({ showToast }) {
   // pour modifier ensuite le tracé sur le même réseau routier, même si le formulaire a changé entre-temps.
   const [planContext, setPlanContext] = useState(null);
   const [selectedRouteId, setSelectedRouteId] = useState(null);
-  // null quand rien n'est en cours, sinon { kicker, description, startedAt, estimateSeconds } pour la fenêtre d'attente
-  // (`startedAt` : début de l'étape en cours, pour le chronomètre ; `estimateSeconds` : durée estimée de cette étape).
+  // null quand rien n'est en cours, sinon { title, startedAt, estimateSeconds } pour la fenêtre d'attente
+  // (`title` : étape en cours ; `startedAt` : clic sur « Générer », pour le chronomètre ; `estimateSeconds` : durée
+  // totale estimée de la génération).
   const [busy, setBusy] = useState(null);
   const abortRef = useRef(null);
 
@@ -41,15 +42,21 @@ export function useRoutePlanning({ showToast }) {
       abortRef.current = controller;
       const options = { signal: controller.signal };
 
+      // Un seul chronomètre pour toute la génération : il part au clic et ne se remet pas à zéro entre l'extraction
+      // du réseau routier et le calcul de l'itinéraire. Pendant l'extraction on ne connaît pas encore la taille du
+      // graphe : l'estimation totale suppose environ 1 000 intersections par km², puis elle est recalculée avec le
+      // vrai nombre d'intersections dès que le serveur le donne.
+      const startedAt = Date.now();
+      const NODES_PER_KM2_GUESS = 1000;
+
       async function attempt() {
-        const wordLabel = drawing?.mode === "text" ? "le mot " + (drawing.text || "").toUpperCase() : "la forme demandée";
         const graphRadiusKm = distanceKm / 2; // estimation : le serveur précise le rayon réel après l'extraction
         const graphStart = Date.now();
+        const guessedNodes = Math.PI * graphRadiusKm * graphRadiusKm * NODES_PER_KM2_GUESS;
         setBusy({
-          kicker: "Étape 1/2 · Réseau routier",
-          description: `Téléchargement des routes et chemins OpenStreetMap autour du départ (zone d’environ ${graphRadiusKm.toFixed(1)} km de rayon). C’est l’étape la plus longue.`,
-          startedAt: graphStart,
-          estimateSeconds: estimateGraphSeconds(graphRadiusKm),
+          title: "Extraction de la zone de course",
+          startedAt,
+          estimateSeconds: estimateGraphSeconds(graphRadiusKm) + estimatePlanSeconds(guessedNodes, drawing),
         });
         const nextGraph = await fetchGraph({ lat, lon, distanceKm, drawing }, options);
         recordGraphDuration(nextGraph.radiusKm, (Date.now() - graphStart) / 1000);
@@ -59,10 +66,10 @@ export function useRoutePlanning({ showToast }) {
 
         const planStart = Date.now();
         setBusy({
-          kicker: "Étape 2/2 · Calcul des tracés",
-          description: `Recherche des meilleurs tracés pour ${wordLabel} parmi ${nextGraph.nodeCount.toLocaleString("fr-FR")} intersections.`,
-          startedAt: planStart,
-          estimateSeconds: estimatePlanSeconds(nextGraph.nodeCount, drawing),
+          title: "Calcul de l’itinéraire",
+          startedAt,
+          // temps déjà écoulé + durée estimée du calcul, maintenant que la taille du graphe est connue
+          estimateSeconds: (planStart - startedAt) / 1000 + estimatePlanSeconds(nextGraph.nodeCount, drawing),
         });
         const nextPlan = await planRoutes({ lat, lon, distanceKm, drawing }, options);
         recordPlanDuration(nextGraph.nodeCount, drawing, (Date.now() - planStart) / 1000);
