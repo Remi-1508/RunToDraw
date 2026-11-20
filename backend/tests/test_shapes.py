@@ -7,7 +7,7 @@ from runtodraw.search import MAX_TILT_DEG, ORIENTATION_RULES, search_angles
 from runtodraw.shapes import get_base_shape
 from runtodraw.validation import SHAPES
 
-NEW_SHAPES = ["triangle", "diamond", "cross", "arrow", "house", "lightning", "crescent", "drop"]
+NEW_SHAPES = ["triangle", "diamond", "cross", "arrow", "house", "lightning", "crescent", "drop", "eiffel"]
 
 
 @pytest.mark.parametrize("name", list(SHAPES))

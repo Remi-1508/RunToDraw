@@ -3,6 +3,7 @@ import logoRunToDrawNight from "../../assets/logo_runtodraw_night.png";
 import RouteResultsPanel from "../results/RouteResultsPanel";
 import DistanceStep from "./DistanceStep";
 import DrawingStep from "./DrawingStep";
+import ExamplesStep from "./ExamplesStep";
 import GenerateStep from "./GenerateStep";
 import LocationStep from "./LocationStep";
 import { styles } from "./styles";
@@ -33,6 +34,10 @@ export default function Sidebar({
   onSelectRoute,
   onExportRoute,
   onClearRoute,
+  onShareRoute,
+  onRunExample,
+  serviceStatus,
+  busy,
 }) {
   const currentLogo = theme === "dark" ? logoRunToDrawNight : logoRunToDrawDay;
 
@@ -52,6 +57,8 @@ export default function Sidebar({
         </button>
       </div>
 
+      <ExamplesStep onRunExample={onRunExample} disabled={busy} />
+
       <LocationStep
         center={center}
         onUseMyLocation={onUseMyLocation}
@@ -63,7 +70,7 @@ export default function Sidebar({
       />
       <DistanceStep distanceKm={distanceKm} setDistanceKm={setDistanceKm} maxDistanceKm={maxDistanceKm} />
       <DrawingStep drawing={drawing} setDrawing={setDrawing} />
-      <GenerateStep canGenerate={canGenerate} onGenerateRoutes={onGenerateRoutes} />
+      <GenerateStep canGenerate={canGenerate} onGenerateRoutes={onGenerateRoutes} serviceStatus={serviceStatus} />
 
       {/* Résultats et exports. */}
       <RouteResultsPanel
@@ -72,6 +79,7 @@ export default function Sidebar({
         onSelectRoute={onSelectRoute}
         onExportRoute={onExportRoute}
         onClearRoute={onClearRoute}
+        onShareRoute={onShareRoute}
       />
     </div>
   );

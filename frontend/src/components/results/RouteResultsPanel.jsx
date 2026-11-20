@@ -23,6 +23,7 @@ export default function RouteResultsPanel({
   onSelectRoute,
   onExportRoute,
   onClearRoute,
+  onShareRoute,
 }) {
   const selectedRoute = routePlan?.routes?.find((route) => route.id === selectedRouteId) ?? null;
   // Lettres séparées : un fichier GPX par lettre (chaque lettre est un itinéraire distinct).
@@ -101,9 +102,16 @@ export default function RouteResultsPanel({
       {/* Présentation générale de l’étape de sélection d’itinéraire. */}
       <StepHeader step={5} title="Choisir un itinéraire" />
       <div style={styles.helperText}>{routePlan.summary}</div>
-      <button type="button" style={styles.clearButton} onClick={onClearRoute}>
-        Effacer le tracé
-      </button>
+      <div style={styles.secondaryActions}>
+        {onShareRoute ? (
+          <button type="button" style={styles.secondaryButton} onClick={onShareRoute}>
+            Partager ce parcours
+          </button>
+        ) : null}
+        <button type="button" style={styles.secondaryButton} onClick={onClearRoute}>
+          Effacer le tracé
+        </button>
+      </div>
 
       {/*
          Chaque itinéraire est affiché sous forme de carte cliquable.
@@ -211,11 +219,17 @@ const styles = {
     boxShadow: "var(--shadow-soft)",
   },
 
-  // Efface les propositions et revient à l'écran de départ (le point de départ est conservé).
-  clearButton: {
-    width: "100%",
-    minHeight: "var(--control-h)",
+  // Actions secondaires sous la liste : partager le lien, ou effacer les propositions (le départ est conservé).
+  secondaryActions: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 8,
     marginTop: 12,
+  },
+
+  secondaryButton: {
+    flex: "1 1 140px",
+    minHeight: "var(--control-h)",
     border: "2px solid var(--border-strong)",
     borderRadius: "var(--radius-sm)",
     background: "transparent",

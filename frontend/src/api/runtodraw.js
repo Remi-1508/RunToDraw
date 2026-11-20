@@ -89,3 +89,15 @@ export function editRoute({ lat, lon, distanceKm, drawing }, segments, segmentIn
     fallback: "Modification du tracé impossible",
   });
 }
+
+// État des serveurs OpenStreetMap (Overpass) vu depuis le backend : "ok", "slow" ou "down".
+// En cas d'échec de la requête, on ne dit rien (null) plutôt que d'inventer un état.
+export async function fetchOverpassStatus({ signal } = {}) {
+  try {
+    const data = await request("/api/status", { signal });
+    return data.overpass ?? null;
+  } catch (error) {
+    if (error.name === "AbortError") throw error;
+    return null;
+  }
+}

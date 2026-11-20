@@ -69,6 +69,7 @@ SHAPE_LABELS = {
     "lightning": "Éclair",
     "crescent": "Croissant",
     "drop": "Goutte",
+    "eiffel": "Tour Eiffel",
     "custom": "Mon dessin",
 }
 

@@ -121,6 +121,22 @@ def make_drop(n=48):
     return np.vstack([[0.0, tip], arc, [0.0, tip]])
 
 
+def make_eiffel():
+    # Silhouette de la tour Eiffel : pieds et arche en bas, deux plateformes, puis la flèche. Contour fermé,
+    # parcouru du pied gauche vers la droite, jusqu'au sommet, puis redescendu par la gauche.
+    return np.array([
+        [-0.30, -0.50], [-0.12, -0.50], [-0.10, -0.40], [-0.05, -0.34], [0.0, -0.32], [0.05, -0.34],
+        [0.10, -0.40], [0.12, -0.50], [0.30, -0.50],
+        [0.17, -0.15], [0.21, -0.15], [0.21, -0.11],
+        [0.10, 0.15], [0.13, 0.15], [0.13, 0.18],
+        [0.04, 0.38], [0.015, 0.50],
+        [-0.015, 0.50], [-0.04, 0.38],
+        [-0.13, 0.18], [-0.13, 0.15], [-0.10, 0.15],
+        [-0.21, -0.11], [-0.21, -0.15], [-0.17, -0.15],
+        [-0.30, -0.50],
+    ], dtype=float)
+
+
 # Sélectionne la forme de base demandée par l’utilisateur.
 # `points` : dessin libre déjà préparé (voir custom_shape.prepare_custom_shape), utilisé si shape_name == "custom".
 def get_base_shape(shape_name, text, points=None):
@@ -145,6 +161,8 @@ def get_base_shape(shape_name, text, points=None):
         return make_crescent()
     if name == "drop":
         return make_drop()
+    if name == "eiffel":
+        return make_eiffel()
     if name == "square":
         return make_square()
     if name == "circle":

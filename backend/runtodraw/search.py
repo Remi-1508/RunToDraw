@@ -93,7 +93,7 @@ TEXT_MAX_TILT_DEG = 15.0
 # Formes qui ont un « haut » reconnaissable (maison, éclair, goutte, croissant) : comme le texte, on ne les
 # incline que de quelques degrés autour de l'horizontale (écart maximal, en degrés). Une maison à l'envers
 # ne ressemble plus à rien. Les autres formes, dont la flèche, restent testées dans toutes les orientations.
-MAX_TILT_DEG = {"house": 25.0, "lightning": 25.0, "drop": 25.0, "crescent": 40.0}
+MAX_TILT_DEG = {"house": 25.0, "lightning": 25.0, "drop": 25.0, "eiffel": 15.0, "crescent": 40.0}
 TILT_STEP_DEG = 12.5
 
 
