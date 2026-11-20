@@ -2,6 +2,7 @@
 plus courts chemins (A*) et accessibilité."""
 import heapq
 import math
+import threading
 
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import breadth_first_order
@@ -108,6 +109,8 @@ class RoadGraph:
             "ymax": float(ys.max()),
         }
         self._sp_cache = {}
+        # Tableaux de travail du plus court chemin (voir shortest_path_idx).
+        self._work = threading.local()
         self._dominant_angle = None
 
     # Dictionnaire identifiant -> x/y, construit seulement si on en a besoin (tracés).
@@ -156,11 +159,22 @@ class RoadGraph:
         indptr, indices, weights = self._indptr, self._indices, self._weights
         xs, ys, k = self._xs, self._ys, self._h_scale
         gx, gy = xs[g], ys[g]
+        n_nodes = len(xs)
         hypot, heappush, heappop = math.hypot, heapq.heappush, heapq.heappop
-        inf = float("inf")
 
-        dist = {s: 0.0}
-        prev = {}
+        # Tableaux réutilisés d'une recherche à l'autre (au lieu de dictionnaires recréés à chaque fois) :
+        # `stamp[v] == run` signifie « v a été vu pendant cette recherche », ce qui évite de remettre les
+        # tableaux à zéro. Accès par indice nettement plus rapide que par dictionnaire.
+        # Un jeu de tableaux par thread : deux calculs peuvent tourner en même temps sur le même graphe en cache.
+        work = self._work
+        if not hasattr(work, "dist"):
+            work.dist, work.prev, work.stamp, work.run = [0.0] * n_nodes, [0] * n_nodes, [0] * n_nodes, 0
+        dist, prev, stamp = work.dist, work.prev, work.stamp
+        work.run += 1
+        run = work.run
+
+        dist[s] = 0.0
+        stamp[s] = run
         pq = [(k * hypot(xs[s] - gx, ys[s] - gy), 0.0, s)]
         while pq:
             _, d, u = heappop(pq)
@@ -171,10 +185,13 @@ class RoadGraph:
             for i in range(indptr[u], indptr[u + 1]):
                 v = indices[i]
                 nd = d + weights[i]
-                if nd < dist.get(v, inf):
-                    dist[v] = nd
-                    prev[v] = u
-                    heappush(pq, (nd + k * hypot(xs[v] - gx, ys[v] - gy), nd, v))
+                if stamp[v] != run:
+                    stamp[v] = run
+                elif nd >= dist[v]:
+                    continue
+                dist[v] = nd
+                prev[v] = u
+                heappush(pq, (nd + k * hypot(xs[v] - gx, ys[v] - gy), nd, v))
 
         path = [g]
         cur = g
