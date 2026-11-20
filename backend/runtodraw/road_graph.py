@@ -111,6 +111,8 @@ class RoadGraph:
         self._sp_cache = {}
         # Tableaux de travail du plus court chemin (voir shortest_path_idx).
         self._work = threading.local()
+        # Compteurs de diagnostic (affichés dans les logs du planificateur) : recherches de chemin, réponses du cache, nœuds sortis de la file.
+        self.stats = {"astar": 0, "astar_cached": 0, "astar_pops": 0}
         self._dominant_angle = None
 
     # Dictionnaire identifiant -> x/y, construit seulement si on en a besoin (tracés).
@@ -150,6 +152,7 @@ class RoadGraph:
         key = (s, g)
         cached = self._sp_cache.get(key)
         if cached is not None:
+            self.stats["astar_cached"] += 1
             return cached
         if not self._reachable(s, g):
             out = (None, float("inf"))
@@ -176,8 +179,10 @@ class RoadGraph:
         dist[s] = 0.0
         stamp[s] = run
         pq = [(k * hypot(xs[s] - gx, ys[s] - gy), 0.0, s)]
+        pops = 0
         while pq:
             _, d, u = heappop(pq)
+            pops += 1
             if u == g:
                 break
             if d > dist[u]:
@@ -193,6 +198,8 @@ class RoadGraph:
                 prev[v] = u
                 heappush(pq, (nd + k * hypot(xs[v] - gx, ys[v] - gy), nd, v))
 
+        self.stats["astar"] += 1
+        self.stats["astar_pops"] += pops
         path = [g]
         cur = g
         while cur != s:
