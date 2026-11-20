@@ -207,7 +207,7 @@ def calibrated_search(graph, base_points, centers, angles, desired_distance_m, m
 # fermée, le contour est aussi « tourné » pour commencer à l'ancrage : la boucle part et revient au
 # point de l'utilisateur. Chaque couple (ancrage, angle) passe par le même calibrage de taille.
 
-START_ANCHORS = 12          # positions d'ancrage testées le long du contour
+START_ANCHORS = 8           # positions d'ancrage testées le long du contour
 START_MIN_ANGLE_STEP = 30.0  # pas angulaire minimal (l'ancrage multiplie déjà les essais)
 
 

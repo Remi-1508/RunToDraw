@@ -105,20 +105,24 @@ def route_metrics(metrics):
 
 # Lance les trois méthodes de recherche sur un dessin (forme ou mot entier) et met en forme
 # chaque résultat (méthode, variante) comme une proposition d'itinéraire.
-def method_routes(graph, base_points, distance_m, tolerance_ratio, shape_name, label, kind, only_start=False):
-    """`only_start` : seule la méthode « départ inclus » est calculée (le parcours part et revient du point de départ)."""
+def method_routes(graph, base_points, distance_m, tolerance_ratio, shape_name, label, kind, only_start=False,
+                  only_projection=False):
+    """`only_start` : seule la méthode « départ inclus » est calculée (le parcours part et revient du point de départ).
+    `only_projection` : seule la projection est calculée (la plus rapide ; pour les propositions secondaires)."""
     results = {}
     hint = None
     if not only_start:
         with timed(f"{label} : projection"):
             results["projection"] = evaluate_method(graph, base_points, distance_m, tolerance_ratio, shape_name, "projection")
         hint = results["projection"]["ranked_angles"]
-        with timed(f"{label} : translation"):
-            results["translation"] = evaluate_method(graph, base_points, distance_m, tolerance_ratio, shape_name, "translation",
-                                                     angle_hint=hint)
-    with timed(f"{label} : départ inclus"):
-        results["start"] = evaluate_start_method(graph, base_points, distance_m, tolerance_ratio, shape_name,
-                                                 angle_hint=hint)
+        if not only_projection:
+            with timed(f"{label} : translation"):
+                results["translation"] = evaluate_method(graph, base_points, distance_m, tolerance_ratio, shape_name,
+                                                         "translation", angle_hint=hint)
+    if not only_projection:
+        with timed(f"{label} : départ inclus"):
+            results["start"] = evaluate_start_method(graph, base_points, distance_m, tolerance_ratio, shape_name,
+                                                     angle_hint=hint[:2] if hint else hint)
     routes = []
     for method_name, _method_label in METHODS:
         if method_name not in results:
@@ -188,8 +192,10 @@ def build_text_routes(graph, drawing, distance_m, tolerance_ratio):
     routes = []
 
     # 1) Mot entier (proposition secondaire, placée après les lettres)
+    # Projection seule : sur les mesures de production, les deux autres méthodes prenaient 75 % du temps de calcul
+    # d'un mot pour une proposition secondaire.
     word_routes = method_routes(graph, get_base_shape("text", text), distance_m, tolerance_ratio,
-                                "text", f"{text} — mot entier", "word")
+                                "text", f"{text} — mot entier", "word", only_projection=True)
     for route in word_routes:
         route["secondary"] = True
 

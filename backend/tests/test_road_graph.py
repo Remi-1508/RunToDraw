@@ -320,3 +320,26 @@ def test_segments_expose_node_path_and_anchors(drawing):
             assert all(0 <= a < len(seg["node_path"]) for a in seg["anchors"])
             if seg.get("kind") != "link":
                 assert len(seg["anchors"]) >= 2
+
+
+def test_shortest_paths_stay_correct_when_threads_share_a_graph():
+    """Les tableaux de travail du plus court chemin sont propres à chaque thread : deux calculs en parallèle
+    sur le même graphe en cache ne doivent pas se perturber."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    payload = random_road_graph(0)
+    graph = RoadGraph(payload)
+    pairs = [(s, g) for s in range(1, 25, 3) for g in range(2, 30, 4) if s != g]
+    expected = [graph.shortest_path_idx(s, g)[1] for s, g in pairs]
+    graph._sp_cache.clear()
+
+    def run(_):
+        out = []
+        for s, g in pairs:
+            graph._sp_cache.pop((s, g), None)
+            out.append(graph.shortest_path_idx(s, g)[1])
+        return out
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(pool.map(run, range(4)))
+    assert all(result == expected for result in results)
