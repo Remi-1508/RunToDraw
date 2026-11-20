@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchGraph, planRoutes } from "../api/runtodraw";
+import { estimateGraphSeconds, estimatePlanSeconds, recordGraphDuration, recordPlanDuration } from "../utils/estimate";
+import { notifyRouteReady } from "../utils/notify";
 
 // Génération des itinéraires : téléchargement du réseau routier puis calcul des propositions.
 // Le hook garde les résultats (graphe, propositions, itinéraire choisi) et l'état d'attente,
@@ -11,7 +13,8 @@ export function useRoutePlanning({ showToast }) {
   // pour modifier ensuite le tracé sur le même réseau routier, même si le formulaire a changé entre-temps.
   const [planContext, setPlanContext] = useState(null);
   const [selectedRouteId, setSelectedRouteId] = useState(null);
-  // null quand rien n'est en cours, sinon { kicker, description } pour la fenêtre d'attente.
+  // null quand rien n'est en cours, sinon { kicker, description, startedAt, estimateSeconds } pour la fenêtre d'attente
+  // (`startedAt` : début de l'étape en cours, pour le chronomètre ; `estimateSeconds` : durée estimée de cette étape).
   const [busy, setBusy] = useState(null);
   const abortRef = useRef(null);
 
@@ -39,17 +42,30 @@ export function useRoutePlanning({ showToast }) {
       const options = { signal: controller.signal };
 
       async function attempt() {
-        setBusy({ kicker: "Étape 1/2", description: "Extraction du graphe OpenStreetMap…" });
+        const wordLabel = drawing?.mode === "text" ? "le mot " + (drawing.text || "").toUpperCase() : "la forme demandée";
+        const graphRadiusKm = distanceKm / 2; // estimation : le serveur précise le rayon réel après l'extraction
+        const graphStart = Date.now();
+        setBusy({
+          kicker: "Étape 1/2 · Réseau routier",
+          description: `Téléchargement des routes et chemins OpenStreetMap autour du départ (zone d’environ ${graphRadiusKm.toFixed(1)} km de rayon). C’est l’étape la plus longue.`,
+          startedAt: graphStart,
+          estimateSeconds: estimateGraphSeconds(graphRadiusKm),
+        });
         const nextGraph = await fetchGraph({ lat, lon, distanceKm, drawing }, options);
+        recordGraphDuration(nextGraph.radiusKm, (Date.now() - graphStart) / 1000);
         setGraphData(nextGraph);
         setRoutePlan(null);
         setSelectedRouteId(null);
 
+        const planStart = Date.now();
         setBusy({
-          kicker: "Étape 2/2",
-          description: "Analyse de la forme demandée et recherche des meilleures trajectoires…",
+          kicker: "Étape 2/2 · Calcul des tracés",
+          description: `Recherche des meilleurs tracés pour ${wordLabel} parmi ${nextGraph.nodeCount.toLocaleString("fr-FR")} intersections.`,
+          startedAt: planStart,
+          estimateSeconds: estimatePlanSeconds(nextGraph.nodeCount, drawing),
         });
         const nextPlan = await planRoutes({ lat, lon, distanceKm, drawing }, options);
+        recordPlanDuration(nextGraph.nodeCount, drawing, (Date.now() - planStart) / 1000);
         setRoutePlan(nextPlan);
         setPlanContext({ lat, lon, distanceKm, drawing });
         setSelectedRouteId(nextPlan?.routes?.[0]?.id ?? null);
@@ -64,6 +80,7 @@ export function useRoutePlanning({ showToast }) {
           await attempt();
         }
         showToast("Les propositions d’itinéraires sont prêtes.", "success");
+        notifyRouteReady({ title: "Parcours prêt", body: "Tes propositions d’itinéraires sont prêtes, touche pour les voir." });
       } catch (error) {
         setRoutePlan(null);
         setPlanContext(null);

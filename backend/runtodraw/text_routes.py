@@ -129,11 +129,45 @@ def split_text_itineraries_full_distance(graph, text, per_letter_distance_m, tol
 # longueur totale des liaisons (programmation dynamique à 2 états par lettre : 4 plus courts chemins
 # par paire de lettres, coût linéaire en nombre de lettres).
 
+def _corner_index(graph, path, right):
+    """Indice (dans `path`) du nœud le plus proche du coin bas-droit (ou bas-gauche) de la lettre."""
+    xy = graph.node_array[path]
+    corner = np.array([xy[:, 0].max() if right else xy[:, 0].min(), xy[:, 1].min()])
+    return int(np.argmin(np.hypot(*(xy - corner).T)))
+
+
+def _underline_walk(graph, path, anchors, left_idx, right_idx):
+    """Parcours d'une lettre qui commence à son coin bas-gauche et finit à son coin bas-droit.
+
+    Le tracé de la lettre est continu mais commence et finit n'importe où ; pour relier deux lettres par
+    leur bas (comme un soulignement), on revient en arrière sur le tracé déjà dessiné :
+    coin bas-gauche -> début, tout le tracé, fin -> coin bas-droit. Les deux sens de parcours sont essayés
+    et on garde celui qui demande le moins de retours en arrière. Renvoie (nœuds, positions des ancrages).
+    """
+    best = None
+    n = len(path)
+    for reverse in (False, True):
+        p = path[::-1] if reverse else path
+        a = [n - 1 - x for x in reversed(anchors)] if reverse else list(anchors)
+        left = n - 1 - left_idx if reverse else left_idx
+        right = n - 1 - right_idx if reverse else right_idx
+        pre = p[left:0:-1]  # du coin bas-gauche jusqu'au 2e nœud (le 1er ouvre le tracé principal)
+        post = [p[j] for j in range(n - 2, right - 1, -1)]  # de l'avant-dernier nœud au coin bas-droit (vide si c'est la fin)
+        extra = polyline_length(graph.node_array[pre + p[:1]]) if pre else 0.0
+        extra += polyline_length(graph.node_array[p[-1:] + post]) if post else 0.0
+        if best is None or extra < best[0]:
+            best = (extra, pre + p + post, [len(pre) + x for x in a])
+    return best[1], best[2]
+
+
 def link_letter_routes(graph, letter_results):
     """Renvoie (morceaux, longueur totale) ; morceaux = liste de dicts
     {"kind": "letter" | "link", "letter": str | None, "node_path": [indices de nœuds], "anchors": [positions]}.
-    Les liaisons sont toujours présentes (même vides, d'un seul nœud) : ainsi, déplacer le bord d'une
-    lettre à la main peut les rallonger."""
+
+    Les lettres sont reliées comme un soulignement : chaque lettre est parcourue du coin bas-gauche au coin
+    bas-droit, et la liaison va du bas-droit d'une lettre au bas-gauche de la suivante (au lieu de diagonales
+    entre un début et une fin de tracé quelconques). Les liaisons sont toujours présentes (même vides,
+    d'un seul nœud) : ainsi, déplacer le bord d'une lettre à la main peut les rallonger."""
     paths = [[graph._idx_of[n] for n in r["node_path"]] for r in letter_results]
     anchor_lists = [list(r.get("anchor_idx", [])) for r in letter_results]
     keep = [i for i, p in enumerate(paths) if p]
@@ -143,47 +177,20 @@ def link_letter_routes(graph, letter_results):
     if not paths:
         return [], 0.0
 
-    def oriented(i, reverse):
-        return paths[i][::-1] if reverse else paths[i]
-
-    # Une lettre parcourue à l'envers : les positions des ancrages sont retournées avec le chemin.
-    def oriented_anchors(i, reverse):
-        n = len(paths[i])
-        return [n - 1 - a for a in reversed(anchor_lists[i])] if reverse else anchor_lists[i]
-
-    # coût[i][r] = longueur minimale des liaisons jusqu'à la lettre i parcourue dans le sens r
-    cost = [[0.0, 0.0]]
-    back = [[None, None]]
-    links = [{}]
-    for i in range(1, len(paths)):
-        cost.append([math.inf, math.inf]); back.append([None, None]); links.append({})
-        for r in (0, 1):
-            start = oriented(i, r)[0]
-            for pr in (0, 1):
-                end = oriented(i - 1, pr)[-1]
-                link, c = graph.shortest_path_idx(end, start)
-                if link is None:
-                    continue
-                total = cost[i - 1][pr] + c
-                if total < cost[i][r]:
-                    cost[i][r], back[i][r] = total, pr
-                    links[i][r] = link
-
-    r = 0 if cost[-1][0] <= cost[-1][1] else 1
-    if math.isinf(cost[-1][r]):
-        return [], 0.0
-    choice = [0] * len(paths)
-    for i in range(len(paths) - 1, -1, -1):
-        choice[i] = r
-        if i > 0:
-            r = back[i][r]
+    walks = []
+    for path, anchors in zip(paths, anchor_lists):
+        left = _corner_index(graph, path, right=False)
+        right = _corner_index(graph, path, right=True)
+        walks.append(_underline_walk(graph, path, anchors, left, right))
 
     pieces = []
-    for i in range(len(paths)):
+    for i, (walk, anchors) in enumerate(walks):
         if i > 0:
-            pieces.append({"kind": "link", "letter": None, "node_path": links[i][choice[i]], "anchors": []})
-        pieces.append({"kind": "letter", "letter": letters[i], "node_path": oriented(i, choice[i]),
-                       "anchors": oriented_anchors(i, choice[i])})
+            link, _ = graph.shortest_path_idx(walks[i - 1][0][-1], walk[0])
+            if link is None:
+                return [], 0.0
+            pieces.append({"kind": "link", "letter": None, "node_path": link, "anchors": []})
+        pieces.append({"kind": "letter", "letter": letters[i], "node_path": walk, "anchors": anchors})
 
     full = []
     for piece in pieces:

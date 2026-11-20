@@ -11,6 +11,32 @@
 // - mode progression : un pourcentage est affiché
 // - mode indéterminé : une barre animée est affichée quand la progression exacte est inconnue
 
+import { useEffect, useState } from "react";
+import { formatClock, formatDuration } from "../../utils/estimate";
+
+// Chronomètre en direct (temps écoulé depuis `startedAt`) et durée estimée de l'étape.
+function StepTimer({ startedAt, estimateSeconds }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(timer);
+  }, []);
+  const elapsed = (now - startedAt) / 1000;
+  const late = estimateSeconds && elapsed > estimateSeconds * 1.25;
+  return (
+    <div style={styles.timer} aria-live="off">
+      <span style={styles.clock}>{formatClock(elapsed)}</span>
+      <span style={styles.timerText}>
+        {estimateSeconds
+          ? late
+            ? "Plus long que prévu : les serveurs OpenStreetMap sont parfois lents, ça avance."
+            : `Durée estimée de cette étape : environ ${formatDuration(estimateSeconds)}`
+          : null}
+      </span>
+    </div>
+  );
+}
+
 export default function LoadingModal({
   open,
   progress = 0,
@@ -18,6 +44,8 @@ export default function LoadingModal({
   kicker = "OpenStreetMap",
   description = "Extraction des données puis construction du graphe…",
   indeterminate = false,
+  startedAt,
+  estimateSeconds,
   onCancel,
 }) {
   // Si la modal n’est pas ouverte, rien n’est affiché.
@@ -56,6 +84,11 @@ export default function LoadingModal({
         {/* Explication complémentaire affichée sous la barre de progression. */}
         <div style={styles.small}>{description}</div>
 
+        {/* Chronomètre : une nouvelle étape (startedAt différent) le remet à zéro. */}
+        {startedAt ? <StepTimer key={startedAt} startedAt={startedAt} estimateSeconds={estimateSeconds} /> : null}
+
+        <div style={styles.leaveHint}>Tu peux changer d’onglet : on te prévient quand c’est prêt.</div>
+
         {/* Bouton facultatif pour interrompre l'opération en cours. */}
         {onCancel ? (
           <button type="button" style={styles.cancelButton} onClick={onCancel}>
@@ -90,7 +123,9 @@ const styles = {
   backdrop: {
     position: "fixed",
     inset: 0,
-    background: "rgba(0, 0, 0, 0.22)",
+    background: "rgba(10, 14, 20, 0.58)", // fond nettement grisé : l'interface dessous n'est pas utilisable pendant le calcul
+    backdropFilter: "grayscale(0.6) blur(1px)",
+    WebkitBackdropFilter: "grayscale(0.6) blur(1px)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -162,6 +197,33 @@ const styles = {
     textAlign: "right",
     color: "var(--text-soft)",
     fontWeight: 800,
+  },
+
+  timer: {
+    display: "flex",
+    alignItems: "baseline",
+    gap: 12,
+    marginTop: 14,
+  },
+
+  clock: {
+    fontFamily: "var(--font-display)",
+    fontVariantNumeric: "tabular-nums",
+    fontSize: 28,
+    fontWeight: 800,
+  },
+
+  timerText: {
+    flex: 1,
+    fontSize: 12.5,
+    color: "var(--text-soft)",
+    lineHeight: 1.4,
+  },
+
+  leaveHint: {
+    marginTop: 12,
+    fontSize: 12.5,
+    color: "var(--text-soft)",
   },
 
   small: {

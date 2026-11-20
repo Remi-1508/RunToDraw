@@ -50,8 +50,19 @@ def test_link_letter_routes_keeps_edited_letters_and_stays_continuous():
     assert [p["kind"] for p in pieces] == ["letter", "link", "letter", "link", "letter"]
     for a, b in zip(pieces[:-1], pieces[1:]):
         assert a["node_path"][-1] == b["node_path"][0]
-    by_label = {p["letter"]: p["node_path"] for p in pieces if p["kind"] == "letter"}
+    # Chaque lettre contient son tracé d'origine (éventuellement retourné), sans interruption ni saut.
+    by_label = {p["letter"]: p for p in pieces if p["kind"] == "letter"}
     for r in letters:
         expected = [graph._idx_of[n] for n in r["node_path"]]
-        assert by_label[r["letter"]] in (expected, expected[::-1])
+        walk = by_label[r["letter"]]["node_path"]
+        main = walk[by_label[r["letter"]]["anchors"][0]:][:len(expected)]
+        assert main in (expected, expected[::-1])
+        assert len(set(walk)) >= len(set(expected))
+    # Soulignement : chaque lettre commence à son coin bas-gauche et finit à son coin bas-droit.
+    from runtodraw.text_routes import _corner_index
+    for r in letters:
+        original = [graph._idx_of[n] for n in r["node_path"]]
+        walk = by_label[r["letter"]]["node_path"]
+        assert walk[0] == original[_corner_index(graph, original, right=False)]
+        assert walk[-1] == original[_corner_index(graph, original, right=True)]
     assert total > 0

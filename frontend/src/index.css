@@ -443,3 +443,8 @@ a:focus-visible {
   font-weight: 800;
   cursor: pointer;
 }
+
+/* Zone d'accroche invisible du tracé en mode édition : le doigt doit pouvoir la tirer sans faire défiler la carte. */
+.rtd-grab {
+  touch-action: none;
+}
