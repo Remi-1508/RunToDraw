@@ -36,6 +36,7 @@ export default function Sidebar({
   onExportRoute,
   onClearRoute,
   serviceStatus,
+  onOpenAbout,
 }) {
   const currentLogo = theme === "dark" ? logoRunToDrawNight : logoRunToDrawDay;
 
@@ -83,6 +84,10 @@ export default function Sidebar({
         onExportRoute={onExportRoute}
         onClearRoute={onClearRoute}
       />
+
+      <button type="button" style={styles.aboutLink} onClick={onOpenAbout}>
+        À propos de RunToDraw
+      </button>
     </div>
   );
 }

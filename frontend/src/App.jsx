@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { reverseGeocode } from "./api/geocoding";
 import { DEFAULT_DISTANCE_KM, INITIAL_DRAWING, LONG_DISTANCE_CONFIRM_KM, MIN_DRAW_POINTS, STORAGE_KEYS } from "./config";
+import AboutModal from "./components/about/AboutModal";
 import LoadingModal from "./components/feedback/LoadingModal";
 import Toast from "./components/feedback/Toast";
 import MapView from "./components/map/MapView";
@@ -28,6 +29,7 @@ export default function App() {
   const { theme, toggleTheme } = useTheme();
   const { neutralBackground, toggleNeutralBackground } = useMapBackground();
   const { sidebarWidth, startResize } = useSidebarResize();
+  const [aboutOpen, setAboutOpen] = useState(false);
   const { toast, showToast, hideToast } = useToast();
   const { maxDistanceKm } = useServerLimits();
   const serviceStatus = useOverpassStatus();
@@ -185,7 +187,8 @@ export default function App() {
 
   return (
     <div className="rtd-page">
-      {welcomeOpen ? <WelcomeScreen theme={theme} onGuest={closeWelcome} /> : null}
+      {welcomeOpen ? <WelcomeScreen theme={theme} onGuest={closeWelcome} onAbout={() => setAboutOpen(true)} /> : null}
+      <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
 
       {/* Fenêtre d'attente : génération en cours ou recherche de la position. */}
       <LoadingModal
@@ -233,6 +236,7 @@ export default function App() {
           onExportRoute={exportRoute}
           onClearRoute={planning.reset}
           serviceStatus={serviceStatus}
+          onOpenAbout={() => setAboutOpen(true)}
         />
       </aside>
 

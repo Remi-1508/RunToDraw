@@ -9,6 +9,20 @@
 //
 // L’objectif est de garder un parcours très guidé et simple à suivre.
 export const styles = {
+  // Lien discret en bas de la barre latérale : ouvre la fenêtre « À propos ».
+  aboutLink: {
+    alignSelf: "center",
+    marginTop: "auto",
+    padding: "8px 12px",
+    border: "none",
+    background: "transparent",
+    color: "var(--text-soft)",
+    fontSize: 13,
+    fontWeight: 700,
+    textDecoration: "underline",
+    cursor: "pointer",
+  },
+
   sidebar: {
     minHeight: "100%",
     padding: 14,
