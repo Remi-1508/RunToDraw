@@ -159,14 +159,6 @@ export default function App() {
     startGeneration({ center, distanceKm, drawing });
   }
 
-  // Exemple en un clic : remplit les réglages puis lance la génération.
-  function runExample(example) {
-    setDistanceKm(example.distanceKm);
-    setDrawing(example.drawing);
-    chooseCenter(example.center, example.label);
-    startGeneration({ center: example.center, distanceKm: example.distanceKm, drawing: example.drawing });
-  }
-
   // Lien de partage : une seule fois au chargement, on cherche l'adresse du départ puis on génère.
   const sharedStarted = useRef(false);
   useEffect(() => {
@@ -265,9 +257,7 @@ export default function App() {
           onExportRoute={exportRoute}
           onClearRoute={planning.reset}
           onShareRoute={handleShare}
-          onRunExample={runExample}
           serviceStatus={serviceStatus}
-          busy={Boolean(planning.busy)}
         />
       </aside>
 

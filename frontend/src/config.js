@@ -35,38 +35,6 @@ export const SHAPES = [
   { id: "eiffel", label: "Tour Eiffel" },
 ];
 
-// Exemples en un clic : un point de départ, une distance et un dessin. Les distances sont volontairement
-// modestes (Paris est très dense : un grand rayon dépasserait la mémoire du serveur gratuit).
-export const EXAMPLES = [
-  {
-    id: "coeur-bordeaux",
-    title: "Un cœur à Bordeaux",
-    detail: "15 km depuis la place de la Bourse",
-    center: [44.8412, -0.5693],
-    label: "Place de la Bourse, Bordeaux",
-    distanceKm: 15,
-    drawing: { mode: "shape", shape: "heart", text: "P2I", points: [] },
-  },
-  {
-    id: "eiffel-paris",
-    title: "La tour Eiffel à Paris",
-    detail: "8 km autour du Champ-de-Mars",
-    center: [48.8556, 2.2986],
-    label: "Champ-de-Mars, Paris",
-    distanceKm: 8,
-    drawing: { mode: "shape", shape: "eiffel", text: "P2I", points: [] },
-  },
-  {
-    id: "fcb-barcelone",
-    title: "FCB à Barcelone",
-    detail: "5 km par lettre depuis le Camp Nou",
-    center: [41.3809, 2.1228],
-    label: "Camp Nou, Barcelone",
-    distanceKm: 5,
-    drawing: { mode: "text", shape: "heart", text: "FCB", points: [] },
-  },
-];
-
 // Dessin libre : taille logique de la zone de dessin (le serveur ne s'en sert que pour les proportions),
 // nombre maximal de points envoyés (le serveur en accepte 2000) et nombre minimal pour générer.
 export const DRAW_AREA_SIZE = 300;
