@@ -239,25 +239,47 @@ a:focus-visible {
   }
 }
 
-/* Commandes de la carte : quand la carte est étroite, elles se réduisent à leur icône et le nom réapparaît
-   au survol ou au focus clavier. Le conteneur est la carte (et non la fenêtre), car le panneau latéral
-   ouvert lui retire de la place. */
+/* Commandes de la carte : quand la carte est étroite, elles se réduisent à leur icône. Le nom apparaît alors
+   dans une petite bulle sous le bouton, au survol ou au focus clavier. La bulle est posée par-dessus la carte
+   (position absolue) : elle ne pousse jamais les boutons voisins, qui restent immobiles sous la souris.
+   Le conteneur est la carte (et non la fenêtre), car le panneau latéral ouvert lui retire de la place. */
 .rtd-map-shell {
   container-type: inline-size;
 }
 
 @container (max-width: 1050px) {
-  .rtd-map-controls .rtd-control-label:not(.rtd-control-label--keep) {
-    max-width: 0;
-    overflow: hidden;
-    margin-left: -8px; /* annule l'espace entre l'icône et le libellé quand il est replié */
-    transition: max-width 0.2s ease, margin-left 0.2s ease;
+  .rtd-map-controls button {
+    position: relative;
   }
 
-  .rtd-map-controls button:hover .rtd-control-label,
-  .rtd-map-controls button:focus-visible .rtd-control-label {
-    max-width: 170px;
-    margin-left: 0;
+  .rtd-map-controls .rtd-control-label:not(.rtd-control-label--keep) {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    z-index: 2;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--overlay-strong);
+    box-shadow: var(--shadow-strong);
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(-3px);
+    transition: opacity 0.12s ease, transform 0.12s ease;
+  }
+
+  /* Un léger délai à l'apparition évite que les bulles clignotent quand la souris traverse la rangée. */
+  .rtd-map-controls button:hover .rtd-control-label:not(.rtd-control-label--keep),
+  .rtd-map-controls button:focus-visible .rtd-control-label:not(.rtd-control-label--keep) {
+    opacity: 1;
+    transform: none;
+    transition-delay: 0.3s;
+  }
+
+  /* Le bouton désactivé affiche déjà sa propre explication : pas de seconde bulle au même endroit. */
+  .rtd-map-controls button[aria-disabled="true"] .rtd-control-label {
+    display: none;
   }
 }
 
