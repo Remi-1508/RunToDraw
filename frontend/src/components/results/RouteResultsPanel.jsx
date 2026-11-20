@@ -197,6 +197,26 @@ export default function RouteResultsPanel({
             KML (Google My Maps)
           </button>
         </div>
+
+        {/* Aide à l’import : le fichier téléchargé doit être importé dans l’appli de sport de l’utilisateur. */}
+        <details style={styles.help}>
+          <summary style={styles.helpSummary}>Comment l’utiliser sur ma montre ou mon appli ?</summary>
+          <ul style={styles.helpList}>
+            <li>
+              <strong>Strava</strong> : sur strava.com, dans la création d’un itinéraire, importe le fichier GPX
+              (selon ton offre, cette option peut être réservée aux abonnés).
+            </li>
+            <li>
+              <strong>Garmin Connect</strong> : section Parcours, importe le GPX, puis envoie-le sur ta montre.
+            </li>
+            <li>
+              <strong>Komoot, Suunto, Wahoo…</strong> : cherche « importer un fichier GPX » dans l’appli ou le site.
+            </li>
+            <li>
+              <strong>Google My Maps</strong> : importe le fichier KML dans une carte pour la visualiser.
+            </li>
+          </ul>
+        </details>
       </div>
     </section>
   );
@@ -381,6 +401,26 @@ const styles = {
     margin: "10px 2px",
     fontSize: 12,
     color: "var(--text-soft)",
+    lineHeight: 1.45,
+  },
+
+  help: {
+    marginTop: 12,
+    fontSize: 13,
+    color: "var(--text-soft)",
+  },
+
+  helpSummary: {
+    cursor: "pointer",
+    fontWeight: 700,
+    color: "var(--text)",
+  },
+
+  helpList: {
+    margin: "8px 0 0",
+    paddingLeft: 18,
+    display: "grid",
+    gap: 6,
     lineHeight: 1.45,
   },
 
