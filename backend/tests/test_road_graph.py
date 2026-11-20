@@ -148,7 +148,7 @@ def test_calibration_reaches_requested_distance(shape):
     graph = RoadGraph(random_road_graph(5, n_side=45, step=70.0, oneway_ratio=0.0))
     res = plan_from_graph(graph, 6.0, {"mode": "shape", "shape": shape})
     for route in res["routes"]:
-        if "Distance la plus proche" in route["variant"]:
+        if "Au plus près" in route["variant"]:
             assert abs(route["total_distance_m"] - 6000.0) <= 0.05 * 6000.0
         assert route["over_max_m"] == 0.0
         # la distance annoncée est bien celle du tracé envoyé (rue par rue)

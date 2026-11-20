@@ -18,7 +18,7 @@ Projet individuel (P2I) réalisé à l'ENSC (Bordeaux INP), conçu et développ�
 - **8 formes** : cœur, étoile, infini, éclair, carré, rond, triangle, losange.
 - **Texte** : lettres majuscules A à Z et chiffres 0 à 9, dessinées uniquement par leurs traits. Trois propositions : mot entier, lettres séparées (un GPX par lettre, ou un ZIP) et lettres reliées par le plus court chemin.
 - **Dessin libre** : l'utilisateur trace une forme d'un seul trait (souris, doigt ou stylet, avec un mode plein écran sur smartphone).
-- **Plusieurs propositions** pour une distance cible : la plus proche de la distance demandée, et un meilleur compromis entre fidélité du dessin et distance, par deux méthodes comparables (projection directe et translation optimale).
+- **Plusieurs propositions** pour une distance cible, classées de la plus fidèle au dessin à la moins fidèle (la première porte la mention « Recommandé ») : au plus près de la distance demandée, et meilleur compromis entre fidélité du dessin et distance, par trois méthodes comparables (projection directe, translation optimale, départ inclus). La case « Passer par mon point de départ » ne garde que les parcours qui partent et reviennent du départ.
 - **Édition du tracé** à la manière de Strava : déplacer, ajouter ou supprimer un point, annuler et rétablir, le tracé est recalculé sur les vraies routes.
 - **Dénivelé positif** (d+) de chaque proposition (altitudes IGN, Open-Meteo hors de France), **lien de partage** qui recalcule le même parcours et écran d'accueil invité.
 - **Attente soignée** : chronomètre en direct avec durée estimée (affinée par les mesures passées), notification de fin de calcul, état des serveurs OpenStreetMap affiché avant de lancer.

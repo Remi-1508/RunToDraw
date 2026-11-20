@@ -60,14 +60,14 @@ export default function RouteResultsPanel({
         <div style={styles.routeHeader}>
           <RouteThumbnail segments={route.segments} />
           <div style={styles.routeInfo}>
+            {/* La meilleure proposition est toujours la première de la liste. */}
+            {route.best ? <div style={styles.bestBadge}>★ Recommandé</div> : null}
+
             {/* Libellé principal du trajet, par exemple une forme ou un mode texte. */}
             <div style={styles.routeLabel}>{route.label}</div>
-            {route.includes_start ? (
-              <div style={styles.startBadge}>Part et revient à ton point de départ</div>
-            ) : null}
             {route.edited ? <div style={styles.startBadge}>Modifié à la main</div> : null}
 
-            {/* Information secondaire décrivant la variante de l’itinéraire. */}
+            {/* Ce qui distingue cette proposition des autres, en une phrase. */}
             <div style={styles.routeMeta}>{route.variant}</div>
           </div>
 
@@ -78,6 +78,7 @@ export default function RouteResultsPanel({
         {/* Dénivelé positif du tracé (estimé à partir d'un modèle de terrain, voir api/elevation.js). */}
         <div style={styles.routeStatsRow}>
           <ElevationStat route={route} />
+          {route.includes_start ? <span style={styles.startBadge}>Passe par ton départ</span> : null}
         </div>
 
         {/*
@@ -101,7 +102,10 @@ export default function RouteResultsPanel({
     <section style={styles.card}>
       {/* Présentation générale de l’étape de sélection d’itinéraire. */}
       <StepHeader step={5} title="Choisir un itinéraire" />
-      <div style={styles.helperText}>{routePlan.summary}</div>
+      <div style={styles.helperText}>
+        {routePlan.summary}
+        {routePlan.routes.some((route) => route.best) ? " La première est la plus fidèle au dessin." : ""}
+      </div>
       <div style={styles.secondaryActions}>
         {onShareRoute ? (
           <button type="button" style={styles.secondaryButton} onClick={onShareRoute}>
@@ -329,13 +333,28 @@ const styles = {
     color: "var(--text-soft)",
   },
 
+  // Pastilles d'information d'une proposition : une seule ligne, jamais coupée.
   startBadge: {
-    marginTop: 6,
-    display: "inline-block",
+    display: "inline-flex",
+    alignItems: "center",
+    alignSelf: "center",
+    whiteSpace: "nowrap",
     fontSize: 12,
     fontWeight: 700,
     color: "var(--success-strong)",
     background: "var(--success-soft)",
+    borderRadius: 999,
+    padding: "3px 10px",
+  },
+
+  bestBadge: {
+    display: "inline-block",
+    marginBottom: 4,
+    whiteSpace: "nowrap",
+    fontSize: 12,
+    fontWeight: 800,
+    color: "var(--on-accent)",
+    background: "var(--accent)",
     borderRadius: 999,
     padding: "3px 10px",
   },

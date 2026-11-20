@@ -55,6 +55,10 @@ def test_shape_does_not_need_any_text(fake_graph):
         assert client.post("/api/routes/plan", json={**BODY, "drawing": drawing}).status_code == 200
 
 
+def test_through_start_option_is_accepted(fake_graph):
+    assert client.post("/api/routes/plan", json={**BODY, "through_start": True}).status_code == 200
+
+
 def test_text_with_accents_is_accepted(fake_graph):
     body = {**BODY, "drawing": {"mode": "text", "text": "Été"}}
     assert client.post("/api/routes/plan", json=body).status_code == 200

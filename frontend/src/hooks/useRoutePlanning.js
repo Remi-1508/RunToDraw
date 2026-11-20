@@ -38,7 +38,7 @@ export function useRoutePlanning({ showToast }) {
   // Lance la génération. La distance demandée n'est jamais modifiée : si les serveurs OpenStreetMap échouent
   // (erreur 502), la même génération est retentée une fois, car leur lenteur varie d'une minute à l'autre.
   const generate = useCallback(
-    async ({ lat, lon, distanceKm, drawing }) => {
+    async ({ lat, lon, distanceKm, drawing, throughStart = false }) => {
       const controller = new AbortController();
       abortRef.current = controller;
       const options = { signal: controller.signal };
@@ -76,10 +76,10 @@ export function useRoutePlanning({ showToast }) {
           // temps déjà écoulé + durée estimée du calcul, maintenant que la taille du graphe est connue
           estimateSeconds: (planStart - startedAt) / 1000 + estimatePlanSeconds(nextGraph.nodeCount, drawing),
         });
-        const nextPlan = await planRoutes({ lat, lon, distanceKm, drawing }, options);
+        const nextPlan = await planRoutes({ lat, lon, distanceKm, drawing, throughStart }, options);
         recordPlanDuration(nextGraph.nodeCount, drawing, (Date.now() - planStart) / 1000);
         setRoutePlan(nextPlan);
-        setPlanContext({ lat, lon, distanceKm, drawing });
+        setPlanContext({ lat, lon, distanceKm, drawing, throughStart });
         setSelectedRouteId(nextPlan?.routes?.[0]?.id ?? null);
       }
 

@@ -73,10 +73,22 @@ METHODS = [
     ("start", "Départ inclus"),
 ]
 
+# Deux critères de choix parmi les candidats d'une méthode (voir search.pick_best). Les libellés sont ceux que voit
+# l'utilisateur : ils décrivent le résultat, pas la méthode de calcul.
 VARIANTS = [
-    ("closest_to_distance", "distance la plus proche"),
-    ("best_compromise", "meilleur compromis"),
+    ("closest_to_distance", "closest"),
+    ("best_compromise", "compromise"),
 ]
+
+
+def variant_text(kinds, distance_m):
+    """Phrase affichée sous le titre d'une proposition, à partir des critères qu'elle remplit."""
+    parts = []
+    if "closest" in kinds:
+        parts.append(f"Au plus près de tes {distance_m / 1000:g} km")
+    if "compromise" in kinds:
+        parts.append("Meilleur compromis forme et distance")
+    return " · ".join(parts)
 
 
 def route_metrics(metrics):
@@ -86,52 +98,56 @@ def route_metrics(metrics):
         "shape_error": float(metrics.get("shape_error", 0.0)),
         "turn_penalty": float(metrics.get("turn_penalty", 0.0)),
         "over_max_m": float(metrics.get("over_max", 0.0)),
+        # Note globale (plus c'est bas, mieux c'est) : sert à classer les propositions, la meilleure en premier.
+        "score": float(metrics.get("combined", 0.0)),
     }
 
 
 # Lance les trois méthodes de recherche sur un dessin (forme ou mot entier) et met en forme
 # chaque résultat (méthode, variante) comme une proposition d'itinéraire.
-def method_routes(graph, base_points, distance_m, tolerance_ratio, shape_name, label, kind):
+def method_routes(graph, base_points, distance_m, tolerance_ratio, shape_name, label, kind, only_start=False):
+    """`only_start` : seule la méthode « départ inclus » est calculée (le parcours part et revient du point de départ)."""
     results = {}
-    with timed(f"{label} : projection"):
-        results["projection"] = evaluate_method(graph, base_points, distance_m, tolerance_ratio, shape_name, "projection")
-    with timed(f"{label} : translation"):
-        results["translation"] = evaluate_method(graph, base_points, distance_m, tolerance_ratio, shape_name, "translation",
-                                                 angle_hint=results["projection"]["ranked_angles"])
+    hint = None
+    if not only_start:
+        with timed(f"{label} : projection"):
+            results["projection"] = evaluate_method(graph, base_points, distance_m, tolerance_ratio, shape_name, "projection")
+        hint = results["projection"]["ranked_angles"]
+        with timed(f"{label} : translation"):
+            results["translation"] = evaluate_method(graph, base_points, distance_m, tolerance_ratio, shape_name, "translation",
+                                                     angle_hint=hint)
     with timed(f"{label} : départ inclus"):
         results["start"] = evaluate_start_method(graph, base_points, distance_m, tolerance_ratio, shape_name,
-                                                 angle_hint=results["projection"]["ranked_angles"])
+                                                 angle_hint=hint)
     routes = []
-    for method_name, method_label in METHODS:
-        for variant_name, variant_label in VARIANTS:
+    for method_name, _method_label in METHODS:
+        if method_name not in results:
+            continue
+        for variant_name, kind_name in VARIANTS:
             candidate = results[method_name][variant_name]
             routes.append({
                 "label": label,
                 "kind": kind,
-                "variant": f"{method_label} – {variant_label}",
-                "_tags": [(method_label, variant_label)],
+                "_tags": [kind_name],
                 "includes_start": method_name == "start",
                 **route_metrics(candidate["metrics"]),
                 "segments": [build_segment_from_candidate(graph, candidate, label)],
                 "_key": tuple(candidate.get("node_path") or ()),
             })
+    # La meilleure proposition en premier (note la plus basse).
+    routes.sort(key=lambda route: route["score"])
     return routes
 
 
 # Supprime les propositions en double. Le même trajet est souvent trouvé par plusieurs méthodes ou
 # variantes (ex. la meilleure translation est la position centrée : elle égale la projection). Les trajets
 # identiques (mêmes nœuds, dans le même ordre) sont fusionnés et leurs libellés regroupés.
-def merged_variant_label(tags):
-    """[(méthode, variante), ...] -> « Projection – distance la plus proche et meilleur compromis · Translation – … »"""
-    by_method = {}
-    for method, variant in tags:
-        variants = by_method.setdefault(method, [])
-        if variant not in variants:
-            variants.append(variant)
-    return " · ".join(f"{method} – {' et '.join(variants)}" for method, variants in by_method.items())
+def merged_variant_label(kinds, distance_m):
+    """Critères remplis par un trajet (éventuellement trouvé par plusieurs méthodes) -> phrase affichée."""
+    return variant_text(set(kinds), distance_m)
 
 
-def dedupe_routes(routes):
+def dedupe_routes(routes, distance_m):
     unique = []
     by_key = {}
     for route in routes:
@@ -148,16 +164,16 @@ def dedupe_routes(routes):
         route["id"] = f"route-{i}"
         tags = route.pop("_tags", None)
         if tags:
-            route["variant"] = merged_variant_label(tags)
+            route["variant"] = merged_variant_label(tags, distance_m)
     return unique
 
 
-def build_shape_routes(graph, drawing, distance_m, tolerance_ratio):
+def build_shape_routes(graph, drawing, distance_m, tolerance_ratio, through_start=False):
     # Dessin libre : la forme est celle tracée par l'utilisateur (voir custom_shape.py) ; sinon une forme prédéfinie.
     shape = "custom" if drawing.get("mode") == "custom" else drawing.get("shape", "heart")
     base_points = get_base_shape(shape, drawing.get("text", "P2I"), drawing.get("points"))
     label = SHAPE_LABELS.get(shape, shape.capitalize())
-    return method_routes(graph, base_points, distance_m, tolerance_ratio, shape, label, "shape")
+    return method_routes(graph, base_points, distance_m, tolerance_ratio, shape, label, "shape", only_start=through_start)
 
 
 # Mode texte, trois façons de dessiner un mot de n lettres pour une distance D
@@ -243,7 +259,7 @@ def build_text_routes(graph, drawing, distance_m, tolerance_ratio):
 
 # Point d'entrée principal : calcule toutes les propositions sur un RoadGraph déjà construit.
 # Il convertit la distance demandée, puis envoie la demande vers le mode forme ou le mode texte.
-def plan_from_graph(graph, distance_km, drawing, tolerance_ratio=0.10) -> Dict[str, Any]:
+def plan_from_graph(graph, distance_km, drawing, tolerance_ratio=0.10, through_start=False) -> Dict[str, Any]:
     drawing = drawing or {}
     tolerance_ratio = 0.10 if tolerance_ratio is None else float(tolerance_ratio)
     distance_m = float(distance_km) * 1000.0
@@ -251,7 +267,7 @@ def plan_from_graph(graph, distance_km, drawing, tolerance_ratio=0.10) -> Dict[s
     mode = drawing.get("mode", "shape")
 
     with timed(f"calcul complet ({mode}, {distance_km} km, {len(graph.node_ids)} nœuds)"):
-        routes = _build_routes(graph, drawing, distance_m, tolerance_ratio, mode)
+        routes = _build_routes(graph, drawing, distance_m, tolerance_ratio, mode, through_start)
     if mode == "text":
         summary = f"{len(routes)} proposition(s) pour le texte {(drawing.get('text') or 'P2I').upper()}."
     else:
@@ -264,7 +280,10 @@ def plan_from_graph(graph, distance_km, drawing, tolerance_ratio=0.10) -> Dict[s
     }
 
 
-def _build_routes(graph, drawing, distance_m, tolerance_ratio, mode):
+def _build_routes(graph, drawing, distance_m, tolerance_ratio, mode, through_start=False):
     if mode == "text":
-        return dedupe_routes(build_text_routes(graph, drawing, distance_m, tolerance_ratio))
-    return dedupe_routes(build_shape_routes(graph, drawing, distance_m, tolerance_ratio))
+        return dedupe_routes(build_text_routes(graph, drawing, distance_m, tolerance_ratio), distance_m)
+    routes = dedupe_routes(build_shape_routes(graph, drawing, distance_m, tolerance_ratio, through_start), distance_m)
+    if routes:
+        routes[0]["best"] = True   # triées par note : la première est la proposition recommandée
+    return routes
