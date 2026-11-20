@@ -214,7 +214,12 @@ def test_link_uses_the_modified_letters(edit_graph):
     edited_b = body["letters"][1]["node_path"]
     data = client.post("/api/routes/link", json=body).json()
     letter_b = [s for s in data["segments"] if s["label"] == "B"][0]["node_path"]
-    assert letter_b == edited_b or letter_b == edited_b[::-1]    # parcourue dans un sens ou dans l'autre
+    # La lettre est parcourue dans un sens ou dans l'autre, éventuellement avec un retour en arrière sur son
+    # propre tracé pour finir dans son coin bas-droit : son tracé complet reste donc d'un seul bloc dans le parcours.
+    def contains(walk, part):
+        return any(walk[i:i + len(part)] == part for i in range(len(walk) - len(part) + 1))
+
+    assert contains(letter_b, edited_b) or contains(letter_b, edited_b[::-1])
 
 
 def test_link_rejects_unknown_nodes_and_empty_input(edit_graph):
