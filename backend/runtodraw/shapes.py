@@ -67,73 +67,10 @@ def make_diamond():
     return np.array([[0.0, 0.5], [0.31, 0.0], [0.0, -0.5], [-0.31, 0.0], [0.0, 0.5]], dtype=float)
 
 
-def make_cross():
-    w = 0.17  # demi-largeur des branches
-    return np.array([
-        [-w, 0.5], [w, 0.5], [w, w], [0.5, w], [0.5, -w], [w, -w],
-        [w, -0.5], [-w, -0.5], [-w, -w], [-0.5, -w], [-0.5, w], [-w, w], [-w, 0.5],
-    ], dtype=float)
-
-
-def make_arrow():
-    # Flèche pleine pointant vers le haut : pointe, ailes, puis tige.
-    return np.array([
-        [0.0, 0.5], [0.5, 0.0], [0.17, 0.0], [0.17, -0.5], [-0.17, -0.5], [-0.17, 0.0], [-0.5, 0.0], [0.0, 0.5],
-    ], dtype=float)
-
-
-def make_house():
-    # Pentagone : un carré surmonté d'un toit à deux pentes.
-    return np.array([[-0.4, -0.4], [0.4, -0.4], [0.4, 0.1], [0.0, 0.5], [-0.4, 0.1], [-0.4, -0.4]], dtype=float)
-
-
 def make_lightning():
     # Éclair : sommet en haut à droite, un décrochement au milieu, pointe en bas à gauche.
     return np.array([
         [0.10, 0.5], [-0.30, -0.05], [-0.02, -0.05], [-0.12, -0.5], [0.32, 0.12], [0.04, 0.12], [0.10, 0.5],
-    ], dtype=float)
-
-
-def make_crescent(n=48):
-    # Croissant ouvert vers la droite : grand arc extérieur, puis arc intérieur parcouru en sens inverse.
-    big_r, small_r, offset = 0.5, 0.38, 0.22
-    x_cut = (offset ** 2 + big_r ** 2 - small_r ** 2) / (2 * offset)   # abscisse des deux pointes
-    y_cut = math.sqrt(big_r ** 2 - x_cut ** 2)
-    a_out = math.atan2(y_cut, x_cut)
-    outer_t = np.linspace(a_out, 2 * math.pi - a_out, n)
-    outer = np.column_stack([big_r * np.cos(outer_t), big_r * np.sin(outer_t)])
-    a_in = math.atan2(y_cut, x_cut - offset)
-    inner_t = np.linspace(2 * math.pi - a_in, a_in, n)
-    inner = np.column_stack([offset + small_r * np.cos(inner_t), small_r * np.sin(inner_t)])
-    pts = np.vstack([outer, inner])
-    pts[-1] = pts[0]
-    return pts
-
-
-def make_drop(n=48):
-    # Goutte : pointe en haut, deux tangentes, puis un arc de cercle en bas.
-    r, cy, tip = 0.3, -0.2, 0.5
-    d = tip - cy
-    tangent = math.acos(r / d)                       # angle (au centre) entre la pointe et les points de tangence
-    start, end = math.pi / 2 - tangent, math.pi / 2 + tangent
-    t = np.linspace(start, end - 2 * math.pi, n)     # de la tangente de droite à celle de gauche, par le bas
-    arc = np.column_stack([r * np.cos(t), cy + r * np.sin(t)])
-    return np.vstack([[0.0, tip], arc, [0.0, tip]])
-
-
-def make_eiffel():
-    # Silhouette de la tour Eiffel : pieds et arche en bas, deux plateformes, puis la flèche. Contour fermé,
-    # parcouru du pied gauche vers la droite, jusqu'au sommet, puis redescendu par la gauche.
-    return np.array([
-        [-0.30, -0.50], [-0.12, -0.50], [-0.10, -0.40], [-0.05, -0.34], [0.0, -0.32], [0.05, -0.34],
-        [0.10, -0.40], [0.12, -0.50], [0.30, -0.50],
-        [0.17, -0.15], [0.21, -0.15], [0.21, -0.11],
-        [0.10, 0.15], [0.13, 0.15], [0.13, 0.18],
-        [0.04, 0.38], [0.015, 0.50],
-        [-0.015, 0.50], [-0.04, 0.38],
-        [-0.13, 0.18], [-0.13, 0.15], [-0.10, 0.15],
-        [-0.21, -0.11], [-0.21, -0.15], [-0.17, -0.15],
-        [-0.30, -0.50],
     ], dtype=float)
 
 
@@ -149,20 +86,8 @@ def get_base_shape(shape_name, text, points=None):
         return make_triangle()
     if name == "diamond":
         return make_diamond()
-    if name == "cross":
-        return make_cross()
-    if name == "arrow":
-        return make_arrow()
-    if name == "house":
-        return make_house()
     if name == "lightning":
         return make_lightning()
-    if name == "crescent":
-        return make_crescent()
-    if name == "drop":
-        return make_drop()
-    if name == "eiffel":
-        return make_eiffel()
     if name == "square":
         return make_square()
     if name == "circle":

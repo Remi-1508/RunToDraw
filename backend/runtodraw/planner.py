@@ -63,13 +63,7 @@ SHAPE_LABELS = {
     "infinity": "Infini",
     "triangle": "Triangle",
     "diamond": "Losange",
-    "cross": "Croix",
-    "arrow": "Flèche",
-    "house": "Maison",
     "lightning": "Éclair",
-    "crescent": "Croissant",
-    "drop": "Goutte",
-    "eiffel": "Tour Eiffel",
     "custom": "Mon dessin",
 }
 

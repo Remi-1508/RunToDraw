@@ -35,7 +35,7 @@ export function parseShareParams(search) {
   const shape = params.get("shape");
   let drawing;
   if (text) drawing = { mode: "text", shape: "heart", text, points: [] };
-  else if (SHAPES.some((item) => item.id === shape)) drawing = { mode: "shape", shape, text: "P2I", points: [] };
+  else if (SHAPES.some((item) => item.id === shape)) drawing = { mode: "shape", shape, text: "", points: [] };
   else return null;
 
   return { center: [lat, lon], distanceKm: Math.round(km), drawing };

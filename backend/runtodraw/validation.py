@@ -5,7 +5,7 @@ from runtodraw.glyphs import GLYPHS
 
 SHAPES = (
     "square", "circle", "heart", "star", "infinity",
-    "triangle", "diamond", "cross", "arrow", "house", "lightning", "crescent", "drop", "eiffel",
+    "triangle", "diamond", "lightning",
 )
 MAX_TEXT_LENGTH = 10
 

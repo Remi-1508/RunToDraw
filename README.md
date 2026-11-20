@@ -15,7 +15,7 @@ Projet individuel (P2I) réalisé à l'ENSC (Bordeaux INP), conçu et développ�
 ## Ce que fait l'application
 
 - **Point de départ** : position actuelle, recherche d'adresse (France et monde) ou clic sur la carte ; l'adresse choisie est affichée.
-- **14 formes** : carré, cercle, cœur, étoile, infini, triangle, losange, croix, flèche, maison, éclair, croissant, goutte, tour Eiffel.
+- **8 formes** : cœur, étoile, infini, éclair, carré, rond, triangle, losange.
 - **Texte** : lettres majuscules A à Z et chiffres 0 à 9, dessinées uniquement par leurs traits. Trois propositions : mot entier, lettres séparées (un GPX par lettre, ou un ZIP) et lettres reliées par le plus court chemin.
 - **Dessin libre** : l'utilisateur trace une forme d'un seul trait (souris, doigt ou stylet, avec un mode plein écran sur smartphone).
 - **Plusieurs propositions** pour une distance cible : la plus proche de la distance demandée, et un meilleur compromis entre fidélité du dessin et distance, par deux méthodes comparables (projection directe et translation optimale).
