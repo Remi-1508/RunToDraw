@@ -73,13 +73,8 @@ export default function LoadingModal({
             />
           </div>
 
-          {/*
-             Quand la progression est connue, on affiche un pourcentage arrondi.
-             Sinon, on affiche simplement un indicateur générique.
-          */}
-          <div style={styles.pct}>
-            {indeterminate ? "…" : `${Math.round(progress)}%`}
-          </div>
+          {/* Pourcentage affiché seulement quand la progression est connue (barre animée sinon : rien à écrire). */}
+          {indeterminate ? null : <div style={styles.pct}>{Math.round(progress)}%</div>}
         </div>
 
         {/* Chronomètre (une nouvelle étape le remet à zéro) ; sans chronomètre, une courte explication. */}
