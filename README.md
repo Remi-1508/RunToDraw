@@ -5,8 +5,9 @@
 **Démo en ligne : [runtodraw.vercel.app](https://runtodraw.vercel.app)**
 (le serveur est sur une offre gratuite : la première requête peut prendre une minute si le serveur dormait)
 
-<!-- Ajouter ici une capture ou un GIF de démonstration, par exemple :
-![Un cœur dessiné dans les rues de Bordeaux](docs/images/demo-coeur.png) -->
+![De l'adresse de départ à un cœur de 15 km dans les rues de Bordeaux](docs/images/demo-coeur.gif)
+
+*Parcours de 15 km en forme de cœur à Bordeaux : choix du départ, de la forme, calcul, puis comparaison des propositions.*
 
 Projet individuel (P2I) réalisé à l'ENSC (Bordeaux INP), conçu et développé de bout en bout : algorithmique de graphes, API, interface cartographique, déploiement.
 
