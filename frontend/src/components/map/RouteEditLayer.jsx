@@ -79,7 +79,9 @@ function GrabLine({ segment, width, onGrab }) {
   const map = useMap();
   const lineRef = useRef(null);
   const grabRef = useRef(onGrab);
-  grabRef.current = onGrab;
+  useEffect(() => {
+    grabRef.current = onGrab;
+  });
 
   useEffect(() => {
     const element = lineRef.current?.getElement?.();

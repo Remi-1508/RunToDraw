@@ -16,7 +16,7 @@ passage et recalcule son propre itinéraire entre eux, ce qui ne respecte pas le
 ============================================================
 */
 
-import { createZip } from "./zip";
+import { createZip } from "./zip.js";
 
 function downloadTextFile(content, filename, mimeType) {
   downloadBlob(new Blob([content], { type: mimeType }), filename);
@@ -151,7 +151,7 @@ function routeDescription(route) {
  * @param route itinéraire renvoyé par le backend
  * @param segmentIndex si fourni, n'exporte que ce morceau (une lettre d'un mot en lettres séparées)
  */
-function buildRouteGPX(route, segmentIndex = null) {
+export function buildRouteGPX(route, segmentIndex = null) {
   const segment = segmentIndex === null ? null : route?.segments?.[segmentIndex];
   const rawPoints = segment ? dedupeConsecutivePoints(segmentPoints(segment)) : flattenRoutePoints(route);
   const points = simplifyRoutePoints(rawPoints, { toleranceMeters: 8, minStepMeters: 6 });

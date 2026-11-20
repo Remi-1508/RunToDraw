@@ -55,7 +55,7 @@ export default function App() {
   const isMobile = useIsMobile();
   const [panelOpen, setPanelOpen] = useState(true);
   // Sur smartphone, glisser l'en-tête du tiroir vers le bas le referme.
-  const swipe = useSheetSwipe({ enabled: isMobile && panelOpen, onClose: () => setPanelOpen(false) });
+  const swipeRef = useSheetSwipe({ enabled: isMobile && panelOpen, onClose: () => setPanelOpen(false) });
 
   const planning = useRoutePlanning({ showToast });
   // Édition manuelle du tracé sur la carte : `editor.route` est l'itinéraire choisi, avec ses modifications.
@@ -206,8 +206,7 @@ export default function App() {
       <aside
         className={`rtd-sidebar${panelOpen ? "" : " is-closed"}`}
         style={{ "--sidebar-w": `${sidebarWidth}px` }}
-        ref={swipe.ref}
-        {...swipe.handlers}
+        ref={swipeRef}
         inert={!panelOpen}
         aria-label="Paramètres de l’itinéraire"
       >

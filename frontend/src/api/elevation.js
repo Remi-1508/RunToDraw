@@ -14,10 +14,11 @@ le même tracé n'est jamais demandé deux fois, même si plusieurs composants l
 répond, la fonction renvoie `null` et l'interface n'affiche simplement pas de chiffre.
 ============================================================
 */
-import { flattenRoutePoints, haversineMeters } from "../utils/routeExport";
+import { flattenRoutePoints, haversineMeters } from "../utils/routeExport.js";
 
 const IGN_URL = "https://data.geopf.fr/altimetrie/1.0/calcul/alti/rest/elevation.json";
 const IGN_STEP_M = 40;
+const SAMPLE_STEP_M = IGN_STEP_M; // pas par défaut du ré-échantillonnage
 const IGN_MAX_SAMPLES = 450;
 const IGN_BATCH_SIZE = 150; // l'adresse de la requête contient toutes les coordonnées : on la garde courte
 const IGN_NO_DATA = -9000; // l'IGN renvoie -99999 hors de sa couverture
