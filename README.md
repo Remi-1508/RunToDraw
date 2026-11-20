@@ -15,12 +15,15 @@ Projet individuel (P2I) réalisé à l'ENSC (Bordeaux INP), conçu et développ�
 ## Ce que fait l'application
 
 - **Point de départ** : position actuelle, recherche d'adresse (France et monde) ou clic sur la carte ; l'adresse choisie est affichée.
-- **13 formes** : carré, cercle, cœur, étoile, infini, triangle, losange, croix, flèche, maison, éclair, croissant, goutte.
+- **14 formes** : carré, cercle, cœur, étoile, infini, triangle, losange, croix, flèche, maison, éclair, croissant, goutte, tour Eiffel.
 - **Texte** : lettres majuscules A à Z et chiffres 0 à 9, dessinées uniquement par leurs traits. Trois propositions : mot entier, lettres séparées (un GPX par lettre, ou un ZIP) et lettres reliées par le plus court chemin.
 - **Dessin libre** : l'utilisateur trace une forme d'un seul trait (souris, doigt ou stylet, avec un mode plein écran sur smartphone).
 - **Plusieurs propositions** pour une distance cible : la plus proche de la distance demandée, et un meilleur compromis entre fidélité du dessin et distance, par deux méthodes comparables (projection directe et translation optimale).
 - **Édition du tracé** à la manière de Strava : déplacer, ajouter ou supprimer un point, annuler et rétablir, le tracé est recalculé sur les vraies routes.
-- **Interface responsive** : panneau latéral sur ordinateur, tiroir qui se glisse vers le bas sur smartphone ; thème jour et nuit ; fond de carte neutre pour faire ressortir le tracé.
+- **Dénivelé** de chaque proposition (altitudes Open-Meteo, lissées), **lien de partage** qui recalcule le même parcours, **exemples** en un clic et écran d'accueil invité.
+- **Attente soignée** : chronomètre en direct avec durée estimée (affinée par les mesures passées), notification de fin de calcul, état des serveurs OpenStreetMap affiché avant de lancer.
+- **Application installable** sur l'écran d'accueil du téléphone (manifeste et service worker).
+- **Interface responsive** : panneau latéral sur ordinateur, tiroir qui se glisse vers le bas sur smartphone ; thème jour et nuit (suit le réglage de l'appareil) ; fond de carte neutre pour faire ressortir le tracé.
 
 ---
 
@@ -133,6 +136,7 @@ Frontend sur Vercel, backend sur Render (image Docker), déploiement automatique
 | Méthode | Route | Rôle |
 |---|---|---|
 | GET | `/health` | état du serveur et distance maximale autorisée |
+| GET | `/api/status` | état des miroirs Overpass (mis en cache 45 s) |
 | POST | `/api/graph/fetch` | charge (ou lit en cache) le réseau routier de la zone |
 | POST | `/api/routes/plan` | calcule les propositions d'itinéraires |
 | POST | `/api/routes/edit` | recalcule les tronçons voisins d'un point déplacé, ajouté ou supprimé |

@@ -138,6 +138,47 @@ export const styles = {
     overflowWrap: "anywhere",
   },
 
+  exampleTitle: {
+    fontFamily: "var(--font-display)",
+    fontStyle: "italic",
+    fontStretch: "112%",
+    fontSize: 17,
+    fontWeight: 800,
+    marginBottom: 10,
+  },
+
+  exampleList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  },
+
+  exampleButton: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: 2,
+    minHeight: "var(--control-h)",
+    padding: "8px 14px",
+    border: "2px solid var(--border-strong)",
+    borderRadius: "var(--radius-sm)",
+    background: "var(--overlay)",
+    color: "var(--text)",
+    textAlign: "left",
+    cursor: "pointer",
+  },
+
+  exampleName: {
+    fontSize: 14.5,
+    fontWeight: 800,
+  },
+
+  exampleDetail: {
+    fontSize: 12.5,
+    fontWeight: 600,
+    color: "var(--text-soft)",
+  },
+
   startBoxContent: {
     display: "flex",
     flexDirection: "column",

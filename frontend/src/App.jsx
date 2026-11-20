@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { reverseGeocode } from "./api/geocoding";
-import { DEFAULT_DISTANCE_KM, INITIAL_DRAWING, LONG_DISTANCE_CONFIRM_KM, MIN_DRAW_POINTS } from "./config";
+import { DEFAULT_DISTANCE_KM, INITIAL_DRAWING, LONG_DISTANCE_CONFIRM_KM, MIN_DRAW_POINTS, STORAGE_KEYS } from "./config";
 import LoadingModal from "./components/feedback/LoadingModal";
 import Toast from "./components/feedback/Toast";
 import MapView from "./components/map/MapView";
 import Sidebar from "./components/sidebar/Sidebar";
+import WelcomeScreen from "./components/welcome/WelcomeScreen";
 import { useMapBackground } from "./hooks/useMapBackground";
 import { useGeolocation } from "./hooks/useGeolocation";
 import { useIsMobile } from "./hooks/useIsMobile";
+import { useOverpassStatus } from "./hooks/useOverpassStatus";
 import { useSheetSwipe } from "./hooks/useSheetSwipe";
 import { useRouteEditor } from "./hooks/useRouteEditor";
 import { useRouteExport } from "./hooks/useRouteExport";
@@ -17,6 +19,8 @@ import { useSidebarResize } from "./hooks/useSidebarResize";
 import { useTheme } from "./hooks/useTheme";
 import { useToast } from "./hooks/useToast";
 import { requestNotificationPermissionOnce } from "./utils/notify";
+import { buildShareUrl, parseShareParams } from "./utils/shareLink";
+import { readStorage, writeStorage } from "./utils/storage";
 
 // Composant racine : il assemble les hooks (thème, largeur de la barre, génération, export…)
 // et répartit l'écran en deux zones, les contrôles à gauche et la carte à droite.
@@ -26,11 +30,21 @@ export default function App() {
   const { sidebarWidth, startResize } = useSidebarResize();
   const { toast, showToast, hideToast } = useToast();
   const { maxDistanceKm } = useServerLimits();
+  const serviceStatus = useOverpassStatus();
+
+  // Lien de partage ouvert : on reprend ses réglages et on lance la génération (voir plus bas).
+  const [sharedParams] = useState(() => parseShareParams(window.location.search));
+  // Écran d'accueil : seulement à la première visite, et jamais si on arrive par un lien de partage.
+  const [welcomeOpen, setWelcomeOpen] = useState(() => !sharedParams && !readStorage(STORAGE_KEYS.welcomeSeen));
+  const closeWelcome = useCallback(() => {
+    writeStorage(STORAGE_KEYS.welcomeSeen, "1");
+    setWelcomeOpen(false);
+  }, []);
 
   // Choix de l'utilisateur : point de départ, distance, dessin (forme ou texte).
-  const [center, setCenter] = useState(null);
-  const [requestedDistanceKm, setDistanceKm] = useState(DEFAULT_DISTANCE_KM);
-  const [drawing, setDrawing] = useState(INITIAL_DRAWING);
+  const [center, setCenter] = useState(sharedParams?.center ?? null);
+  const [requestedDistanceKm, setDistanceKm] = useState(sharedParams?.distanceKm ?? DEFAULT_DISTANCE_KM);
+  const [drawing, setDrawing] = useState(sharedParams?.drawing ?? INITIAL_DRAWING);
   // Mode « Choisir un point sur la carte » : le prochain clic sur la carte fixe le départ.
   const [pickingOnMap, setPickingOnMap] = useState(false);
   // Barre latérale ouverte ou repliée. Sur smartphone elle recouvre la carte (tiroir) : on la replie
@@ -61,7 +75,7 @@ export default function App() {
   // Changer de point de départ efface les résultats précédents.
   // `startLabel` : adresse affichée du départ ("" = aucun départ, null = adresse en cours de recherche).
   const resetPlanning = planning.reset;
-  const [startLabel, setStartLabel] = useState("");
+  const [startLabel, setStartLabel] = useState(sharedParams ? null : "");
   const reverseRef = useRef(null);
   const chooseCenter = useCallback(
     (latlng, label) => {
@@ -118,6 +132,17 @@ export default function App() {
   // Si le serveur annonce un maximum inférieur à la distance choisie, on la ramène à ce maximum.
   const distanceKm = Math.min(requestedDistanceKm, maxDistanceKm);
 
+  // Lance la génération avec des réglages explicites (formulaire, exemple ou lien de partage).
+  const generate = planning.generate;
+  const startGeneration = useCallback(
+    ({ center: [lat, lon], distanceKm: km, drawing: nextDrawing }) => {
+      // Geste de la personne : le bon moment pour proposer les notifications de fin de génération.
+      requestNotificationPermissionOnce();
+      generate({ lat, lon, distanceKm: km, drawing: nextDrawing });
+    },
+    [generate]
+  );
+
   function handleGenerate() {
     if (!center) return;
 
@@ -131,10 +156,49 @@ export default function App() {
       return;
     }
 
-    // Geste de la personne : le bon moment pour proposer les notifications de fin de génération.
-    requestNotificationPermissionOnce();
-    const [lat, lon] = center;
-    planning.generate({ lat, lon, distanceKm, drawing });
+    startGeneration({ center, distanceKm, drawing });
+  }
+
+  // Exemple en un clic : remplit les réglages puis lance la génération.
+  function runExample(example) {
+    closeWelcome();
+    setDistanceKm(example.distanceKm);
+    setDrawing(example.drawing);
+    chooseCenter(example.center, example.label);
+    startGeneration({ center: example.center, distanceKm: example.distanceKm, drawing: example.drawing });
+  }
+
+  // Lien de partage : une seule fois au chargement, on cherche l'adresse du départ puis on génère.
+  const sharedStarted = useRef(false);
+  useEffect(() => {
+    if (!sharedParams || sharedStarted.current) return;
+    sharedStarted.current = true;
+    chooseCenter(sharedParams.center);
+    startGeneration(sharedParams);
+  }, [sharedParams, chooseCenter, startGeneration]);
+
+  // Copie (ou partage, sur téléphone) le lien qui recalcule ce parcours.
+  async function handleShare() {
+    const context = planning.planContext;
+    const url = buildShareUrl({
+      center: context ? [context.lat, context.lon] : center,
+      distanceKm: context?.distanceKm ?? distanceKm,
+      drawing: context?.drawing ?? drawing,
+    });
+    if (!url) {
+      showToast("Un dessin libre est trop long pour tenir dans un lien : exporte plutôt le fichier GPX.", "info");
+      return;
+    }
+    try {
+      if (navigator.share && isMobile) {
+        await navigator.share({ title: "RunToDraw", text: "Un parcours à dessiner en courant", url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      showToast("Lien copié : il recalcule le même parcours.", "success");
+    } catch (error) {
+      if (error?.name !== "AbortError") showToast("Impossible de copier le lien.", "error");
+    }
   }
 
   // Après une extraction, on affiche le rayon réellement téléchargé (calculé par le backend selon la
@@ -157,6 +221,8 @@ export default function App() {
 
   return (
     <div className="rtd-page">
+      {welcomeOpen ? <WelcomeScreen theme={theme} onGuest={closeWelcome} onExample={runExample} /> : null}
+
       {/* Fenêtre d'attente : génération en cours ou recherche de la position. */}
       <LoadingModal
         open={waiting}
@@ -199,6 +265,10 @@ export default function App() {
           onSelectRoute={planning.setSelectedRouteId}
           onExportRoute={exportRoute}
           onClearRoute={planning.reset}
+          onShareRoute={handleShare}
+          onRunExample={runExample}
+          serviceStatus={serviceStatus}
+          busy={Boolean(planning.busy)}
         />
       </aside>
 

@@ -13,6 +13,7 @@ from runtodraw.graph_cache import NoRoadsFoundError, cache_key, extraction_radiu
 from runtodraw.planner import plan_from_graph, route_points_xy_to_latlon
 from runtodraw.route_editing import EditError, edit_route, path_length_m
 from runtodraw.text_routes import link_letter_routes
+from runtodraw.status import overpass_status
 from runtodraw.protection import ComputeSlots, RateLimiter, RateLimitExceeded, ServerBusy, client_ip
 from runtodraw.custom_shape import MAX_RAW_POINTS, prepare_custom_shape
 from runtodraw.validation import SHAPES, normalize_text
@@ -175,6 +176,13 @@ def _server_busy(_request: Request, _exc: ServerBusy):
 @app.get("/health")
 def health():
     return {"ok": True, "max_distance_km": settings.max_distance_km}
+
+
+# État des serveurs OpenStreetMap (Overpass) : l'interface s'en sert pour prévenir quand une génération risque
+# d'être lente ou d'échouer. Résultat mis en cache quelques secondes (voir status.py).
+@app.get("/api/status")
+def status():
+    return {"overpass": overpass_status()}
 
 
 # Prépare le graphe routier autour du point choisi et le garde dans le cache du serveur.

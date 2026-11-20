@@ -1,8 +1,9 @@
+import ServiceStatus from "./ServiceStatus";
 import StepHeader from "./StepHeader";
 import { styles } from "./styles";
 
 // Étape 4 : lancement de la génération des itinéraires.
-export default function GenerateStep({ canGenerate, onGenerateRoutes }) {
+export default function GenerateStep({ canGenerate, onGenerateRoutes, serviceStatus }) {
   return (
     <section style={styles.card}>
       <StepHeader step={4} title="Lancer le calcul" />
@@ -25,6 +26,8 @@ export default function GenerateStep({ canGenerate, onGenerateRoutes }) {
           (souvent une à deux minutes). Il reste ensuite en mémoire : une nouvelle génération
           au même endroit avec la même distance est quasi immédiate.
         </div>
+
+        <ServiceStatus status={serviceStatus} />
       </div>
     </section>
   );
