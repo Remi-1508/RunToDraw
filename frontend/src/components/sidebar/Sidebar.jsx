@@ -3,7 +3,7 @@ import logoRunToDrawNight from "../../assets/logo_runtodraw_night.png";
 import RouteResultsPanel from "../results/RouteResultsPanel";
 import DistanceStep from "./DistanceStep";
 import DrawingStep from "./DrawingStep";
-import ExamplesStep from "./ExamplesStep";
+import ExamplesMenu from "./ExamplesMenu";
 import GenerateStep from "./GenerateStep";
 import LocationStep from "./LocationStep";
 import { styles } from "./styles";
@@ -46,6 +46,7 @@ export default function Sidebar({
       {/* Logo collant : l'identité du projet reste visible quand la barre défile. */}
       <div className="rtd-sheet-handle" style={styles.logoStickyWrap}>
         <div className="rtd-sheet-grip" aria-hidden="true" />
+        <ExamplesMenu onRunExample={onRunExample} disabled={busy} />
         <div style={styles.logoZone}>
           <img src={currentLogo} alt="RunToDraw" style={styles.logoImage} />
         </div>
@@ -56,8 +57,6 @@ export default function Sidebar({
           </svg>
         </button>
       </div>
-
-      <ExamplesStep onRunExample={onRunExample} disabled={busy} />
 
       <LocationStep
         center={center}

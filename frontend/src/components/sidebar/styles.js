@@ -138,19 +138,21 @@ export const styles = {
     overflowWrap: "anywhere",
   },
 
-  exampleTitle: {
-    fontFamily: "var(--font-display)",
-    fontStyle: "italic",
-    fontStretch: "112%",
-    fontSize: 17,
-    fontWeight: 800,
-    marginBottom: 10,
-  },
-
-  exampleList: {
+  // Liste des exemples sous l'en-tête (ouverte par le bouton « i »).
+  examplesPopover: {
+    position: "absolute",
+    top: 50,
+    left: 0,
+    right: 0,
+    zIndex: 30,
     display: "flex",
     flexDirection: "column",
     gap: 8,
+    padding: 10,
+    border: "1px solid var(--border)",
+    borderRadius: "var(--radius)",
+    background: "var(--bg-elevated)",
+    boxShadow: "var(--shadow-strong)",
   },
 
   exampleButton: {

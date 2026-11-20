@@ -29,8 +29,8 @@ function StepTimer({ startedAt, estimateSeconds }) {
       <span style={styles.timerText}>
         {estimateSeconds
           ? late
-            ? "Plus long que prévu : les serveurs OpenStreetMap sont parfois lents, ça avance."
-            : `Durée estimée de cette étape : environ ${formatDuration(estimateSeconds)}`
+            ? "Plus long que prévu…"
+            : `Estimé : environ ${formatDuration(estimateSeconds)}`
           : null}
       </span>
     </div>
@@ -81,13 +81,12 @@ export default function LoadingModal({
           </div>
         </div>
 
-        {/* Explication complémentaire affichée sous la barre de progression. */}
-        <div style={styles.small}>{description}</div>
-
-        {/* Chronomètre : une nouvelle étape (startedAt différent) le remet à zéro. */}
-        {startedAt ? <StepTimer key={startedAt} startedAt={startedAt} estimateSeconds={estimateSeconds} /> : null}
-
-        <div style={styles.leaveHint}>Tu peux changer d’onglet : on te prévient quand c’est prêt.</div>
+        {/* Chronomètre (une nouvelle étape le remet à zéro) ; sans chronomètre, une courte explication. */}
+        {startedAt ? (
+          <StepTimer key={startedAt} startedAt={startedAt} estimateSeconds={estimateSeconds} />
+        ) : (
+          <div style={styles.small}>{description}</div>
+        )}
 
         {/* Bouton facultatif pour interrompre l'opération en cours. */}
         {onCancel ? (
@@ -220,11 +219,6 @@ const styles = {
     lineHeight: 1.4,
   },
 
-  leaveHint: {
-    marginTop: 12,
-    fontSize: 12.5,
-    color: "var(--text-soft)",
-  },
 
   small: {
     marginTop: 12,
