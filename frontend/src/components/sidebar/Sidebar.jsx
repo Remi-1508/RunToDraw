@@ -35,7 +35,6 @@ export default function Sidebar({
   onSelectRoute,
   onExportRoute,
   onClearRoute,
-  onShareRoute,
   serviceStatus,
 }) {
   const currentLogo = theme === "dark" ? logoRunToDrawNight : logoRunToDrawDay;
@@ -83,7 +82,6 @@ export default function Sidebar({
         onSelectRoute={onSelectRoute}
         onExportRoute={onExportRoute}
         onClearRoute={onClearRoute}
-        onShareRoute={onShareRoute}
       />
     </div>
   );

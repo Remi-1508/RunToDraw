@@ -46,6 +46,7 @@ export default function LoadingModal({
   indeterminate = false,
   startedAt,
   estimateSeconds,
+  note,
   onCancel,
 }) {
   // Si la modal n’est pas ouverte, rien n’est affiché.
@@ -87,6 +88,9 @@ export default function LoadingModal({
         ) : (
           <div style={styles.small}>{description}</div>
         )}
+
+        {/* Information passagère (par exemple « nouvel essai en cours »). */}
+        {note ? <div style={styles.note}>{note}</div> : null}
 
         {/* Bouton facultatif pour interrompre l'opération en cours. */}
         {onCancel ? (
@@ -219,6 +223,13 @@ const styles = {
     lineHeight: 1.4,
   },
 
+
+  note: {
+    marginTop: 10,
+    fontSize: 13,
+    color: "var(--text-soft)",
+    lineHeight: 1.4,
+  },
 
   small: {
     marginTop: 12,

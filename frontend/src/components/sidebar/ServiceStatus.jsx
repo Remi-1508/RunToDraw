@@ -1,38 +1,26 @@
-// Pastille d'état des serveurs OpenStreetMap : explique à l'avance pourquoi une génération peut être lente
-// ou échouer, au lieu de laisser la personne attendre sans comprendre.
+// Message discret quand les serveurs de cartes (OpenStreetMap) sont chargés. Rien n'est affiché quand tout va bien,
+// et le ton reste rassurant : on prévient d'une attente possible, pas d'un risque d'échec (la génération réessaie
+// toute seule, voir useRoutePlanning).
 const TEXTS = {
-  ok: { color: "var(--success-strong)", text: "Serveurs OpenStreetMap : disponibles." },
-  slow: { color: "#c77700", text: "Serveurs OpenStreetMap : lents en ce moment, la génération peut durer plus longtemps." },
-  down: { color: "#c0341d", text: "Serveurs OpenStreetMap : injoignables pour l’instant. Réessaie dans quelques minutes." },
+  slow: "Les serveurs de cartes sont un peu chargés : ça peut prendre un peu plus de temps que d’habitude.",
+  down: "Les serveurs de cartes sont très sollicités : on réessaie automatiquement pour toi, tu n’as rien à faire.",
 };
 
 export default function ServiceStatus({ status }) {
-  const info = status ? TEXTS[status.state] : null;
-  if (!info) return null;
+  const text = status ? TEXTS[status.state] : null;
+  if (!text) return null;
   return (
     <div style={styles.row} role="status">
-      <span style={{ ...styles.dot, background: info.color }} aria-hidden="true" />
-      <span>{info.text}</span>
+      {text}
     </div>
   );
 }
 
 const styles = {
   row: {
-    display: "flex",
-    alignItems: "flex-start",
-    gap: 8,
-    marginTop: 12,
     fontSize: 12.5,
-    fontWeight: 600,
     color: "var(--text-soft)",
-    lineHeight: 1.4,
-  },
-  dot: {
-    flexShrink: 0,
-    width: 9,
-    height: 9,
-    marginTop: 4,
-    borderRadius: "50%",
+    lineHeight: 1.45,
+    textAlign: "center",
   },
 };
